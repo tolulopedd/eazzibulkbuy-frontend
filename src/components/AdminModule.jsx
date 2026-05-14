@@ -8,14 +8,12 @@ import {
   fetchAdminSalesItems,
   fetchAdminCustomers,
   fetchAdminOrders,
-  fetchAdminUsers,
-  createAdminUser,
-  inviteAdminUser,
   updateSalesItem,
   deleteSalesItem,
   confirmAdminInteracPayment,
   fetchAdminPaymentProofViewUrl,
   resendAdminPaymentConfirmation,
+  updateAdminFulfillmentStatus,
 } from '../api/admin';
 import AdminLogin from './AdminLogin';
 import AdminDashboard from './AdminDashboard';
@@ -86,10 +84,6 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
     return fetchAdminSalesItems(query);
   }
 
-  async function handleLoadUsers(query = {}) {
-    return fetchAdminUsers(query);
-  }
-
   async function handleLoadCustomers(query = {}) {
     return fetchAdminCustomers(query);
   }
@@ -128,22 +122,12 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
     }
   }
 
-  async function handleCreateUser(payload) {
+  async function handleUpdateFulfillmentStatus(orderReference, fulfillmentStatus) {
     setError('');
     try {
-      await createAdminUser(payload);
+      return await updateAdminFulfillmentStatus(orderReference, fulfillmentStatus);
     } catch (err) {
-      setError(err.message || 'Unable to create user account. Please try again.');
-      throw err;
-    }
-  }
-
-  async function handleInviteUser(payload) {
-    setError('');
-    try {
-      return await inviteAdminUser(payload);
-    } catch (err) {
-      setError(err.message || 'Unable to create user invite. Please try again.');
+      setError(err.message || 'Unable to update pickup or delivery status. Please try again.');
       throw err;
     }
   }
@@ -207,14 +191,12 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
         onLoadSalesItems={handleLoadSalesItems}
         onUpdateSalesItem={handleUpdateSalesItem}
         onDeleteSalesItem={handleDeleteSalesItem}
-        onLoadUsers={handleLoadUsers}
         onLoadCustomers={handleLoadCustomers}
         onLoadOrders={handleLoadOrders}
         onConfirmInteracPayment={handleConfirmInteracPayment}
         onLoadPaymentProofViewUrl={handleLoadPaymentProofViewUrl}
         onResendPaymentConfirmation={handleResendPaymentConfirmation}
-        onCreateUser={handleCreateUser}
-        onInviteUser={handleInviteUser}
+        onUpdateFulfillmentStatus={handleUpdateFulfillmentStatus}
         onLogout={handleLogout}
       />
     </>

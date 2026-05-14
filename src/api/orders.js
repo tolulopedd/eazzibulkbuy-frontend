@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5050';
+import { buildApiUrl } from './config';
 
 async function request(url, options) {
   const response = await fetch(url, options);
@@ -10,7 +10,7 @@ async function request(url, options) {
 }
 
 export function createOrder(payload) {
-  return request(`${API_BASE_URL}/api/orders`, {
+  return request(buildApiUrl('/api/orders'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -18,13 +18,13 @@ export function createOrder(payload) {
 }
 
 export function createPaymentIntent(orderReference) {
-  return request(`${API_BASE_URL}/api/orders/${orderReference}/payment-intent`, {
+  return request(buildApiUrl(`/api/orders/${orderReference}/payment-intent`), {
     method: 'POST',
   });
 }
 
 export function setOrderPaymentMethod(orderReference, paymentMethod) {
-  return request(`${API_BASE_URL}/api/orders/${orderReference}/payment-method`, {
+  return request(buildApiUrl(`/api/orders/${orderReference}/payment-method`), {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ paymentMethod }),
@@ -32,7 +32,7 @@ export function setOrderPaymentMethod(orderReference, paymentMethod) {
 }
 
 export function createManualTransferUploadUrl(orderReference, payload) {
-  return request(`${API_BASE_URL}/api/orders/${orderReference}/manual-transfer-upload-url`, {
+  return request(buildApiUrl(`/api/orders/${orderReference}/manual-transfer-upload-url`), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -40,7 +40,7 @@ export function createManualTransferUploadUrl(orderReference, payload) {
 }
 
 export function confirmManualTransfer(orderReference, payload) {
-  return request(`${API_BASE_URL}/api/orders/${orderReference}/manual-transfer-confirmation`, {
+  return request(buildApiUrl(`/api/orders/${orderReference}/manual-transfer-confirmation`), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -48,7 +48,7 @@ export function confirmManualTransfer(orderReference, payload) {
 }
 
 export function confirmCardPayment(orderReference, payload) {
-  return request(`${API_BASE_URL}/api/orders/${orderReference}/card-payment-confirmation`, {
+  return request(buildApiUrl(`/api/orders/${orderReference}/card-payment-confirmation`), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),

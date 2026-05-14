@@ -1,16 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
-import SuperadminUsersPanel from './SuperadminUsersPanel';
 import AdminOverviewPanel from './AdminOverviewPanel';
 import AdminSalesPanel from './AdminSalesPanel';
 import AdminReportsPanel from './AdminReportsPanel';
 import AdminPaymentsPanel from './AdminPaymentsPanel';
 import AdminCustomersPanel from './AdminCustomersPanel';
 import AdminOrdersPanel from './AdminOrdersPanel';
+import AdminFulfillmentPanel from './AdminFulfillmentPanel';
 import BrandLogo from './BrandLogo';
 import { ui } from '../ui/classes';
 
 const DEFAULT_SALES_QUERY = {
   q: '',
+  batchNumber: '',
   status: '',
   sortBy: 'createdAt',
   sortOrder: 'desc',
@@ -69,8 +70,8 @@ function moduleBadge(moduleId) {
     reports: 'RP',
     customers: 'BY',
     orders: 'OR',
+    fulfillment: 'FL',
     logistics: 'LG',
-    users: 'US',
   };
   return map[moduleId] || 'MD';
 }
@@ -84,14 +85,12 @@ export default function AdminDashboard({
   onLoadSalesItems,
   onUpdateSalesItem,
   onDeleteSalesItem,
-  onLoadUsers,
   onLoadCustomers,
   onLoadOrders,
   onConfirmInteracPayment,
   onLoadPaymentProofViewUrl,
   onResendPaymentConfirmation,
-  onCreateUser,
-  onInviteUser,
+  onUpdateFulfillmentStatus,
   onLogout,
 }) {
   const [reports, setReports] = useState(null);
@@ -120,6 +119,7 @@ export default function AdminDashboard({
   const [editingId, setEditingId] = useState('');
   const [editForm, setEditForm] = useState({
     name: '',
+    batchNumber: '',
     pricePerUnit: '',
     closingDate: '',
     status: 'ACTIVE',
@@ -133,6 +133,7 @@ export default function AdminDashboard({
 
   const [form, setForm] = useState({
     name: '',
+    batchNumber: '',
     pricePerUnit: '',
     closingDate: '',
     status: 'ACTIVE',
@@ -151,6 +152,7 @@ export default function AdminDashboard({
       base.push({ id: 'overview', label: 'Overview' });
       base.push({ id: 'sales', label: 'Bulk Sales' });
       base.push({ id: 'payments', label: 'Payments' });
+      base.push({ id: 'fulfillment', label: 'Fulfilment' });
       base.push({ id: 'reports', label: 'Reports' });
       base.push({ id: 'customers', label: 'Buyers' });
       base.push({ id: 'orders', label: 'Orders' });
@@ -158,14 +160,10 @@ export default function AdminDashboard({
       base.push({ id: 'logistics', label: 'Logistics' });
     }
 
-    if (isSuperAdmin) {
-      base.push({ id: 'users', label: 'Users' });
-    }
-
     return base;
-  }, [canManageSales, isSuperAdmin]);
+  }, [canManageSales]);
 
-  const [activeModule, setActiveModule] = useState(() => (canManageSales ? 'overview' : isSuperAdmin ? 'users' : 'logistics'));
+  const [activeModule, setActiveModule] = useState(() => (canManageSales ? 'overview' : 'logistics'));
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
@@ -182,11 +180,11 @@ export default function AdminDashboard({
     setSidebarOpen(false);
   }, [activeModule]);
 
-  async function loadReports() {
+  async function loadReports(query = {}) {
     setLoadingReports(true);
     setReportError('');
     try {
-      setReports(await onLoadReports());
+      setReports(await onLoadReports(query));
     } catch (error) {
       setReportError(error.message || 'Unable to load reports. Please try again.');
     } finally {
@@ -267,6 +265,7 @@ export default function AdminDashboard({
     try {
       await onCreateSalesItem({
         name: form.name,
+        batchNumber: form.batchNumber,
         pricePerUnit: parseDollarInputToCents(form.pricePerUnit),
         closingDate: new Date(form.closingDate).toISOString(),
         status: form.status,
@@ -281,6 +280,7 @@ export default function AdminDashboard({
       setCreateStatus('Sales item created.');
       setForm({
         name: '',
+        batchNumber: '',
         pricePerUnit: '',
         closingDate: '',
         status: 'ACTIVE',
@@ -305,6 +305,7 @@ export default function AdminDashboard({
       setActionStatus('');
       setEditForm({
         name: item.name,
+        batchNumber: item.batchNumber || '',
         pricePerUnit: formatCentsToDollarInput(item.pricePerUnit),
         closingDate: toDateTimeLocal(item.closingDate),
         status: item.status,
@@ -318,6 +319,7 @@ export default function AdminDashboard({
     setActionStatus('');
     setEditForm({
       name: item.name,
+      batchNumber: item.batchNumber || '',
       pricePerUnit: formatCentsToDollarInput(item.pricePerUnit),
       closingDate: toDateTimeLocal(item.closingDate),
       status: item.status,
@@ -346,6 +348,7 @@ export default function AdminDashboard({
     try {
       await onUpdateSalesItem(editingId, {
         name: editForm.name,
+        batchNumber: editForm.batchNumber,
         pricePerUnit: parseDollarInputToCents(editForm.pricePerUnit),
         closingDate: new Date(editForm.closingDate).toISOString(),
         status: editForm.status,
@@ -431,22 +434,6 @@ export default function AdminDashboard({
     );
   }
 
-  function renderUsersModule() {
-    if (!isSuperAdmin) {
-      return null;
-    }
-
-    return (
-      <section className="space-y-5">
-        <SuperadminUsersPanel
-          onLoadUsers={onLoadUsers}
-          onCreateUser={onCreateUser}
-          onInviteUser={onInviteUser}
-        />
-      </section>
-    );
-  }
-
   function renderActiveModule() {
     if (activeModule === 'sales') {
       return (
@@ -460,10 +447,6 @@ export default function AdminDashboard({
           onSalesQueryChange={(field, value) => setSalesQuery((prev) => ({ ...prev, [field]: value }))}
           loadingSalesItems={loadingSalesItems}
           onApplyFilters={applySalesFilters}
-          onClearFilters={clearSalesFilters}
-          onRefreshSalesItems={() => loadSalesItems(salesQuery)}
-          listStart={listStart}
-          listEnd={listEnd}
           salesMeta={salesMeta}
           salesItemError={salesItemError}
           actionStatus={actionStatus}
@@ -507,8 +490,14 @@ export default function AdminDashboard({
       );
     }
 
-    if (activeModule === 'users') {
-      return renderUsersModule();
+    if (activeModule === 'fulfillment') {
+      return (
+        <AdminFulfillmentPanel
+          onLoadOrders={onLoadOrders}
+          onUpdateFulfillmentStatus={onUpdateFulfillmentStatus}
+          onRefreshReports={loadReports}
+        />
+      );
     }
 
     if (activeModule === 'customers') {
@@ -649,9 +638,6 @@ export default function AdminDashboard({
                   </svg>
                 </button>
               </div>
-              <button type="button" className="hidden md:inline-flex md:min-h-10 md:rounded-xl md:border md:border-emerald-700 md:px-3.5 md:text-sm md:font-semibold md:text-emerald-700 md:transition md:hover:bg-emerald-50" onClick={onLogout}>
-                Sign out
-              </button>
             </header>
 
             <main className="flex-1 overflow-y-auto px-3 py-4 sm:px-5 sm:py-5">

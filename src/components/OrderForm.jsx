@@ -21,7 +21,7 @@ const PAYMENT_OPTIONS = [
   {
     value: 'INTERAC_E_TRANSFER',
     label: 'Interac e-Transfer',
-    note: 'Send payment by Interac e-Transfer and receive confirmation within 12 hours.',
+    note: 'Send payment by Interac e-Transfer and receive confirmation within 6 hours.',
   },
   {
     value: 'STRIPE_CARD',
@@ -160,7 +160,7 @@ function PaymentSuccessPage({
   itemName,
   totalAmount,
   buyer,
-  orderCreatedEmailSent = false,
+  emailSent = false,
   demoMode = false,
   variant = 'payment',
 }) {
@@ -172,7 +172,7 @@ function PaymentSuccessPage({
       </h1>
       <p className="leading-6 text-slate-700">
         {isManualReview
-          ? 'Your Interac transfer proof has been received and your order is now awaiting payment review.'
+          ? 'Your Interac transfer receipt has been received and your order is now awaiting payment confirmation.'
           : demoMode
           ? 'Demo mode: this is a simulated Stripe confirmation and no card was charged.'
           : 'Your order has been received and your payment was processed.'}
@@ -186,15 +186,15 @@ function PaymentSuccessPage({
       <p className="leading-6 text-slate-700">
         Total paid: <span className="font-semibold text-slate-900">CAD {(totalAmount / 100).toFixed(2)}</span>
       </p>
-      {orderCreatedEmailSent ? (
+      {emailSent ? (
         <p className="leading-6 text-emerald-800">
-          {isManualReview ? 'An order acknowledgement email has been sent to the buyer email.' : 'Order notification email sent successfully.'}
+          {isManualReview ? 'A confirmation email will be sent once your payment is confirmed.' : 'Your order confirmation email has been sent successfully.'}
         </p>
       ) : null}
       <p className="leading-6 text-slate-700">
         {isManualReview
           ? 'Our team will review the transfer and update the order once payment is confirmed.'
-          : 'We are finalizing confirmation and will send your receipt by email.'}
+          : 'We would provide further details once your order is ready for pick-up/delivery.'}
       </p>
     </section>
   );
@@ -646,11 +646,7 @@ export default function OrderForm({
       setManualOrder(null);
       setManualTransferDeadlineMs(null);
       setCurrentTimeMs(Date.now());
-      setStatus(
-        created.orderCreatedEmailSent
-          ? 'Order created and email notification sent. Choose your payment method below.'
-          : 'Order created. Choose your payment method below.',
-      );
+      setStatus('Order created. Choose your payment method below.');
       setPaymentModalOpen(true);
     } catch (err) {
       setPaymentError(err.message || 'Unable to create your order. Please try again.');
@@ -694,7 +690,7 @@ export default function OrderForm({
           itemName: cartItemSummary,
           totalAmount: createdOrder.totalAmount,
           buyer: { firstName, lastName },
-          orderCreatedEmailSent: Boolean(confirmedPayment.emailSent),
+          emailSent: Boolean(confirmedPayment.emailSent),
           demoMode: true,
         });
         clearCartItems();
@@ -745,7 +741,7 @@ export default function OrderForm({
         itemName: cartItemSummary,
         totalAmount: createdOrder.totalAmount,
         buyer: { firstName, lastName },
-        orderCreatedEmailSent: Boolean(confirmedPayment.emailSent),
+        emailSent: Boolean(confirmedPayment.emailSent),
       });
       clearCartItems();
       setCartItems([]);
@@ -781,9 +777,6 @@ export default function OrderForm({
       });
       const uploadResponse = await fetch(uploadTarget.uploadUrl, {
         method: 'PUT',
-        headers: {
-          'Content-Type': manualTransferProofFile.type,
-        },
         body: manualTransferProofFile,
       });
 
@@ -807,7 +800,7 @@ export default function OrderForm({
         itemName: cartItemSummary,
         totalAmount: manualOrder.totalAmount,
         buyer: { firstName, lastName },
-        orderCreatedEmailSent: result.emailSent,
+        emailSent: result.emailSent,
         variant: 'manual-review',
       });
       setPaymentModalOpen(false);
@@ -907,7 +900,7 @@ export default function OrderForm({
           itemName={successfulOrder.itemName}
           totalAmount={successfulOrder.totalAmount}
           buyer={successfulOrder.buyer}
-          orderCreatedEmailSent={successfulOrder.orderCreatedEmailSent}
+          emailSent={successfulOrder.emailSent}
           demoMode={successfulOrder.demoMode}
           variant={successfulOrder.variant}
         />

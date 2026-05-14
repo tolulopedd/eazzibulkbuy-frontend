@@ -167,11 +167,11 @@ export default function LandingPage({ onGoShop, onGoAdmin }) {
       </header>
 
       <section id="active-products" className={`${ui.card} space-y-3`}>
-        <h2 className="text-2xl font-bold tracking-tight text-emerald-950">Active products</h2>
+        <h2 className="text-2xl font-bold tracking-tight text-emerald-950">Active Bulk Sales</h2>
         <p className="mb-2 text-sm leading-6 text-slate-600">Start your order directly from any live sales item below.</p>
         <div className="inline-flex flex-wrap items-center gap-2 rounded-2xl border border-emerald-100 bg-emerald-50/70 px-3 py-2 text-sm font-medium text-emerald-900">
           <span className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.08em] text-emerald-700">Payment options</span>
-          <span>Pay with credit card or Interac e-Transfer.</span>
+          <span>Pay with credit card, debit card  or Interac e-Transfer.</span>
         </div>
         {loading ? <p className={ui.note}>Loading active products...</p> : null}
         {error ? <p className={ui.error}>{error}</p> : null}

@@ -5,27 +5,43 @@ const DEFAULT_FILTERS = {
   startDate: '',
   endDate: '',
   salesItemId: '',
+  batchNumber: '',
   reportType: 'all',
 };
 
-function toIsoBoundary(value, endOfDay = false) {
-  if (!value) {
-    return '';
-  }
+const REPORT_OPTIONS = [
+  { value: 'all', label: 'All reports overview' },
+  { value: 'batchOrders', label: 'Orders per batch number' },
+  { value: 'payments', label: 'Payments and statuses' },
+  { value: 'deliveryOrders', label: 'Orders with delivery option' },
+  { value: 'pickupOrders', label: 'Orders with pickup option' },
+  { value: 'customerOrders', label: 'Orders with customer details' },
+  { value: 'sales', label: 'Sales report' },
+  { value: 'pendingPickup', label: 'Orders pending pickup' },
+];
 
+function toIsoBoundary(value, endOfDay = false) {
+  if (!value) return '';
   const suffix = endOfDay ? 'T23:59:59.999' : 'T00:00:00.000';
   return new Date(`${value}${suffix}`).toISOString();
 }
 
 function formatCad(cents) {
-  return `CAD ${(cents / 100).toFixed(2)}`;
+  return `CAD ${((cents || 0) / 100).toFixed(2)}`;
 }
 
-function formatStatusLabel(value) {
-  if (!value) {
-    return 'Unknown';
-  }
+function formatDate(value) {
+  if (!value) return '—';
+  return new Date(value).toLocaleDateString();
+}
 
+function formatDateTime(value) {
+  if (!value) return '—';
+  return new Date(value).toLocaleString();
+}
+
+function formatLabel(value) {
+  if (!value) return 'Unknown';
   return value
     .toLowerCase()
     .split('_')
@@ -33,32 +49,43 @@ function formatStatusLabel(value) {
     .join(' ');
 }
 
-const REPORT_CONTENT = {
-  all: {
-    title: 'All reports overview',
-    description: 'See a high-level snapshot across performance, payments, bookings, delivery, and logistics.',
-  },
-  sales: {
-    title: 'Sales report',
-    description: 'Review bulk sale performance, confirmed orders, and revenue by item.',
-  },
-  payments: {
-    title: 'Payments report',
-    description: 'Track payment methods, paid revenue, and payment status outcomes.',
-  },
-  bookings: {
-    title: 'Bookings report',
-    description: 'Review order volumes by booking and order status.',
-  },
-  delivery: {
-    title: 'Delivery report',
-    description: 'Track order activity and revenue by sales location.',
-  },
-  logistics: {
-    title: 'Logistics report',
-    description: 'Monitor live bulk sales and active locations for operations planning.',
-  },
-};
+function formatSalesLabel(item) {
+  if (!item) return 'Unknown';
+  return item.batchNumber ? `${item.salesItemName} · ${item.batchNumber}` : item.salesItemName;
+}
+
+function ReportTable({ columns, rows, emptyMessage }) {
+  return (
+    <div className={ui.tableWrap}>
+      <table className={ui.table}>
+        <thead>
+          <tr className={ui.tableHeadRow}>
+            {columns.map((column) => (
+              <th key={column.key} className={ui.tableHeaderCell}>{column.label}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.length ? (
+            rows.map((row, index) => (
+              <tr key={row.id || row.orderReference || row.batchNumber || `${index}`} className={ui.tableRow}>
+                {columns.map((column) => (
+                  <td key={column.key} className={ui.tableCell}>
+                    {column.render ? column.render(row) : row[column.key] ?? '—'}
+                  </td>
+                ))}
+              </tr>
+            ))
+          ) : (
+            <tr className={ui.tableRow}>
+              <td className={ui.tableCell} colSpan={columns.length}>{emptyMessage}</td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+}
 
 export default function AdminReportsPanel({ reports, reportError, loadingReports, onRefreshReports }) {
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
@@ -69,6 +96,7 @@ export default function AdminReportsPanel({ reports, reportError, loadingReports
       startDate: toIsoBoundary(filters.startDate),
       endDate: toIsoBoundary(filters.endDate, true),
       salesItemId: filters.salesItemId,
+      batchNumber: filters.batchNumber,
       reportType: filters.reportType,
     });
   }
@@ -80,64 +108,169 @@ export default function AdminReportsPanel({ reports, reportError, loadingReports
 
   const salesItems = reports?.filterOptions?.salesItems || [];
   const activeReportType = reports?.filters?.reportType || filters.reportType;
-  const reportContent = REPORT_CONTENT[activeReportType] || REPORT_CONTENT.all;
+
+  const allOverviewRows = reports ? [
+    { area: 'Overview', metric: 'Total orders', value: reports.summary.totalOrders, notes: 'All orders in the selected report range.' },
+    { area: 'Overview', metric: 'Paid orders', value: reports.summary.paidOrders, notes: 'Orders with confirmed payment.' },
+    { area: 'Overview', metric: 'Pending payment', value: reports.summary.pendingOrders, notes: 'Orders still waiting for payment or review.' },
+    { area: 'Overview', metric: 'Total revenue', value: formatCad(reports.summary.totalRevenue), notes: 'Revenue from paid orders only.' },
+    { area: 'Overview', metric: 'Active bulk sales', value: reports.summary.activeBulkSales, notes: 'Bulk sales still open right now.' },
+    { area: 'Fulfilment', metric: 'Pickup orders', value: reports.summary.pickupOrders, notes: 'Orders marked for pickup.' },
+    { area: 'Fulfilment', metric: 'Delivery orders', value: reports.summary.deliveryOrders, notes: 'Orders marked for delivery.' },
+    { area: 'Fulfilment', metric: 'Pending pickup orders', value: reports.summary.pendingPickupOrders, notes: 'Paid pickup orders still awaiting collection.' },
+  ] : [];
+
+  const overviewColumns = [
+    { key: 'area', label: 'Report area' },
+    { key: 'metric', label: 'Metric' },
+    { key: 'value', label: 'Value' },
+    { key: 'notes', label: 'Notes' },
+  ];
+
+  const batchColumns = [
+    { key: 'batchNumber', label: 'Batch number' },
+    { key: 'salesItemName', label: 'Bulk sale' },
+    { key: 'totalOrders', label: 'All orders' },
+    { key: 'paidOrders', label: 'Paid orders' },
+    { key: 'deliveryOrders', label: 'Delivery orders' },
+    { key: 'pickupOrders', label: 'Pickup orders' },
+    { key: 'revenue', label: 'Revenue', render: (row) => formatCad(row.revenue) },
+  ];
+
+  const paymentColumns = [
+    { key: 'orderReference', label: 'Order reference' },
+    { key: 'batchNumber', label: 'Batch number' },
+    { key: 'buyerName', label: 'Customer' },
+    { key: 'paymentMethod', label: 'Payment method', render: (row) => formatLabel(row.paymentMethod) },
+    { key: 'paymentStatus', label: 'Payment status', render: (row) => formatLabel(row.paymentStatus) },
+    { key: 'orderStatus', label: 'Order status', render: (row) => formatLabel(row.orderStatus) },
+    { key: 'totalAmount', label: 'Amount', render: (row) => formatCad(row.totalAmount) },
+  ];
+
+  const deliveryColumns = [
+    { key: 'orderReference', label: 'Order reference' },
+    { key: 'batchNumber', label: 'Batch number' },
+    { key: 'buyerName', label: 'Customer' },
+    { key: 'buyerPhone', label: 'Phone' },
+    { key: 'buyerAddress', label: 'Address' },
+    { key: 'fulfillmentStatusLabel', label: 'Delivery status' },
+    { key: 'totalAmount', label: 'Amount', render: (row) => formatCad(row.totalAmount) },
+  ];
+
+  const pickupColumns = [
+    { key: 'orderReference', label: 'Order reference' },
+    { key: 'batchNumber', label: 'Batch number' },
+    { key: 'buyerName', label: 'Customer' },
+    { key: 'buyerPhone', label: 'Phone' },
+    { key: 'location', label: 'Pickup point' },
+    { key: 'fulfillmentStatusLabel', label: 'Pickup status' },
+    { key: 'paidAt', label: 'Paid at', render: (row) => formatDateTime(row.paidAt) },
+  ];
+
+  const customerColumns = [
+    { key: 'orderReference', label: 'Order reference' },
+    { key: 'buyerName', label: 'Customer' },
+    { key: 'buyerEmail', label: 'Email' },
+    { key: 'buyerPhone', label: 'Phone' },
+    { key: 'buyerAddress', label: 'Address' },
+    { key: 'batchNumber', label: 'Batch number' },
+    { key: 'salesItemName', label: 'Bulk sale' },
+    { key: 'fulfillmentMethod', label: 'Pickup / delivery', render: (row) => formatLabel(row.fulfillmentMethod) },
+  ];
+
+  const salesColumns = [
+    { key: 'batchNumber', label: 'Batch number' },
+    { key: 'salesItemName', label: 'Bulk sale' },
+    { key: 'totalOrders', label: 'Orders' },
+    { key: 'paidOrders', label: 'Paid orders' },
+    { key: 'revenue', label: 'Revenue', render: (row) => formatCad(row.revenue) },
+  ];
+
+  const pendingPickupColumns = [
+    { key: 'orderReference', label: 'Order reference' },
+    { key: 'batchNumber', label: 'Batch number' },
+    { key: 'buyerName', label: 'Customer' },
+    { key: 'buyerPhone', label: 'Phone' },
+    { key: 'location', label: 'Pickup point' },
+    { key: 'paidAt', label: 'Paid at', render: (row) => formatDateTime(row.paidAt) },
+    { key: 'fulfillmentStatusLabel', label: 'Fulfilment status' },
+  ];
+
+  function renderActiveReport() {
+    if (!reports) {
+      return <p className={ui.note}>{loadingReports ? 'Loading reports...' : 'No report data available yet.'}</p>;
+    }
+
+    if (activeReportType === 'batchOrders') {
+      return <ReportTable columns={batchColumns} rows={reports.batchOrderRows || []} emptyMessage="No batch orders found for the selected filters." />;
+    }
+
+    if (activeReportType === 'payments') {
+      return <ReportTable columns={paymentColumns} rows={reports.paymentOrderRows || []} emptyMessage="No payment rows found for the selected filters." />;
+    }
+
+    if (activeReportType === 'deliveryOrders') {
+      return <ReportTable columns={deliveryColumns} rows={reports.deliveryOrderRows || []} emptyMessage="No delivery orders found for the selected filters." />;
+    }
+
+    if (activeReportType === 'pickupOrders') {
+      return <ReportTable columns={pickupColumns} rows={reports.pickupOrderRows || []} emptyMessage="No pickup orders found for the selected filters." />;
+    }
+
+    if (activeReportType === 'customerOrders') {
+      return <ReportTable columns={customerColumns} rows={reports.customerOrderRows || []} emptyMessage="No customer orders found for the selected filters." />;
+    }
+
+    if (activeReportType === 'sales') {
+      return <ReportTable columns={salesColumns} rows={reports.batchOrderRows || []} emptyMessage="No sales report rows found for the selected filters." />;
+    }
+
+    if (activeReportType === 'pendingPickup') {
+      return <ReportTable columns={pendingPickupColumns} rows={reports.pendingPickupRows || []} emptyMessage="No pending pickup orders found for the selected filters." />;
+    }
+
+    return <ReportTable columns={overviewColumns} rows={allOverviewRows} emptyMessage="No overview data found for the selected filters." />;
+  }
 
   return (
     <section className="space-y-5">
       <section className={`${ui.card} space-y-5`}>
         <div className="space-y-2">
           <h1 className="text-2xl font-bold tracking-tight text-emerald-950">Reports</h1>
-          <p className="leading-6 text-slate-600">Track all performance, payments and sales.</p>
+          <p className="leading-6 text-slate-600">Track batches, payments, customer orders, pickup orders, delivery orders, and pending pickup work from one place.</p>
         </div>
 
         <form className={`${ui.section} space-y-4`} onSubmit={applyFilters}>
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
             <div className={ui.fieldWrap}>
               <label className={ui.label}>Start date</label>
-              <input
-                className={ui.input}
-                type="date"
-                value={filters.startDate}
-                onChange={(e) => setFilters((current) => ({ ...current, startDate: e.target.value }))}
-              />
+              <input className={ui.input} type="date" value={filters.startDate} onChange={(e) => setFilters((current) => ({ ...current, startDate: e.target.value }))} />
             </div>
             <div className={ui.fieldWrap}>
               <label className={ui.label}>End date</label>
-              <input
-                className={ui.input}
-                type="date"
-                value={filters.endDate}
-                onChange={(e) => setFilters((current) => ({ ...current, endDate: e.target.value }))}
-              />
+              <input className={ui.input} type="date" value={filters.endDate} onChange={(e) => setFilters((current) => ({ ...current, endDate: e.target.value }))} />
             </div>
             <div className={ui.fieldWrap}>
               <label className={ui.label}>Bulk sale</label>
-              <select
-                className={ui.select}
-                value={filters.salesItemId}
-                onChange={(e) => setFilters((current) => ({ ...current, salesItemId: e.target.value }))}
-              >
+              <select className={ui.select} value={filters.salesItemId} onChange={(e) => setFilters((current) => ({ ...current, salesItemId: e.target.value }))}>
                 <option value="">All bulk sales</option>
                 {salesItems.map((item) => (
                   <option key={item.id} value={item.id}>
-                    {item.name}
+                    {item.name}{item.batchNumber ? ` · ${item.batchNumber}` : ''}
                   </option>
                 ))}
               </select>
             </div>
             <div className={ui.fieldWrap}>
+              <label className={ui.label}>Batch number</label>
+              <input className={ui.input} value={filters.batchNumber} onChange={(e) => setFilters((current) => ({ ...current, batchNumber: e.target.value }))} placeholder="TOM-APR-2026-A" />
+            </div>
+            <div className={ui.fieldWrap}>
               <label className={ui.label}>Report view</label>
-              <select
-                className={ui.select}
-                value={filters.reportType}
-                onChange={(e) => setFilters((current) => ({ ...current, reportType: e.target.value }))}
-              >
-                <option value="all">All reports</option>
-                <option value="sales">Sales</option>
-                <option value="payments">Payments</option>
-                <option value="bookings">Bookings</option>
-                <option value="delivery">Delivery</option>
-                <option value="logistics">Logistics</option>
+              <select className={ui.select} value={filters.reportType} onChange={(e) => setFilters((current) => ({ ...current, reportType: e.target.value }))}>
+                {REPORT_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
               </select>
             </div>
           </div>
@@ -149,260 +282,12 @@ export default function AdminReportsPanel({ reports, reportError, loadingReports
             <button type="button" className={ui.buttonGhost} onClick={clearFilters} disabled={loadingReports}>
               Clear filters
             </button>
-            <button type="button" className={ui.buttonGhost} onClick={() => onRefreshReports({
-              startDate: toIsoBoundary(filters.startDate),
-              endDate: toIsoBoundary(filters.endDate, true),
-              salesItemId: filters.salesItemId,
-              reportType: filters.reportType,
-            })} disabled={loadingReports}>
-              {loadingReports ? 'Refreshing reports...' : 'Refresh reports'}
-            </button>
           </div>
         </form>
 
         {reportError ? <p className={ui.error}>{reportError}</p> : null}
 
-        {reports ? (
-          <>
-            <div className={`${ui.section} space-y-2`}>
-              <h2 className="text-lg font-bold tracking-tight text-emerald-950">{reportContent.title}</h2>
-              <p className="text-sm leading-6 text-slate-600">{reportContent.description}</p>
-            </div>
-
-            {activeReportType === 'all' ? (
-              <>
-                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-                  <article className={ui.metricCard}>
-                    <h3 className="text-xl font-bold text-slate-900">{reports.summary.totalOrders}</h3>
-                    <p className="text-sm text-slate-600">Total orders</p>
-                  </article>
-                  <article className={ui.metricCard}>
-                    <h3 className="text-xl font-bold text-slate-900">{reports.summary.paidOrders}</h3>
-                    <p className="text-sm text-slate-600">Paid orders</p>
-                  </article>
-                  <article className={ui.metricCard}>
-                    <h3 className="text-xl font-bold text-slate-900">{reports.summary.pendingOrders}</h3>
-                    <p className="text-sm text-slate-600">Pending payment</p>
-                  </article>
-                  <article className={ui.metricCard}>
-                    <h3 className="text-xl font-bold text-slate-900">{formatCad(reports.summary.totalRevenue)}</h3>
-                    <p className="text-sm text-slate-600">Total revenue</p>
-                  </article>
-                  <article className={ui.metricCard}>
-                    <h3 className="text-xl font-bold text-slate-900">{reports.summary.activeBulkSales}</h3>
-                    <p className="text-sm text-slate-600">Active bulk sales</p>
-                  </article>
-                </div>
-
-                <div className="grid gap-4 xl:grid-cols-2">
-                  <div className={`${ui.section} space-y-3`}>
-                    <h3 className="font-semibold text-slate-900">Sales snapshot</h3>
-                    {reports.salesBreakdown.slice(0, 5).map((item) => (
-                      <p key={item.salesItemId} className="text-sm leading-6 text-slate-700">
-                        {item.salesItemName}: {item.totalOrders} orders, {formatCad(item.revenue)}
-                      </p>
-                    ))}
-                  </div>
-                  <div className={`${ui.section} space-y-3`}>
-                    <h3 className="font-semibold text-slate-900">Payment snapshot</h3>
-                    {reports.paymentBreakdown.byMethod.map((item) => (
-                      <p key={item.paymentMethod} className="text-sm leading-6 text-slate-700">
-                        {formatStatusLabel(item.paymentMethod)}: {item.totalOrders} orders
-                      </p>
-                    ))}
-                  </div>
-                </div>
-              </>
-            ) : null}
-
-            {activeReportType === 'sales' ? (
-              <>
-                <div className="grid gap-3 sm:grid-cols-3">
-                  <article className={ui.metricCard}>
-                    <h3 className="text-xl font-bold text-slate-900">{reports.summary.totalOrders}</h3>
-                    <p className="text-sm text-slate-600">Orders in scope</p>
-                  </article>
-                  <article className={ui.metricCard}>
-                    <h3 className="text-xl font-bold text-slate-900">{reports.summary.paidOrders}</h3>
-                    <p className="text-sm text-slate-600">Paid orders</p>
-                  </article>
-                  <article className={ui.metricCard}>
-                    <h3 className="text-xl font-bold text-slate-900">{formatCad(reports.summary.totalRevenue)}</h3>
-                    <p className="text-sm text-slate-600">Confirmed revenue</p>
-                  </article>
-                </div>
-                <div className={`${ui.section} space-y-3`}>
-                  {reports.salesBreakdown.length ? (
-                    reports.salesBreakdown.map((item) => (
-                      <div key={item.salesItemId} className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
-                        <p className="font-semibold text-slate-900">{item.salesItemName}</p>
-                        <p className="text-sm leading-6 text-slate-700">
-                          {item.totalOrders} total orders, {item.confirmedOrders} confirmed orders, {formatCad(item.revenue)}
-                        </p>
-                      </div>
-                    ))
-                  ) : (
-                    <p className={ui.note}>No sales data for the current filters.</p>
-                  )}
-                </div>
-              </>
-            ) : null}
-
-            {activeReportType === 'payments' ? (
-              <>
-                <div className="grid gap-3 sm:grid-cols-3">
-                  <article className={ui.metricCard}>
-                    <h3 className="text-xl font-bold text-slate-900">{formatCad(reports.paymentBreakdown.paidRevenue)}</h3>
-                    <p className="text-sm text-slate-600">Paid revenue</p>
-                  </article>
-                  <article className={ui.metricCard}>
-                    <h3 className="text-xl font-bold text-slate-900">{reports.summary.manualReviewOrders}</h3>
-                    <p className="text-sm text-slate-600">Transfers awaiting review</p>
-                  </article>
-                  <article className={ui.metricCard}>
-                    <h3 className="text-xl font-bold text-slate-900">{reports.paymentBreakdown.byStatus.length}</h3>
-                    <p className="text-sm text-slate-600">Payment statuses</p>
-                  </article>
-                </div>
-                <div className="grid gap-3 lg:grid-cols-2">
-                  <div className={`${ui.section} space-y-2`}>
-                    <h3 className="font-semibold text-slate-900">By payment method</h3>
-                    {reports.paymentBreakdown.byMethod.length ? (
-                      reports.paymentBreakdown.byMethod.map((item) => (
-                        <p key={item.paymentMethod} className="text-sm leading-6 text-slate-700">
-                          {formatStatusLabel(item.paymentMethod)}: {item.totalOrders} orders, {formatCad(item.totalAmount)}
-                        </p>
-                      ))
-                    ) : (
-                      <p className={ui.note}>No payment method data for the current filters.</p>
-                    )}
-                  </div>
-                  <div className={`${ui.section} space-y-2`}>
-                    <h3 className="font-semibold text-slate-900">By payment status</h3>
-                    {reports.paymentBreakdown.byStatus.length ? (
-                      reports.paymentBreakdown.byStatus.map((item) => (
-                        <p key={item.paymentStatus} className="text-sm leading-6 text-slate-700">
-                          {formatStatusLabel(item.paymentStatus)}: {item.totalOrders} orders
-                        </p>
-                      ))
-                    ) : (
-                      <p className={ui.note}>No payment status data for the current filters.</p>
-                    )}
-                  </div>
-                </div>
-              </>
-            ) : null}
-
-            {activeReportType === 'bookings' ? (
-              <>
-                <div className="grid gap-3 sm:grid-cols-3">
-                  <article className={ui.metricCard}>
-                    <h3 className="text-xl font-bold text-slate-900">{reports.summary.totalOrders}</h3>
-                    <p className="text-sm text-slate-600">Total bookings</p>
-                  </article>
-                  <article className={ui.metricCard}>
-                    <h3 className="text-xl font-bold text-slate-900">{reports.bookingBreakdown.length}</h3>
-                    <p className="text-sm text-slate-600">Booking statuses</p>
-                  </article>
-                  <article className={ui.metricCard}>
-                    <h3 className="text-xl font-bold text-slate-900">{reports.summary.pendingOrders}</h3>
-                    <p className="text-sm text-slate-600">Pending bookings</p>
-                  </article>
-                </div>
-                <div className={`${ui.section} space-y-3`}>
-                  {reports.bookingBreakdown.length ? (
-                    reports.bookingBreakdown.map((item) => (
-                      <div key={item.status} className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
-                        <p className="font-semibold text-slate-900">{formatStatusLabel(item.status)}</p>
-                        <p className="text-sm leading-6 text-slate-700">{item.totalOrders} bookings</p>
-                      </div>
-                    ))
-                  ) : (
-                    <p className={ui.note}>No booking data for the current filters.</p>
-                  )}
-                </div>
-              </>
-            ) : null}
-
-            {activeReportType === 'delivery' ? (
-              <>
-                <div className="grid gap-3 sm:grid-cols-3">
-                  <article className={ui.metricCard}>
-                    <h3 className="text-xl font-bold text-slate-900">{reports.deliveryBreakdown.length}</h3>
-                    <p className="text-sm text-slate-600">Delivery locations</p>
-                  </article>
-                  <article className={ui.metricCard}>
-                    <h3 className="text-xl font-bold text-slate-900">{reports.summary.paidOrders}</h3>
-                    <p className="text-sm text-slate-600">Paid deliveries</p>
-                  </article>
-                  <article className={ui.metricCard}>
-                    <h3 className="text-xl font-bold text-slate-900">{formatCad(reports.summary.totalRevenue)}</h3>
-                    <p className="text-sm text-slate-600">Revenue in scope</p>
-                  </article>
-                </div>
-                <div className={`${ui.section} space-y-3`}>
-                  {reports.deliveryBreakdown.length ? (
-                    reports.deliveryBreakdown.map((item) => (
-                      <div key={item.location} className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
-                        <p className="font-semibold text-slate-900">{item.location}</p>
-                        <p className="text-sm leading-6 text-slate-700">
-                          {item.totalOrders} orders, {item.confirmedOrders} confirmed, {formatCad(item.totalRevenue)}
-                        </p>
-                      </div>
-                    ))
-                  ) : (
-                    <p className={ui.note}>No delivery data for the current filters.</p>
-                  )}
-                </div>
-              </>
-            ) : null}
-
-            {activeReportType === 'logistics' ? (
-              <>
-                <div className="grid gap-3 sm:grid-cols-3">
-                  <article className={ui.metricCard}>
-                    <h3 className="text-xl font-bold text-slate-900">{reports.summary.activeBulkSales}</h3>
-                    <p className="text-sm text-slate-600">Live bulk sales</p>
-                  </article>
-                  <article className={ui.metricCard}>
-                    <h3 className="text-xl font-bold text-slate-900">{reports.logisticsBreakdown.activeLocations.length}</h3>
-                    <p className="text-sm text-slate-600">Active locations</p>
-                  </article>
-                  <article className={ui.metricCard}>
-                    <h3 className="text-xl font-bold text-slate-900">{reports.logisticsBreakdown.liveSales.length}</h3>
-                    <p className="text-sm text-slate-600">Sales to plan for</p>
-                  </article>
-                </div>
-                <div className={`${ui.section} space-y-3`}>
-                  <div className="space-y-2">
-                    <h3 className="font-semibold text-slate-900">Active locations</h3>
-                    {reports.logisticsBreakdown.activeLocations.length ? (
-                      <p className="text-sm leading-6 text-slate-700">
-                        {reports.logisticsBreakdown.activeLocations.join(', ')}
-                      </p>
-                    ) : (
-                      <p className={ui.note}>No active logistics locations right now.</p>
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    <h3 className="font-semibold text-slate-900">Live bulk sales</h3>
-                    {reports.logisticsBreakdown.liveSales.length ? (
-                      reports.logisticsBreakdown.liveSales.map((item) => (
-                        <p key={item.salesItemId} className="text-sm leading-6 text-slate-700">
-                          {item.salesItemName} closes {new Date(item.closingDate).toLocaleString()} at {item.location}
-                        </p>
-                      ))
-                    ) : (
-                      <p className={ui.note}>No live bulk sales for logistics planning.</p>
-                    )}
-                  </div>
-                </div>
-              </>
-            ) : null}
-          </>
-        ) : (
-          <p className={ui.note}>{loadingReports ? 'Loading reports...' : 'No report data available yet.'}</p>
-        )}
+        {renderActiveReport()}
       </section>
     </section>
   );

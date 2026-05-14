@@ -1,14 +1,14 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5050';
+import { buildApiUrl } from './config';
 
 async function request(path, options = {}) {
   let response;
   try {
-    response = await fetch(`${API_BASE_URL}${path}`, {
+    response = await fetch(buildApiUrl(path), {
       credentials: 'include',
       ...options,
     });
   } catch {
-    throw new Error('Unable to reach backend API. Ensure backend and PostgreSQL are running.');
+    throw new Error('Unable to reach backend API. Check that the production API base URL is configured correctly.');
   }
 
   if (!response.ok) {
@@ -49,6 +49,9 @@ export function fetchAdminSalesItems(params = {}) {
   if (params.q) {
     search.set('q', params.q);
   }
+  if (params.batchNumber) {
+    search.set('batchNumber', params.batchNumber);
+  }
   if (params.status) {
     search.set('status', params.status);
   }
@@ -80,12 +83,12 @@ export function updateSalesItem(salesItemId, payload) {
 export async function deleteSalesItem(salesItemId) {
   let response;
   try {
-    response = await fetch(`${API_BASE_URL}/api/admin/sales-items/${salesItemId}`, {
+    response = await fetch(buildApiUrl(`/api/admin/sales-items/${salesItemId}`), {
       method: 'DELETE',
       credentials: 'include',
     });
   } catch {
-    throw new Error('Unable to reach backend API. Ensure backend and PostgreSQL are running.');
+    throw new Error('Unable to reach backend API. Check that the production API base URL is configured correctly.');
   }
 
   if (!response.ok) {
@@ -106,6 +109,9 @@ export function fetchAdminReports(params = {}) {
   if (params.salesItemId) {
     search.set('salesItemId', params.salesItemId);
   }
+  if (params.batchNumber) {
+    search.set('batchNumber', params.batchNumber);
+  }
   if (params.reportType) {
     search.set('reportType', params.reportType);
   }
@@ -119,6 +125,9 @@ export function fetchAdminCustomers(params = {}) {
 
   if (params.q) {
     search.set('q', params.q);
+  }
+  if (params.batchNumber) {
+    search.set('batchNumber', params.batchNumber);
   }
   if (params.hasOrders !== undefined && params.hasOrders !== '') {
     search.set('hasOrders', String(params.hasOrders));
@@ -146,6 +155,9 @@ export function fetchAdminOrders(params = {}) {
   if (params.q) {
     search.set('q', params.q);
   }
+  if (params.batchNumber) {
+    search.set('batchNumber', params.batchNumber);
+  }
   if (params.paidOnly !== undefined && params.paidOnly !== '') {
     search.set('paidOnly', String(params.paidOnly));
   }
@@ -157,6 +169,12 @@ export function fetchAdminOrders(params = {}) {
   }
   if (params.paymentMethod) {
     search.set('paymentMethod', params.paymentMethod);
+  }
+  if (params.fulfillmentMethod) {
+    search.set('fulfillmentMethod', params.fulfillmentMethod);
+  }
+  if (params.fulfillmentStatus) {
+    search.set('fulfillmentStatus', params.fulfillmentStatus);
   }
   if (params.sortBy) {
     search.set('sortBy', params.sortBy);
@@ -175,6 +193,41 @@ export function fetchAdminOrders(params = {}) {
   return request(`/api/admin/orders${suffix}`);
 }
 
+export async function exportAdminOrders(params = {}) {
+  const search = new URLSearchParams();
+
+  if (params.q) search.set('q', params.q);
+  if (params.batchNumber) search.set('batchNumber', params.batchNumber);
+  if (params.paidOnly !== undefined && params.paidOnly !== '') search.set('paidOnly', String(params.paidOnly));
+  if (params.status) search.set('status', params.status);
+  if (params.paymentStatus) search.set('paymentStatus', params.paymentStatus);
+  if (params.paymentMethod) search.set('paymentMethod', params.paymentMethod);
+  if (params.fulfillmentMethod) search.set('fulfillmentMethod', params.fulfillmentMethod);
+  if (params.fulfillmentStatus) search.set('fulfillmentStatus', params.fulfillmentStatus);
+  if (params.sortBy) search.set('sortBy', params.sortBy);
+  if (params.sortOrder) search.set('sortOrder', params.sortOrder);
+
+  const suffix = search.toString() ? `?${search.toString()}` : '';
+  let response;
+  try {
+    response = await fetch(buildApiUrl(`/api/admin/orders/export${suffix}`), {
+      credentials: 'include',
+    });
+  } catch {
+    throw new Error('Unable to reach backend API. Check that the production API base URL is configured correctly.');
+  }
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.message || 'Unable to export orders right now.');
+  }
+
+  return {
+    blob: await response.blob(),
+    fileName: response.headers.get('content-disposition')?.match(/filename="([^"]+)"/)?.[1] || 'orders-export.csv',
+  };
+}
+
 export function confirmAdminInteracPayment(orderReference) {
   return request(`/api/admin/payments/${orderReference}/confirm-interac`, {
     method: 'POST',
@@ -189,6 +242,14 @@ export function resendAdminPaymentConfirmation(orderReference) {
 
 export function fetchAdminPaymentProofViewUrl(orderReference) {
   return request(`/api/admin/payments/${orderReference}/proof-view-url`);
+}
+
+export function updateAdminFulfillmentStatus(orderReference, fulfillmentStatus) {
+  return request(`/api/admin/orders/${orderReference}/fulfillment-status`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fulfillmentStatus }),
+  });
 }
 
 export function fetchAdminUsers(params = {}) {

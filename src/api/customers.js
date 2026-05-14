@@ -1,7 +1,7 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5050';
+import { buildApiUrl } from './config';
 
 export async function searchCustomers(query) {
-  const response = await fetch(`${API_BASE_URL}/api/customers/search?q=${encodeURIComponent(query)}`);
+  const response = await fetch(buildApiUrl(`/api/customers/search?q=${encodeURIComponent(query)}`));
   if (!response.ok) {
     throw new Error('Unable to search buyers. Please try again.');
   }
@@ -9,7 +9,7 @@ export async function searchCustomers(query) {
 }
 
 export async function saveCustomerDetails(payload) {
-  const response = await fetch(`${API_BASE_URL}/api/customers/save`, {
+  const response = await fetch(buildApiUrl('/api/customers/save'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
