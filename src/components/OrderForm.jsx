@@ -21,7 +21,7 @@ const PAYMENT_OPTIONS = [
   {
     value: 'INTERAC_E_TRANSFER',
     label: 'Interac e-Transfer',
-    note: 'Send payment by Interac e-Transfer and receive confirmation within 6 hours.',
+    note: 'Send payment by Interac e-Transfer, share a receipt with us and receive confirmation within 6 hours. Pay instantly using your bank app.',
   },
   {
     value: 'STRIPE_CARD',
@@ -152,6 +152,15 @@ function buildCartSummary(cartLines, fulfillmentMethod) {
     totalAmount: subtotal + groupedDeliveryFee,
     deliveryGroups: [...deliveryGroups.values()],
   };
+}
+
+function calculateStripeProcessingFee(totalAmountCents) {
+  if (!totalAmountCents || totalAmountCents <= 0) {
+    return 0;
+  }
+
+  const grossTotal = Math.round((totalAmountCents + 30) / (1 - 0.029));
+  return Math.max(0, grossTotal - totalAmountCents);
 }
 
 function PaymentSuccessPage({
@@ -323,6 +332,14 @@ export default function OrderForm({
   const cartItemSummary = useMemo(() => cartLines.map((line) => `${line.name} x${line.quantity}`).join(', '), [cartLines]);
   const manualTransferEmail = manualOrder?.manualPayment?.transferEmail || 'payments@eazzibulkbuy.ca';
   const manualConfirmationEtaHours = manualOrder?.manualPayment?.confirmationEtaHours || manualOrder?.manualConfirmationEtaHours || 12;
+  const stripeFeeBaseAmount = createdOrder
+    ? (createdOrder.subtotal || 0) + (createdOrder.deliveryFee || 0)
+    : cartSummary.totalAmount;
+  const stripeProcessingFeePreview = useMemo(
+    () => calculateStripeProcessingFee(stripeFeeBaseAmount),
+    [stripeFeeBaseAmount],
+  );
+  const stripeTotalPreview = stripeFeeBaseAmount + stripeProcessingFeePreview;
   const manualTransferRemainingSeconds = manualTransferDeadlineMs
     ? Math.max(0, Math.ceil((manualTransferDeadlineMs - currentTimeMs) / 1000))
     : 0;
@@ -668,6 +685,7 @@ export default function OrderForm({
       setPaymentProcessing(true);
       setPaymentError('');
       const paymentSelection = await onSetOrderPaymentMethod(createdOrder.orderReference, paymentMethod);
+      setCreatedOrder(paymentSelection);
 
       if (!isStripePayment) {
         setManualOrder(paymentSelection);
@@ -688,7 +706,7 @@ export default function OrderForm({
           orderReference: createdOrder.orderReference,
           createdAt: confirmedPayment.createdAt || createdOrder.createdAt,
           itemName: cartItemSummary,
-          totalAmount: createdOrder.totalAmount,
+          totalAmount: paymentSelection.totalAmount,
           buyer: { firstName, lastName },
           emailSent: Boolean(confirmedPayment.emailSent),
           demoMode: true,
@@ -739,7 +757,7 @@ export default function OrderForm({
         orderReference: createdOrder.orderReference,
         createdAt: confirmedPayment.createdAt || createdOrder.createdAt,
         itemName: cartItemSummary,
-        totalAmount: createdOrder.totalAmount,
+        totalAmount: paymentSelection.totalAmount,
         buyer: { firstName, lastName },
         emailSent: Boolean(confirmedPayment.emailSent),
       });
@@ -948,6 +966,16 @@ export default function OrderForm({
                         <div>
                           <p className="text-sm font-semibold text-emerald-950">{option.label}</p>
                           <p className="text-sm leading-6 text-slate-600">{option.note}</p>
+                          {option.value === 'INTERAC_E_TRANSFER' ? (
+                            <p className="text-sm leading-6 text-slate-700">
+                              Processing fee: <span className="font-semibold text-slate-900">CAD 0.00</span>. Total charge: <span className="font-semibold text-slate-900">CAD {((createdOrder?.totalAmount || cartSummary.totalAmount) / 100).toFixed(2)}</span>.
+                            </p>
+                          ) : null}
+                          {option.value === 'STRIPE_CARD' ? (
+                            <p className="text-sm leading-6 text-slate-700">
+                              Processing fee: <span className="font-semibold text-slate-900">CAD {(stripeProcessingFeePreview / 100).toFixed(2)}</span>. Total charge: <span className="font-semibold text-slate-900">CAD {(stripeTotalPreview / 100).toFixed(2)}</span>.
+                            </p>
+                          ) : null}
                           {option.value === 'STRIPE_CARD' && !stripeConfigured ? (
                             <p className="text-sm leading-6 text-amber-700">Stripe demo mode is active until `VITE_STRIPE_PUBLISHABLE_KEY` is added.</p>
                           ) : null}
@@ -978,7 +1006,7 @@ export default function OrderForm({
                   <h3 className="text-base font-semibold text-emerald-950">Payment</h3>
                   <p className="text-sm leading-6 text-slate-700">Interac e-Transfer</p>
                   <p className="text-sm leading-6 text-slate-700">
-                    Send Interac e-Transfer to: <span className="font-semibold text-slate-900">{manualTransferEmail}</span> and receive confirmation within {manualConfirmationEtaHours} hours.
+                    Send Interac e-Transfer to: <span className="font-semibold text-slate-900">{manualTransferEmail}</span> and receive confirmation within 6 hours.
                   </p>
                   <p className="text-sm leading-6 text-slate-700">
                     Use your Order ID <span className="font-semibold text-slate-900">{formatOrderReferenceDisplay(manualOrder.orderReference, manualOrder.createdAt, { firstName, lastName })}</span> for this transfer as narration.
@@ -1367,7 +1395,9 @@ export default function OrderForm({
             <div>
               <h2 className="text-lg font-bold tracking-tight text-emerald-950">Payment method</h2>
               <p className="text-sm leading-6 text-slate-600">
-                {manualOrder ? 'Your payment steps are ready. Open the payment menu to upload proof or confirm your transfer.' : 'Your order is ready. Open the payment menu to choose Interac or Stripe.'}
+                {manualOrder
+                  ? 'Your payment steps are ready. Open the payment menu to upload proof or confirm your transfer.'
+                  : 'Your order is ready. Open the payment menu to choose Interac or Stripe. Please note that E-transfer is preferred. Credit card payments are available through Stripe. Kindly note that a small processing fee applies to card transactions.'}
               </p>
             </div>
             <button type="button" className={ui.buttonPrimary} onClick={() => setPaymentModalOpen(true)}>
