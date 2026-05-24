@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ui } from '../ui/classes';
 import { formatOrderReferenceDisplay } from '../utils/orderReference';
 import {
@@ -6,7 +6,7 @@ import {
   AdminStatusBadge,
   AdminTableEmpty,
 } from './AdminTablePrimitives';
-import { exportAdminOrders } from '../api/admin';
+import { exportAdminOrders, fetchAdminCustomers } from '../api/admin';
 
 const DEFAULT_QUERY = {
   q: '',
@@ -33,24 +33,31 @@ function formatCurrency(cents) {
   return `CAD ${((cents || 0) / 100).toFixed(2)}`;
 }
 
+function formatLineAmount(item) {
+  if (item.isBundleComponent && (item.lineTotal === null || item.lineTotal === undefined)) {
+    return `Part of bundle ${formatCurrency(item.totalAmount || 0)}`;
+  }
+  return formatCurrency(item.lineTotal || 0);
+}
+
 function formatDate(value) {
   if (!value) return '—';
   return new Date(value).toLocaleDateString();
 }
 
-function getActionLabel(order) {
-  return order.fulfillmentMethod === 'DELIVERY' ? 'Confirm delivery' : 'Confirm pickup';
+function getActionLabel(item) {
+  return item.fulfillmentMethod === 'DELIVERY' ? 'Confirm delivery' : 'Confirm pickup';
 }
 
-function getNextStatus(order) {
-  return order.fulfillmentMethod === 'DELIVERY' ? 'DELIVERED' : 'PICKED_UP';
+function getNextStatus(item) {
+  return item.fulfillmentMethod === 'DELIVERY' ? 'DELIVERED' : 'PICKED_UP';
 }
 
-function canConfirm(order) {
-  if (order.fulfillmentMethod === 'DELIVERY') {
-    return order.fulfillmentStatus !== 'DELIVERED';
+function canConfirm(item) {
+  if (item.fulfillmentMethod === 'DELIVERY') {
+    return item.fulfillmentStatus !== 'DELIVERED';
   }
-  return order.fulfillmentStatus !== 'PICKED_UP';
+  return item.fulfillmentStatus !== 'PICKED_UP';
 }
 
 function getStatusTone(status) {
@@ -72,6 +79,9 @@ export default function AdminFulfillmentPanel({ onLoadOrders, onUpdateFulfillmen
   const [status, setStatus] = useState('');
   const [updatingReference, setUpdatingReference] = useState('');
   const [exporting, setExporting] = useState(false);
+  const [searchSuggestions, setSearchSuggestions] = useState([]);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  const didInitFiltersRef = useRef(false);
 
   async function loadFulfillment(nextQuery = query) {
     setLoading(true);
@@ -96,6 +106,67 @@ export default function AdminFulfillmentPanel({ onLoadOrders, onUpdateFulfillmen
     loadFulfillment(DEFAULT_QUERY);
   }, []);
 
+  useEffect(() => {
+    if (!didInitFiltersRef.current) {
+      didInitFiltersRef.current = true;
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      const nextQuery = {
+        ...query,
+        q: query.q.trim(),
+        batchNumber: query.batchNumber.trim(),
+        page: 1,
+      };
+      setQuery((current) => ({ ...current, page: 1 }));
+      loadFulfillment(nextQuery);
+    }, 250);
+
+    return () => window.clearTimeout(timer);
+  }, [query.q, query.batchNumber, query.fulfillmentMethod, query.fulfillmentStatus]);
+
+  useEffect(() => {
+    const searchTerm = query.q.trim();
+
+    if (searchTerm.length < 2) {
+      setSearchSuggestions([]);
+      setLoadingSuggestions(false);
+      return undefined;
+    }
+
+    let active = true;
+    const timer = window.setTimeout(async () => {
+      setLoadingSuggestions(true);
+      try {
+        const response = await fetchAdminCustomers({
+          q: searchTerm,
+          page: 1,
+          limit: 6,
+        });
+
+        if (!active) {
+          return;
+        }
+
+        setSearchSuggestions(response.items || []);
+      } catch {
+        if (active) {
+          setSearchSuggestions([]);
+        }
+      } finally {
+        if (active) {
+          setLoadingSuggestions(false);
+        }
+      }
+    }, 250);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [query.q]);
+
   async function applyFilters() {
     const nextQuery = {
       ...query,
@@ -115,11 +186,11 @@ export default function AdminFulfillmentPanel({ onLoadOrders, onUpdateFulfillmen
   }
 
   async function handleConfirm(order) {
-    setUpdatingReference(order.orderReference);
+    setUpdatingReference(`${order.orderReference}:${order.itemIndex}`);
     setStatus('');
     setError('');
     try {
-      const result = await onUpdateFulfillmentStatus(order.orderReference, getNextStatus(order));
+      const result = await onUpdateFulfillmentStatus(order.orderReference, getNextStatus(order), order.itemIndex);
       setStatus(result.message || 'Fulfilment confirmed successfully.');
       await loadFulfillment(query);
       if (onRefreshReports) {
@@ -160,6 +231,28 @@ export default function AdminFulfillmentPanel({ onLoadOrders, onUpdateFulfillmen
 
   const listStart = meta.total === 0 ? 0 : (meta.page - 1) * meta.limit + 1;
   const listEnd = meta.total === 0 ? 0 : Math.min(meta.page * meta.limit, meta.total);
+  const showSuggestions = query.q.trim().length >= 2 && (loadingSuggestions || searchSuggestions.length > 0);
+  const fulfillmentRows = orders.flatMap((order) => {
+    const items = Array.isArray(order.fulfillmentItems) && order.fulfillmentItems.length
+      ? order.fulfillmentItems
+      : [
+          {
+            itemIndex: 0,
+            name: order.salesItem?.name || 'Order items',
+            quantity: order.quantity,
+            lineTotal: order.subtotal || order.totalAmount,
+            fulfillmentMethod: order.fulfillmentMethod,
+            fulfillmentStatus: order.fulfillmentStatus,
+            batchNumber: order.salesItem?.batchNumber || '',
+            location: order.salesItem?.pickupInstructions || '',
+          },
+        ];
+
+    return items.map((item) => ({
+      ...order,
+      ...item,
+    }));
+  });
 
   return (
     <section className="space-y-5">
@@ -167,32 +260,63 @@ export default function AdminFulfillmentPanel({ onLoadOrders, onUpdateFulfillmen
         <div className="space-y-5">
           <div className="space-y-2">
             <h1 className="text-2xl font-bold tracking-tight text-emerald-950">Fulfilment</h1>
-            <p className="leading-6 text-slate-600">Confirm pickup or delivery for paid orders and export delivery orders for field operations.</p>
+            <p className="leading-6 text-slate-600">Confirm pickup or delivery for paid orders and download the current delivery view to Excel.</p>
+            <p className="text-sm text-slate-500">Filters update automatically as you type or change a field.</p>
           </div>
 
           <div className="grid gap-4 xl:grid-cols-[minmax(0,1.3fr)_200px_220px_220px]">
             <div className={ui.fieldWrap}>
               <label className={ui.label}>Search</label>
+              <div className="relative">
               <input
                 className={ui.input}
                 value={query.q}
                 onChange={(event) => setQuery((current) => ({ ...current, q: event.target.value }))}
-                placeholder="Order number, buyer, email"
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') {
-                    event.preventDefault();
-                    applyFilters();
-                  }
-                }}
+                placeholder="Name, order number, batch no, email"
               />
+                {showSuggestions ? (
+                  <div className="absolute left-0 right-0 top-[calc(100%+0.4rem)] z-20 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_18px_48px_rgba(15,23,42,0.12)]">
+                    {loadingSuggestions ? (
+                      <p className="px-4 py-3 text-sm text-slate-500">Looking up buyers...</p>
+                    ) : (
+                      <ul className="max-h-64 overflow-y-auto py-1">
+                        {searchSuggestions.map((customer) => (
+                          <li key={customer.id}>
+                            <button
+                              type="button"
+                              className="flex w-full items-start justify-between gap-3 px-4 py-3 text-left transition hover:bg-emerald-50"
+                              onClick={() => {
+                                setQuery((current) => ({ ...current, q: customer.name || customer.email || '' }));
+                                setSearchSuggestions([]);
+                              }}
+                            >
+                              <span className="space-y-1">
+                                <span className="block text-sm font-semibold text-slate-900">{customer.name || 'Unnamed buyer'}</span>
+                                <span className="block text-xs text-slate-500">{customer.email || customer.phone || 'No contact available'}</span>
+                              </span>
+                              {customer.phone ? <span className="text-xs text-slate-400">{customer.phone}</span> : null}
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                ) : null}
+              </div>
             </div>
             <div className={ui.fieldWrap}>
               <label className={ui.label}>Batch number</label>
               <input
                 className={ui.input}
                 value={query.batchNumber}
-                onChange={(event) => setQuery((current) => ({ ...current, batchNumber: event.target.value }))}
-                placeholder="TOM-APR-2026-A"
+                onChange={(event) =>
+                  setQuery((current) => ({
+                    ...current,
+                    batchNumber: event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3),
+                  }))
+                }
+                placeholder="AZ1"
+                maxLength={3}
               />
             </div>
             <div className={ui.fieldWrap}>
@@ -214,11 +338,8 @@ export default function AdminFulfillmentPanel({ onLoadOrders, onUpdateFulfillmen
               </select>
             </div>
             <div className="xl:col-span-4 flex flex-wrap items-end gap-3">
-              <button type="button" className={ui.buttonPrimary} onClick={applyFilters} disabled={loading}>
-                {loading ? 'Loading...' : 'Search'}
-              </button>
               <button type="button" className={ui.buttonGhost} onClick={handleExportPaidDeliveryOrders} disabled={exporting}>
-                {exporting ? 'Exporting...' : 'Export paid delivery orders'}
+                {exporting ? 'Exporting...' : 'Download to Excel'}
               </button>
             </div>
           </div>
@@ -227,10 +348,11 @@ export default function AdminFulfillmentPanel({ onLoadOrders, onUpdateFulfillmen
           {error ? <p className={ui.error}>{error}</p> : null}
 
           <div className={ui.tableWrap}>
-            <table className={ui.table}>
+            <table className={`${ui.table} min-w-[980px]`}>
               <thead>
                 <tr className={ui.tableHeadRow}>
                   <th className={ui.tableHeaderCell}>Order</th>
+                  <th className={ui.tableHeaderCell}>Item</th>
                   <th className={ui.tableHeaderCell}>Date</th>
                   <th className={ui.tableHeaderCell}>Buyer</th>
                   <th className={ui.tableHeaderCell}>Batch</th>
@@ -241,12 +363,20 @@ export default function AdminFulfillmentPanel({ onLoadOrders, onUpdateFulfillmen
                 </tr>
               </thead>
               <tbody>
-                {orders.map((order) => (
-                  <tr key={order.id} className={ui.tableRow}>
+                {fulfillmentRows.map((order) => (
+                  <tr key={`${order.id}-${order.itemIndex}`} className={ui.tableRow}>
                     <td className={ui.tableCell}>
                       <div className="space-y-1">
-                        <p className="font-semibold text-slate-900">{formatOrderReferenceDisplay(order.orderReference, order.createdAt, order.user)}</p>
-                        <p className="text-xs text-slate-500">{order.salesItem?.name || 'Order items'} · Qty {order.quantity}</p>
+                        <p className="font-semibold text-slate-900">{order.displayOrderReference || formatOrderReferenceDisplay(order.orderReference, order.createdAt, order.user, { batchNumber: order.salesItem?.batchNumber, orderSequence: order.orderSequence })}</p>
+                      </div>
+                    </td>
+                    <td className={ui.tableCell}>
+                      <div className="space-y-1">
+                        <p className="font-medium text-slate-900">{order.name || order.salesItem?.name || 'Order items'}</p>
+                        <p className="text-xs text-slate-500">
+                          Qty {order.quantity}
+                          {order.isBundleComponent && order.bundleName ? ` · Bundle: ${order.bundleName}` : ''}
+                        </p>
                       </div>
                     </td>
                     <td className={ui.tableCell}>{formatDate(order.paidAt || order.createdAt)}</td>
@@ -263,16 +393,16 @@ export default function AdminFulfillmentPanel({ onLoadOrders, onUpdateFulfillmen
                     <td className={ui.tableCell}>
                       <AdminStatusBadge value={formatLabel(order.fulfillmentStatus)} tone={getStatusTone(order.fulfillmentStatus)} />
                     </td>
-                    <td className={`${ui.tableCell} font-semibold text-slate-900`}>{formatCurrency(order.totalAmount)}</td>
-                    <td className={`${ui.tableCell} text-right`}>
+                    <td className={`${ui.tableCell} font-semibold text-slate-900`}>{formatLineAmount(order)}</td>
+                    <td className={`${ui.tableCell} whitespace-nowrap text-right`}>
                       {canConfirm(order) ? (
                         <button
                           type="button"
                           className={ui.buttonGhost}
                           onClick={() => handleConfirm(order)}
-                          disabled={updatingReference === order.orderReference}
+                          disabled={updatingReference === `${order.orderReference}:${order.itemIndex}`}
                         >
-                          {updatingReference === order.orderReference ? 'Saving...' : getActionLabel(order)}
+                          {updatingReference === `${order.orderReference}:${order.itemIndex}` ? 'Saving...' : getActionLabel(order)}
                         </button>
                       ) : (
                         <span className="text-sm font-medium text-slate-500">Completed</span>
@@ -283,7 +413,7 @@ export default function AdminFulfillmentPanel({ onLoadOrders, onUpdateFulfillmen
               </tbody>
             </table>
 
-            {!loading && orders.length === 0 ? <AdminTableEmpty message="No paid pickup or delivery orders match the current view." /> : null}
+            {!loading && fulfillmentRows.length === 0 ? <AdminTableEmpty message="No paid pickup or delivery items match the current view." /> : null}
             <AdminPagination
               page={meta.page}
               totalPages={meta.totalPages}

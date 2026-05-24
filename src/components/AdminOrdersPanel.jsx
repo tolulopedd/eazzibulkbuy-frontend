@@ -65,7 +65,7 @@ function OrderDetailsModal({ order, onClose }) {
           <div className="space-y-1">
             <h2 className="text-2xl font-bold tracking-tight text-emerald-950">Order details</h2>
             <p className="text-sm text-slate-600">
-              {formatOrderReferenceDisplay(order.orderReference, order.createdAt, order.user)} · {order.salesItem?.name || 'Order items'}
+              {order.displayOrderReference || formatOrderReferenceDisplay(order.orderReference, order.createdAt, order.user, { batchNumber: order.salesItem?.batchNumber, orderSequence: order.orderSequence })} · {order.salesItem?.name || 'Order items'}
             </p>
           </div>
           <button type="button" className={ui.iconButton} onClick={onClose} aria-label="Close order details">
@@ -200,8 +200,14 @@ export default function AdminOrdersPanel({ onLoadOrders }) {
               <input
                 className={ui.input}
                 value={query.batchNumber}
-                onChange={(event) => setQuery((current) => ({ ...current, batchNumber: event.target.value }))}
-                placeholder="TOM-APR-2026-A"
+                onChange={(event) =>
+                  setQuery((current) => ({
+                    ...current,
+                    batchNumber: event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3),
+                  }))
+                }
+                placeholder="AZ1"
+                maxLength={3}
               />
             </div>
             <div className={ui.fieldWrap}>
@@ -240,7 +246,7 @@ export default function AdminOrdersPanel({ onLoadOrders }) {
           {error ? <p className={ui.error}>{error}</p> : null}
 
           <div className={ui.tableWrap}>
-            <table className={ui.table}>
+            <table className={`${ui.table} min-w-[1180px]`}>
               <thead>
                 <tr className={ui.tableHeadRow}>
                   <th className={ui.tableHeaderCell}>Order</th>
@@ -260,7 +266,7 @@ export default function AdminOrdersPanel({ onLoadOrders }) {
                   <tr key={order.id} className={ui.tableRow}>
                     <td className={ui.tableCell}>
                       <div className="space-y-1">
-                        <p className="font-semibold text-slate-900">{formatOrderReferenceDisplay(order.orderReference, order.createdAt, order.user)}</p>
+                        <p className="font-semibold text-slate-900">{order.displayOrderReference || formatOrderReferenceDisplay(order.orderReference, order.createdAt, order.user, { batchNumber: order.salesItem?.batchNumber, orderSequence: order.orderSequence })}</p>
                         <p className="text-xs text-slate-500">{order.salesItem?.name || 'Order items'} · Qty {order.quantity}</p>
                       </div>
                     </td>
@@ -286,7 +292,7 @@ export default function AdminOrdersPanel({ onLoadOrders }) {
                         <AdminStatusBadge value={formatLabel(order.paymentStatus)} tone={order.paymentStatus === 'PAID' ? 'success' : 'warning'} />
                       </div>
                     </td>
-                    <td className={`${ui.tableCell} text-right`}>
+                    <td className={`${ui.tableCell} whitespace-nowrap text-right`}>
                       <AdminIconButton label="View order" onClick={() => setSelectedOrder(order)}>
                         <EyeIcon />
                       </AdminIconButton>

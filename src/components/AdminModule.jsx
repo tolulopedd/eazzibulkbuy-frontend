@@ -7,6 +7,8 @@ import {
   fetchAdminReports,
   fetchAdminSalesItems,
   fetchAdminCustomers,
+  updateAdminCustomer,
+  exportAdminCustomers,
   fetchAdminOrders,
   updateSalesItem,
   deleteSalesItem,
@@ -88,6 +90,26 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
     return fetchAdminCustomers(query);
   }
 
+  async function handleUpdateCustomer(customerId, payload) {
+    setError('');
+    try {
+      return await updateAdminCustomer(customerId, payload);
+    } catch (err) {
+      setError(err.message || 'Unable to update customer details. Please try again.');
+      throw err;
+    }
+  }
+
+  async function handleExportCustomers(query = {}) {
+    setError('');
+    try {
+      return await exportAdminCustomers(query);
+    } catch (err) {
+      setError(err.message || 'Unable to export customers right now.');
+      throw err;
+    }
+  }
+
   async function handleLoadOrders(query = {}) {
     return fetchAdminOrders(query);
   }
@@ -122,10 +144,10 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
     }
   }
 
-  async function handleUpdateFulfillmentStatus(orderReference, fulfillmentStatus) {
+  async function handleUpdateFulfillmentStatus(orderReference, fulfillmentStatus, itemIndex) {
     setError('');
     try {
-      return await updateAdminFulfillmentStatus(orderReference, fulfillmentStatus);
+      return await updateAdminFulfillmentStatus(orderReference, fulfillmentStatus, itemIndex);
     } catch (err) {
       setError(err.message || 'Unable to update pickup or delivery status. Please try again.');
       throw err;
@@ -192,6 +214,8 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
         onUpdateSalesItem={handleUpdateSalesItem}
         onDeleteSalesItem={handleDeleteSalesItem}
         onLoadCustomers={handleLoadCustomers}
+        onUpdateCustomer={handleUpdateCustomer}
+        onExportCustomers={handleExportCustomers}
         onLoadOrders={handleLoadOrders}
         onConfirmInteracPayment={handleConfirmInteracPayment}
         onLoadPaymentProofViewUrl={handleLoadPaymentProofViewUrl}

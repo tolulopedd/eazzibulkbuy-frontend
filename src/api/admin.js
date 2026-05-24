@@ -112,12 +112,50 @@ export function fetchAdminReports(params = {}) {
   if (params.batchNumber) {
     search.set('batchNumber', params.batchNumber);
   }
+  if (params.fulfillmentMethod) {
+    search.set('fulfillmentMethod', params.fulfillmentMethod);
+  }
+  if (params.fulfillmentStatus) {
+    search.set('fulfillmentStatus', params.fulfillmentStatus);
+  }
   if (params.reportType) {
     search.set('reportType', params.reportType);
   }
 
   const suffix = search.toString() ? `?${search.toString()}` : '';
   return request(`/api/admin/reports${suffix}`);
+}
+
+export async function exportAdminReports(params = {}) {
+  const search = new URLSearchParams();
+
+  if (params.startDate) search.set('startDate', params.startDate);
+  if (params.endDate) search.set('endDate', params.endDate);
+  if (params.salesItemId) search.set('salesItemId', params.salesItemId);
+  if (params.batchNumber) search.set('batchNumber', params.batchNumber);
+  if (params.fulfillmentMethod) search.set('fulfillmentMethod', params.fulfillmentMethod);
+  if (params.fulfillmentStatus) search.set('fulfillmentStatus', params.fulfillmentStatus);
+  if (params.reportType) search.set('reportType', params.reportType);
+
+  const suffix = search.toString() ? `?${search.toString()}` : '';
+  let response;
+  try {
+    response = await fetch(buildApiUrl(`/api/admin/reports/export${suffix}`), {
+      credentials: 'include',
+    });
+  } catch {
+    throw new Error('Unable to reach backend API. Check that the production API base URL is configured correctly.');
+  }
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.message || 'Unable to export reports right now.');
+  }
+
+  return {
+    blob: await response.blob(),
+    fileName: response.headers.get('content-disposition')?.match(/filename="([^"]+)"/)?.[1] || 'reports-export.csv',
+  };
 }
 
 export function fetchAdminCustomers(params = {}) {
@@ -147,6 +185,44 @@ export function fetchAdminCustomers(params = {}) {
 
   const suffix = search.toString() ? `?${search.toString()}` : '';
   return request(`/api/admin/customers${suffix}`);
+}
+
+export function updateAdminCustomer(customerId, payload) {
+  return request(`/api/admin/customers/${customerId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function exportAdminCustomers(params = {}) {
+  const search = new URLSearchParams();
+
+  if (params.q) search.set('q', params.q);
+  if (params.batchNumber) search.set('batchNumber', params.batchNumber);
+  if (params.hasOrders !== undefined && params.hasOrders !== '') search.set('hasOrders', String(params.hasOrders));
+  if (params.sortBy) search.set('sortBy', params.sortBy);
+  if (params.sortOrder) search.set('sortOrder', params.sortOrder);
+
+  const suffix = search.toString() ? `?${search.toString()}` : '';
+  let response;
+  try {
+    response = await fetch(buildApiUrl(`/api/admin/customers/export${suffix}`), {
+      credentials: 'include',
+    });
+  } catch {
+    throw new Error('Unable to reach backend API. Check that the production API base URL is configured correctly.');
+  }
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.message || 'Unable to export customers right now.');
+  }
+
+  return {
+    blob: await response.blob(),
+    fileName: response.headers.get('content-disposition')?.match(/filename="([^"]+)"/)?.[1] || 'customers-export.csv',
+  };
 }
 
 export function fetchAdminOrders(params = {}) {
@@ -244,11 +320,11 @@ export function fetchAdminPaymentProofViewUrl(orderReference) {
   return request(`/api/admin/payments/${orderReference}/proof-view-url`);
 }
 
-export function updateAdminFulfillmentStatus(orderReference, fulfillmentStatus) {
+export function updateAdminFulfillmentStatus(orderReference, fulfillmentStatus, itemIndex) {
   return request(`/api/admin/orders/${orderReference}/fulfillment-status`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ fulfillmentStatus }),
+    body: JSON.stringify({ fulfillmentStatus, itemIndex }),
   });
 }
 

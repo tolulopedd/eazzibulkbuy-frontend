@@ -29,7 +29,7 @@ export const ui = {
   error: 'rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold leading-6 text-rose-700',
   summary: 'space-y-2 border-t border-slate-200 pt-4',
   metricCard: 'space-y-1 rounded-xl border border-slate-200 bg-white px-4 py-3.5',
-  tableWrap: 'overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_10px_24px_rgba(15,23,42,0.04)]',
+  tableWrap: 'overflow-x-auto overflow-y-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_10px_24px_rgba(15,23,42,0.04)]',
   table: 'min-w-full divide-y divide-slate-200',
   tableHeadRow: 'bg-slate-50/90',
   tableHeaderCell: 'px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.18em] text-slate-500',

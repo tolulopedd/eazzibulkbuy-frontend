@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ui } from '../ui/classes';
 import { formatOrderReferenceDisplay } from '../utils/orderReference';
 import {
@@ -113,7 +113,7 @@ function PaymentDetailsModal({
           <div className="space-y-1">
             <h2 className="text-2xl font-bold tracking-tight text-emerald-950">Payment details</h2>
             <p className="text-sm text-slate-600">
-              {formatOrderReferenceDisplay(order.orderReference, order.createdAt, order.user)} · {order.user?.name || 'Unknown buyer'}
+              {order.displayOrderReference || formatOrderReferenceDisplay(order.orderReference, order.createdAt, order.user, { batchNumber: order.salesItem?.batchNumber, orderSequence: order.orderSequence })} · {order.user?.name || 'Unknown buyer'}
             </p>
           </div>
           <button type="button" className={ui.iconButton} onClick={onClose} aria-label="Close payment details">
@@ -234,6 +234,7 @@ export default function AdminPaymentsPanel({
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [proofViewUrls, setProofViewUrls] = useState({});
   const [loadingProofReference, setLoadingProofReference] = useState('');
+  const didInitFiltersRef = useRef(false);
 
   async function loadPayments(nextQuery = query) {
     setLoading(true);
@@ -257,6 +258,26 @@ export default function AdminPaymentsPanel({
   useEffect(() => {
     loadPayments(DEFAULT_QUERY);
   }, []);
+
+  useEffect(() => {
+    if (!didInitFiltersRef.current) {
+      didInitFiltersRef.current = true;
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      const nextQuery = {
+        ...query,
+        q: query.q.trim(),
+        batchNumber: query.batchNumber.trim(),
+        page: 1,
+      };
+      setQuery((current) => ({ ...current, page: 1 }));
+      loadPayments(nextQuery);
+    }, 250);
+
+    return () => window.clearTimeout(timer);
+  }, [query.q, query.batchNumber, query.paidOnly, query.status, query.paymentStatus, query.paymentMethod]);
 
   async function applySearch() {
     const nextQuery = {
@@ -345,6 +366,7 @@ export default function AdminPaymentsPanel({
           <div className="space-y-2">
             <h1 className="text-2xl font-bold tracking-tight text-emerald-950">Payments</h1>
             <p className="leading-6 text-slate-600">Review Interac and Stripe payments, view receipt proof, and take action from one table.</p>
+            <p className="text-sm text-slate-500">Filters update automatically as you type or change a field.</p>
           </div>
 
           <div className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_210px_210px_210px]">
@@ -355,23 +377,23 @@ export default function AdminPaymentsPanel({
                 value={query.q}
                 onChange={(event) => setQuery((current) => ({ ...current, q: event.target.value }))}
                 placeholder="Order number, buyer, email"
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') {
-                    event.preventDefault();
-                    applySearch();
-                  }
-                }}
               />
             </div>
             <div className={ui.fieldWrap}>
               <label className={ui.label}>Batch number</label>
-              <input
-                className={ui.input}
-                value={query.batchNumber}
-                onChange={(event) => setQuery((current) => ({ ...current, batchNumber: event.target.value }))}
-                placeholder="TOM-APR-2026-A"
-              />
-            </div>
+                <input
+                  className={ui.input}
+                  value={query.batchNumber}
+                  onChange={(event) =>
+                    setQuery((current) => ({
+                      ...current,
+                      batchNumber: event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3),
+                    }))
+                  }
+                  placeholder="AZ1"
+                  maxLength={3}
+                />
+              </div>
             <div className={ui.fieldWrap}>
               <label className={ui.label}>Payment method</label>
               <select
@@ -397,18 +419,13 @@ export default function AdminPaymentsPanel({
                 <option value="PAID">Paid</option>
               </select>
             </div>
-            <div className="xl:col-span-4 flex flex-wrap items-end gap-3">
-              <button type="button" className={ui.buttonPrimary} onClick={applySearch} disabled={loading}>
-                {loading ? 'Loading...' : 'Search'}
-              </button>
-            </div>
           </div>
 
           {actionStatus ? <p className={ui.success}>{actionStatus}</p> : null}
           {error ? <p className={ui.error}>{error}</p> : null}
 
           <div className={ui.tableWrap}>
-            <table className={ui.table}>
+            <table className={`${ui.table} min-w-[980px]`}>
               <thead>
                 <tr className={ui.tableHeadRow}>
                   <th className={ui.tableHeaderCell}>Order</th>
@@ -432,7 +449,7 @@ export default function AdminPaymentsPanel({
                       <td className={ui.tableCell}>
                         <div className="space-y-1">
                           <p className="font-semibold text-slate-900">
-                            {formatOrderReferenceDisplay(order.orderReference, order.createdAt, order.user)}
+                            {order.displayOrderReference || formatOrderReferenceDisplay(order.orderReference, order.createdAt, order.user, { batchNumber: order.salesItem?.batchNumber, orderSequence: order.orderSequence })}
                           </p>
                           <p className="text-xs text-slate-500">{order.salesItem?.name || 'Order items'} · Qty {order.quantity}</p>
                         </div>
@@ -450,7 +467,7 @@ export default function AdminPaymentsPanel({
                       <td className={ui.tableCell}>
                         <AdminStatusBadge value={formatLabel(displayPaymentStatus)} tone={getStatusTone(displayPaymentStatus)} />
                       </td>
-                      <td className={`${ui.tableCell} text-right`}>
+                      <td className={`${ui.tableCell} whitespace-nowrap text-right`}>
                         <div className="flex justify-end gap-2">
                           <AdminIconButton label="View payment" onClick={() => handleView(order)}>
                             <EyeIcon />

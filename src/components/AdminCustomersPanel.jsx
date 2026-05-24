@@ -6,79 +6,96 @@ import {
   AdminStatusBadge,
   AdminTableEmpty,
   CloseIcon,
-  EyeIcon,
+  PencilIcon,
 } from './AdminTablePrimitives';
 
 const DEFAULT_QUERY = {
   q: '',
-  batchNumber: '',
-  hasOrders: '',
   sortBy: 'updatedAt',
   sortOrder: 'desc',
   page: 1,
   limit: 15,
 };
 
-function formatDateTime(value) {
-  if (!value) return '—';
-  return new Date(value).toLocaleString();
-}
+function CustomerEditModal({ customer, onClose, onSave, saving }) {
+  const [form, setForm] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    address: '',
+    isActive: true,
+  });
 
-function formatCurrency(cents) {
-  return `CAD ${((cents || 0) / 100).toFixed(2)}`;
-}
+  useEffect(() => {
+    if (!customer) {
+      return;
+    }
 
-function CustomerDetailsModal({ customer, onClose }) {
+    setForm({
+      name: customer.name || '',
+      email: customer.email || '',
+      phone: customer.phone || '',
+      address: customer.address || '',
+      isActive: Boolean(customer.isActive),
+    });
+  }, [customer]);
+
   if (!customer) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 py-6">
       <div className="absolute inset-0" onClick={onClose} aria-hidden="true" />
-      <div className="relative z-10 w-full max-w-4xl rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_30px_120px_rgba(15,23,42,0.24)] sm:p-6">
+      <div className="relative z-10 w-full max-w-2xl rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_30px_120px_rgba(15,23,42,0.24)] sm:p-6">
         <div className="mb-5 flex items-start justify-between gap-4">
           <div className="space-y-1">
-            <h2 className="text-2xl font-bold tracking-tight text-emerald-950">Buyer details</h2>
-            <p className="text-sm text-slate-600">{customer.name} · {customer.email}</p>
+            <h2 className="text-2xl font-bold tracking-tight text-emerald-950">Edit customer</h2>
+            <p className="text-sm text-slate-600">Update the saved customer details and status.</p>
           </div>
-          <button type="button" className={ui.iconButton} onClick={onClose} aria-label="Close buyer details">
+          <button type="button" className={ui.iconButton} onClick={onClose} aria-label="Close customer edit">
             <CloseIcon />
           </button>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <div className={ui.metricCard}>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Total orders</p>
-            <p className="text-2xl font-bold text-slate-900">{customer.totalOrders}</p>
-          </div>
-          <div className={ui.metricCard}>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Paid orders</p>
-            <p className="text-2xl font-bold text-slate-900">{customer.paidOrders}</p>
-          </div>
-          <div className={ui.metricCard}>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Lifetime paid</p>
-            <p className="text-base font-semibold text-slate-900">{formatCurrency(customer.totalPaidAmount)}</p>
-          </div>
-          <div className={ui.metricCard}>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Last order</p>
-            <p className="text-sm font-semibold text-slate-900">{formatDateTime(customer.lastOrderAt)}</p>
-          </div>
-        </div>
-
-        <div className="mt-5 grid gap-4 lg:grid-cols-2">
-          <div className={`${ui.section} space-y-2`}>
-            <p className="text-sm leading-6 text-slate-700">Phone: <span className="font-semibold text-slate-900">{customer.phone || 'Not provided'}</span></p>
-            <p className="text-sm leading-6 text-slate-700">Address: <span className="font-semibold text-slate-900">{customer.address || 'Not provided'}</span></p>
-            <p className="text-sm leading-6 text-slate-700">City: <span className="font-semibold text-slate-900">{customer.city || '—'}</span></p>
-            <p className="text-sm leading-6 text-slate-700">Province: <span className="font-semibold text-slate-900">{customer.province || '—'}</span></p>
-            <p className="text-sm leading-6 text-slate-700">Postal code: <span className="font-semibold text-slate-900">{customer.postalCode || '—'}</span></p>
-          </div>
-          <div className={`${ui.section} space-y-2`}>
-            <p className="text-sm leading-6 text-slate-700">Status:</p>
-            <div>
-              <AdminStatusBadge value={customer.isActive ? 'Active' : 'Inactive'} tone={customer.isActive ? 'success' : 'neutral'} />
+        <div className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className={ui.fieldWrap}>
+              <label className={ui.label}>Name</label>
+              <input className={ui.input} value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} />
             </div>
-            <p className="text-sm leading-6 text-slate-700">Created: <span className="font-semibold text-slate-900">{formatDateTime(customer.createdAt)}</span></p>
-            <p className="text-sm leading-6 text-slate-700">Updated: <span className="font-semibold text-slate-900">{formatDateTime(customer.updatedAt)}</span></p>
+            <div className={ui.fieldWrap}>
+              <label className={ui.label}>Email</label>
+              <input className={ui.input} type="email" value={form.email} onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} />
+            </div>
+            <div className={ui.fieldWrap}>
+              <label className={ui.label}>Phone</label>
+              <input className={ui.input} value={form.phone} onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))} />
+            </div>
+            <div className={ui.fieldWrap}>
+              <label className={ui.label}>Status</label>
+              <select className={ui.select} value={form.isActive ? 'ACTIVE' : 'INACTIVE'} onChange={(event) => setForm((current) => ({ ...current, isActive: event.target.value === 'ACTIVE' }))}>
+                <option value="ACTIVE">Active</option>
+                <option value="INACTIVE">Inactive</option>
+              </select>
+            </div>
+          </div>
+
+          <div className={ui.fieldWrap}>
+            <label className={ui.label}>Address</label>
+            <textarea className={ui.textarea} rows={3} value={form.address} onChange={(event) => setForm((current) => ({ ...current, address: event.target.value }))} />
+          </div>
+
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              className={ui.buttonPrimary}
+              onClick={() => onSave(customer.id, form)}
+              disabled={saving}
+            >
+              {saving ? 'Saving...' : 'Save customer'}
+            </button>
+            <button type="button" className={ui.buttonGhost} onClick={onClose}>
+              Cancel
+            </button>
           </div>
         </div>
       </div>
@@ -86,7 +103,7 @@ function CustomerDetailsModal({ customer, onClose }) {
   );
 }
 
-export default function AdminCustomersPanel({ onLoadCustomers }) {
+export default function AdminCustomersPanel({ onLoadCustomers, onUpdateCustomer, onExportCustomers }) {
   const [customers, setCustomers] = useState([]);
   const [query, setQuery] = useState(DEFAULT_QUERY);
   const [meta, setMeta] = useState({
@@ -97,7 +114,10 @@ export default function AdminCustomersPanel({ onLoadCustomers }) {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [status, setStatus] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   async function loadCustomers(nextQuery = query) {
     setLoading(true);
@@ -112,7 +132,7 @@ export default function AdminCustomersPanel({ onLoadCustomers }) {
         totalPages: response.totalPages || 1,
       });
     } catch (err) {
-      setError(err.message || 'Unable to load buyers list. Please try again.');
+      setError(err.message || 'Unable to load customers right now.');
     } finally {
       setLoading(false);
     }
@@ -122,6 +142,21 @@ export default function AdminCustomersPanel({ onLoadCustomers }) {
     loadCustomers(DEFAULT_QUERY);
   }, []);
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const nextQuery = {
+        ...query,
+        q: query.q.trim(),
+        page: 1,
+      };
+
+      setQuery((current) => (current.page === 1 ? current : { ...current, page: 1 }));
+      loadCustomers(nextQuery);
+    }, 250);
+
+    return () => window.clearTimeout(timer);
+  }, [query.q]);
+
   async function goToPage(nextPage) {
     const page = Math.max(1, Math.min(nextPage, meta.totalPages || 1));
     const nextQuery = { ...query, page };
@@ -129,15 +164,44 @@ export default function AdminCustomersPanel({ onLoadCustomers }) {
     await loadCustomers(nextQuery);
   }
 
-  async function applyFilters() {
-    const nextQuery = {
-      ...query,
-      q: query.q.trim(),
-      batchNumber: query.batchNumber.trim(),
-      page: 1,
-    };
-    setQuery(nextQuery);
-    await loadCustomers(nextQuery);
+  async function handleSave(customerId, payload) {
+    setSaving(true);
+    setError('');
+    setStatus('');
+    try {
+      const result = await onUpdateCustomer(customerId, payload);
+      setStatus(result.message || 'Customer updated successfully.');
+      setSelectedCustomer(null);
+      await loadCustomers(query);
+    } catch (err) {
+      setError(err.message || 'Unable to update customer right now.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleExport() {
+    setExporting(true);
+    setError('');
+    try {
+      const { blob, fileName } = await onExportCustomers({
+        q: query.q.trim(),
+        sortBy: query.sortBy,
+        sortOrder: query.sortOrder,
+      });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err.message || 'Unable to export customers right now.');
+    } finally {
+      setExporting(false);
+    }
   }
 
   const listStart = meta.total === 0 ? 0 : (meta.page - 1) * meta.limit + 1;
@@ -148,60 +212,38 @@ export default function AdminCustomersPanel({ onLoadCustomers }) {
       <section className={ui.card}>
         <div className="space-y-5">
           <div className="space-y-2">
-            <h1 className="text-2xl font-bold tracking-tight text-emerald-950">Buyers</h1>
-            <p className="leading-6 text-slate-600">Review buyer profiles in a simple customer table and open a record only when you need the full address or order history summary.</p>
+            <h1 className="text-2xl font-bold tracking-tight text-emerald-950">Customer</h1>
+            <p className="leading-6 text-slate-600">Review and maintain the core customer details in one simple table.</p>
           </div>
 
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_220px_220px]">
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto]">
             <div className={ui.fieldWrap}>
               <label className={ui.label}>Search</label>
               <input
                 className={ui.input}
                 value={query.q}
                 onChange={(event) => setQuery((current) => ({ ...current, q: event.target.value }))}
-                placeholder="Buyer name, email, phone"
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') {
-                    event.preventDefault();
-                    applyFilters();
-                  }
-                }}
+                placeholder="Customer name, email, phone, address"
               />
             </div>
-            <div className={ui.fieldWrap}>
-              <label className={ui.label}>Batch number</label>
-              <input
-                className={ui.input}
-                value={query.batchNumber}
-                onChange={(event) => setQuery((current) => ({ ...current, batchNumber: event.target.value }))}
-                placeholder="TOM-APR-2026-A"
-              />
-            </div>
-            <div className={ui.fieldWrap}>
-              <label className={ui.label}>Order state</label>
-              <select className={ui.select} value={query.hasOrders} onChange={(event) => setQuery((current) => ({ ...current, hasOrders: event.target.value }))}>
-                <option value="">All buyers</option>
-                <option value="true">With orders</option>
-                <option value="false">Without orders</option>
-              </select>
-            </div>
-            <div className="xl:col-span-3 flex flex-wrap items-end gap-3">
-              <button type="button" className={ui.buttonPrimary} onClick={applyFilters} disabled={loading}>
-                {loading ? 'Loading...' : 'Search'}
+            <div className="flex flex-wrap items-end gap-3">
+              <button type="button" className={ui.buttonGhost} onClick={handleExport} disabled={exporting}>
+                {exporting ? 'Exporting...' : 'Download to Excel'}
               </button>
             </div>
           </div>
 
+          {status ? <p className={ui.success}>{status}</p> : null}
           {error ? <p className={ui.error}>{error}</p> : null}
 
           <div className={ui.tableWrap}>
-            <table className={ui.table}>
+            <table className={`${ui.table} min-w-[900px]`}>
               <thead>
                 <tr className={ui.tableHeadRow}>
-                  <th className={ui.tableHeaderCell}>Buyer</th>
+                  <th className={ui.tableHeaderCell}>Name</th>
+                  <th className={ui.tableHeaderCell}>Email</th>
                   <th className={ui.tableHeaderCell}>Phone</th>
-                  <th className={ui.tableHeaderCell}>Orders</th>
-                  <th className={ui.tableHeaderCell}>Lifetime paid</th>
+                  <th className={ui.tableHeaderCell}>Address</th>
                   <th className={ui.tableHeaderCell}>Status</th>
                   <th className={`${ui.tableHeaderCell} text-right`}>Action</th>
                 </tr>
@@ -209,26 +251,16 @@ export default function AdminCustomersPanel({ onLoadCustomers }) {
               <tbody>
                 {customers.map((customer) => (
                   <tr key={customer.id} className={ui.tableRow}>
-                    <td className={ui.tableCell}>
-                      <div className="space-y-1">
-                        <p className="font-semibold text-slate-900">{customer.name}</p>
-                        <p className="text-xs text-slate-500">{customer.email}</p>
-                      </div>
-                    </td>
-                    <td className={ui.tableCell}>{customer.phone || 'Not provided'}</td>
-                    <td className={ui.tableCell}>
-                      <div className="space-y-1">
-                        <p className="font-semibold text-slate-900">{customer.totalOrders}</p>
-                        <p className="text-xs text-slate-500">{customer.paidOrders} paid</p>
-                      </div>
-                    </td>
-                    <td className={`${ui.tableCell} font-semibold text-slate-900`}>{formatCurrency(customer.totalPaidAmount)}</td>
+                    <td className={`${ui.tableCell} font-semibold text-slate-900`}>{customer.name || '—'}</td>
+                    <td className={ui.tableCell}>{customer.email || '—'}</td>
+                    <td className={ui.tableCell}>{customer.phone || '—'}</td>
+                    <td className={ui.tableCell}>{customer.address || '—'}</td>
                     <td className={ui.tableCell}>
                       <AdminStatusBadge value={customer.isActive ? 'Active' : 'Inactive'} tone={customer.isActive ? 'success' : 'neutral'} />
                     </td>
-                    <td className={`${ui.tableCell} text-right`}>
-                      <AdminIconButton label="View buyer" onClick={() => setSelectedCustomer(customer)}>
-                        <EyeIcon />
+                    <td className={`${ui.tableCell} whitespace-nowrap text-right`}>
+                      <AdminIconButton label="Edit customer" onClick={() => setSelectedCustomer(customer)}>
+                        <PencilIcon />
                       </AdminIconButton>
                     </td>
                   </tr>
@@ -236,7 +268,7 @@ export default function AdminCustomersPanel({ onLoadCustomers }) {
               </tbody>
             </table>
 
-            {!loading && customers.length === 0 ? <AdminTableEmpty message="No buyers found for the current view." /> : null}
+            {!loading && customers.length === 0 ? <AdminTableEmpty message="No customers found for the current view." /> : null}
             <AdminPagination
               page={meta.page}
               totalPages={meta.totalPages}
@@ -249,7 +281,7 @@ export default function AdminCustomersPanel({ onLoadCustomers }) {
         </div>
       </section>
 
-      <CustomerDetailsModal customer={selectedCustomer} onClose={() => setSelectedCustomer(null)} />
+      <CustomerEditModal customer={selectedCustomer} onClose={() => setSelectedCustomer(null)} onSave={handleSave} saving={saving} />
     </section>
   );
 }

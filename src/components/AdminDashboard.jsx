@@ -4,7 +4,6 @@ import AdminSalesPanel from './AdminSalesPanel';
 import AdminReportsPanel from './AdminReportsPanel';
 import AdminPaymentsPanel from './AdminPaymentsPanel';
 import AdminCustomersPanel from './AdminCustomersPanel';
-import AdminOrdersPanel from './AdminOrdersPanel';
 import AdminFulfillmentPanel from './AdminFulfillmentPanel';
 import BrandLogo from './BrandLogo';
 import { ui } from '../ui/classes';
@@ -18,6 +17,29 @@ const DEFAULT_SALES_QUERY = {
   page: 1,
   limit: 10,
 };
+
+const DEFAULT_BUNDLE_ITEMS = [
+  { name: '', quantity: '1' },
+  { name: '', quantity: '1' },
+];
+
+function createDefaultSalesForm() {
+  return {
+    name: '',
+    saleType: 'NORMAL_SALE',
+    batchNumber: '',
+    pricePerUnit: '',
+    closingDate: '',
+    status: 'ACTIVE',
+    pickupInstructions: '',
+    description: '',
+    bundleItems: DEFAULT_BUNDLE_ITEMS.map((item) => ({ ...item })),
+    deliveryEnabled: false,
+    deliveryBaseRangeMax: '10',
+    deliveryBasePrice: '20.00',
+    deliveryAdditionalUnitPrice: '2.00',
+  };
+}
 
 function parseDollarInputToCents(value) {
   const amount = Number(value);
@@ -68,8 +90,7 @@ function moduleBadge(moduleId) {
     sales: 'SL',
     payments: 'PM',
     reports: 'RP',
-    customers: 'BY',
-    orders: 'OR',
+    customers: 'CU',
     fulfillment: 'FL',
     logistics: 'LG',
   };
@@ -86,6 +107,8 @@ export default function AdminDashboard({
   onUpdateSalesItem,
   onDeleteSalesItem,
   onLoadCustomers,
+  onUpdateCustomer,
+  onExportCustomers,
   onLoadOrders,
   onConfirmInteracPayment,
   onLoadPaymentProofViewUrl,
@@ -118,44 +141,21 @@ export default function AdminDashboard({
   const [deleteLoadingId, setDeleteLoadingId] = useState('');
   const [editingId, setEditingId] = useState('');
   const [editForm, setEditForm] = useState({
-    name: '',
-    batchNumber: '',
-    pricePerUnit: '',
-    closingDate: '',
-    status: 'ACTIVE',
-    pickupInstructions: '',
-    description: '',
-    deliveryEnabled: false,
-    deliveryBaseRangeMax: '10',
-    deliveryBasePrice: '20.00',
-    deliveryAdditionalUnitPrice: '2.00',
+    ...createDefaultSalesForm(),
   });
 
-  const [form, setForm] = useState({
-    name: '',
-    batchNumber: '',
-    pricePerUnit: '',
-    closingDate: '',
-    status: 'ACTIVE',
-    pickupInstructions: '',
-    description: '',
-    deliveryEnabled: false,
-    deliveryBaseRangeMax: '10',
-    deliveryBasePrice: '20.00',
-    deliveryAdditionalUnitPrice: '2.00',
-  });
+  const [form, setForm] = useState(createDefaultSalesForm());
 
   const modules = useMemo(() => {
     const base = [];
 
     if (canManageSales) {
       base.push({ id: 'overview', label: 'Overview' });
-      base.push({ id: 'sales', label: 'Bulk Sales' });
+      base.push({ id: 'sales', label: 'Sales Events' });
       base.push({ id: 'payments', label: 'Payments' });
       base.push({ id: 'fulfillment', label: 'Fulfilment' });
       base.push({ id: 'reports', label: 'Reports' });
-      base.push({ id: 'customers', label: 'Buyers' });
-      base.push({ id: 'orders', label: 'Orders' });
+      base.push({ id: 'customers', label: 'Customer' });
     } else {
       base.push({ id: 'logistics', label: 'Logistics' });
     }
@@ -265,32 +265,29 @@ export default function AdminDashboard({
     try {
       await onCreateSalesItem({
         name: form.name,
+        saleType: form.saleType,
         batchNumber: form.batchNumber,
         pricePerUnit: parseDollarInputToCents(form.pricePerUnit),
         closingDate: new Date(form.closingDate).toISOString(),
         status: form.status,
         pickupInstructions: form.pickupInstructions || undefined,
         description: form.description || undefined,
+        bundleItems: form.saleType === 'BUNDLE_DISCOUNTED_SALE'
+          ? form.bundleItems
+              .map((item) => ({
+                name: item.name.trim(),
+                quantity: Number(item.quantity) || 0,
+              }))
+              .filter((item) => item.name && item.quantity > 0)
+          : undefined,
         deliveryEnabled: Boolean(form.deliveryEnabled),
         deliveryBaseRangeMax: Number(form.deliveryBaseRangeMax) || 10,
         deliveryBasePrice: parseDollarInputToCents(form.deliveryBasePrice),
         deliveryAdditionalUnitPrice: parseDollarInputToCents(form.deliveryAdditionalUnitPrice),
       });
 
-      setCreateStatus('Sales item created.');
-      setForm({
-        name: '',
-        batchNumber: '',
-        pricePerUnit: '',
-        closingDate: '',
-        status: 'ACTIVE',
-        pickupInstructions: '',
-        description: '',
-        deliveryEnabled: false,
-        deliveryBaseRangeMax: '10',
-        deliveryBasePrice: '20.00',
-        deliveryAdditionalUnitPrice: '2.00',
-      });
+      setCreateStatus('Sales event created.');
+      setForm(createDefaultSalesForm());
       await loadSalesItems(salesQuery);
       await loadActiveSalesSummary();
       await loadReports();
@@ -304,6 +301,7 @@ export default function AdminDashboard({
       setEditingId(item.id);
       setActionStatus('');
       setEditForm({
+        saleType: item.saleType || 'NORMAL_SALE',
         name: item.name,
         batchNumber: item.batchNumber || '',
         pricePerUnit: formatCentsToDollarInput(item.pricePerUnit),
@@ -311,6 +309,9 @@ export default function AdminDashboard({
         status: item.status,
         pickupInstructions: item.pickupInstructions || '',
         description: item.description || '',
+        bundleItems: Array.isArray(item.bundleItemsJson) && item.bundleItemsJson.length
+          ? item.bundleItemsJson.map((entry) => ({ name: entry.name || '', quantity: String(entry.quantity || 1) }))
+          : DEFAULT_BUNDLE_ITEMS.map((entry) => ({ ...entry })),
       });
       return;
     }
@@ -318,6 +319,7 @@ export default function AdminDashboard({
     setEditingId(item.id);
     setActionStatus('');
     setEditForm({
+      saleType: item.saleType || 'NORMAL_SALE',
       name: item.name,
       batchNumber: item.batchNumber || '',
       pricePerUnit: formatCentsToDollarInput(item.pricePerUnit),
@@ -325,6 +327,9 @@ export default function AdminDashboard({
       status: item.status,
       pickupInstructions: item.pickupInstructions || '',
       description: item.description || '',
+      bundleItems: Array.isArray(item.bundleItemsJson) && item.bundleItemsJson.length
+        ? item.bundleItemsJson.map((entry) => ({ name: entry.name || '', quantity: String(entry.quantity || 1) }))
+        : DEFAULT_BUNDLE_ITEMS.map((entry) => ({ ...entry })),
       deliveryEnabled: Boolean(item.deliveryEnabled),
       deliveryBaseRangeMax: String(item.deliveryBaseRangeMax || 10),
       deliveryBasePrice: formatCentsToDollarInput(item.deliveryBasePrice || 0),
@@ -348,19 +353,28 @@ export default function AdminDashboard({
     try {
       await onUpdateSalesItem(editingId, {
         name: editForm.name,
+        saleType: editForm.saleType,
         batchNumber: editForm.batchNumber,
         pricePerUnit: parseDollarInputToCents(editForm.pricePerUnit),
         closingDate: new Date(editForm.closingDate).toISOString(),
         status: editForm.status,
         pickupInstructions: editForm.pickupInstructions || null,
         description: editForm.description || null,
+        bundleItems: editForm.saleType === 'BUNDLE_DISCOUNTED_SALE'
+          ? editForm.bundleItems
+              .map((item) => ({
+                name: item.name.trim(),
+                quantity: Number(item.quantity) || 0,
+              }))
+              .filter((item) => item.name && item.quantity > 0)
+          : null,
         deliveryEnabled: Boolean(editForm.deliveryEnabled),
         deliveryBaseRangeMax: Number(editForm.deliveryBaseRangeMax) || 10,
         deliveryBasePrice: parseDollarInputToCents(editForm.deliveryBasePrice),
         deliveryAdditionalUnitPrice: parseDollarInputToCents(editForm.deliveryAdditionalUnitPrice),
       });
 
-      setActionStatus('Sales item updated.');
+      setActionStatus('Sales event updated.');
       setEditingId('');
       await loadSalesItems(salesQuery);
       await loadActiveSalesSummary();
@@ -384,7 +398,7 @@ export default function AdminDashboard({
     setDeleteLoadingId(item.id);
     try {
       await onDeleteSalesItem(item.id);
-      setActionStatus('Sales item deleted.');
+      setActionStatus('Sales event deleted.');
       if (editingId === item.id) {
         setEditingId('');
       }
@@ -501,11 +515,7 @@ export default function AdminDashboard({
     }
 
     if (activeModule === 'customers') {
-      return <AdminCustomersPanel onLoadCustomers={onLoadCustomers} />;
-    }
-
-    if (activeModule === 'orders') {
-      return <AdminOrdersPanel onLoadOrders={onLoadOrders} />;
+      return <AdminCustomersPanel onLoadCustomers={onLoadCustomers} onUpdateCustomer={onUpdateCustomer} onExportCustomers={onExportCustomers} />;
     }
 
     if (activeModule === 'logistics') {

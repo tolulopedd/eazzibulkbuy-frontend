@@ -113,6 +113,16 @@ function calculateDeliveryFeeForGroup(item, quantity) {
     : basePrice + (quantity - baseRangeMax) * additionalUnitPrice;
 }
 
+function getEffectiveDeliveryUnits(line) {
+  if (line.saleType !== 'BUNDLE_DISCOUNTED_SALE') {
+    return line.quantity;
+  }
+
+  const bundleItems = Array.isArray(line.bundleItemsJson || line.bundleItems) ? (line.bundleItemsJson || line.bundleItems) : [];
+  const unitsPerBundle = bundleItems.reduce((sum, item) => sum + Math.max(0, Number(item?.quantity) || 0), 0);
+  return line.quantity * Math.max(1, unitsPerBundle);
+}
+
 function buildCartSummary(cartLines, fulfillmentMethod) {
   const deliveryGroups = new Map();
 
@@ -132,7 +142,7 @@ function buildCartSummary(cartLines, fulfillmentMethod) {
     const groupKey = buildDeliveryGroupKey(line);
     const current = deliveryGroups.get(groupKey) || { quantity: 0, item: line };
     deliveryGroups.set(groupKey, {
-      quantity: current.quantity + line.quantity,
+      quantity: current.quantity + getEffectiveDeliveryUnits(line),
       item: current.item,
     });
   }
@@ -163,8 +173,17 @@ function calculateStripeProcessingFee(totalAmountCents) {
   return Math.max(0, grossTotal - totalAmountCents);
 }
 
+function formatBundleSummary(bundleItems = []) {
+  if (!Array.isArray(bundleItems) || bundleItems.length === 0) {
+    return '';
+  }
+
+  return bundleItems.map((item) => `${item.quantity} × ${item.name}`).join(', ');
+}
+
 function PaymentSuccessPage({
   orderReference,
+  displayOrderReference,
   createdAt,
   itemName,
   totalAmount,
@@ -187,7 +206,7 @@ function PaymentSuccessPage({
           : 'Your order has been received and your payment was processed.'}
       </p>
       <p className="leading-6 text-slate-700">
-        Order reference: <span className="font-semibold text-slate-900">{formatOrderReferenceDisplay(orderReference, createdAt, buyer)}</span>
+        Order reference: <span className="font-semibold text-slate-900">{displayOrderReference || buyer.displayOrderReference || formatOrderReferenceDisplay(orderReference, createdAt, buyer, { batchNumber: buyer.batchNumber, orderSequence: buyer.orderSequence })}</span>
       </p>
       <p className="leading-6 text-slate-700">
         Items: <span className="font-semibold text-slate-900">{itemName}</span>
@@ -704,10 +723,11 @@ export default function OrderForm({
         });
         setSuccessfulOrder({
           orderReference: createdOrder.orderReference,
+          displayOrderReference: confirmedPayment.displayOrderReference || paymentSelection.displayOrderReference || createdOrder.displayOrderReference,
           createdAt: confirmedPayment.createdAt || createdOrder.createdAt,
           itemName: cartItemSummary,
           totalAmount: paymentSelection.totalAmount,
-          buyer: { firstName, lastName },
+          buyer: { firstName, lastName, batchNumber: paymentSelection.batchNumber || createdOrder.batchNumber, orderSequence: paymentSelection.orderSequence || createdOrder.orderSequence },
           emailSent: Boolean(confirmedPayment.emailSent),
           demoMode: true,
         });
@@ -755,10 +775,11 @@ export default function OrderForm({
 
       setSuccessfulOrder({
         orderReference: createdOrder.orderReference,
+        displayOrderReference: confirmedPayment.displayOrderReference || paymentSelection.displayOrderReference || createdOrder.displayOrderReference,
         createdAt: confirmedPayment.createdAt || createdOrder.createdAt,
         itemName: cartItemSummary,
         totalAmount: paymentSelection.totalAmount,
-        buyer: { firstName, lastName },
+        buyer: { firstName, lastName, batchNumber: paymentSelection.batchNumber || createdOrder.batchNumber, orderSequence: paymentSelection.orderSequence || createdOrder.orderSequence },
         emailSent: Boolean(confirmedPayment.emailSent),
       });
       clearCartItems();
@@ -814,10 +835,11 @@ export default function OrderForm({
       setManualTransferFeedback(result.message || 'Order submitted successfully. Transfer proof received for review.');
       setSuccessfulOrder({
         orderReference: result.orderReference || manualOrder.orderReference,
+        displayOrderReference: result.displayOrderReference || manualOrder.displayOrderReference,
         createdAt: result.createdAt || manualOrder.createdAt,
         itemName: cartItemSummary,
         totalAmount: manualOrder.totalAmount,
-        buyer: { firstName, lastName },
+        buyer: { firstName, lastName, batchNumber: manualOrder.batchNumber, orderSequence: manualOrder.orderSequence },
         emailSent: result.emailSent,
         variant: 'manual-review',
       });
@@ -931,7 +953,7 @@ export default function OrderForm({
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 className="text-lg font-bold tracking-tight text-emerald-950">
-                  Payment for order <span className="font-semibold text-slate-900">{formatOrderReferenceDisplay(createdOrder.orderReference, createdOrder.createdAt, { firstName, lastName })}</span>.
+                  Payment for order <span className="font-semibold text-slate-900">{createdOrder.displayOrderReference || formatOrderReferenceDisplay(createdOrder.orderReference, createdOrder.createdAt, {}, { batchNumber: createdOrder.batchNumber, orderSequence: createdOrder.orderSequence })}</span>.
                 </h2>
               </div>
               <button
@@ -1009,7 +1031,7 @@ export default function OrderForm({
                     Send Interac e-Transfer to: <span className="font-semibold text-slate-900">{manualTransferEmail}</span> and receive confirmation within 6 hours.
                   </p>
                   <p className="text-sm leading-6 text-slate-700">
-                    Use your Order ID <span className="font-semibold text-slate-900">{formatOrderReferenceDisplay(manualOrder.orderReference, manualOrder.createdAt, { firstName, lastName })}</span> for this transfer as narration.
+                    Use your Order ID <span className="font-semibold text-slate-900">{manualOrder.displayOrderReference || formatOrderReferenceDisplay(manualOrder.orderReference, manualOrder.createdAt, {}, { batchNumber: manualOrder.batchNumber, orderSequence: manualOrder.orderSequence })}</span> for this transfer as narration.
                   </p>
                 </div>
                 <div className={`rounded-xl border px-3 py-2 text-sm font-semibold ${isManualTransferCountdownExpired ? 'border-amber-200 bg-amber-50 text-amber-800' : manualTransferRemainingSeconds <= 120 ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-emerald-200 bg-emerald-50 text-emerald-800'}`}>
@@ -1339,10 +1361,16 @@ export default function OrderForm({
                       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                         <h3 className="text-base font-bold text-emerald-950">{line.name}</h3>
                         <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
-                          CAD {(line.pricePerUnit / 100).toFixed(2)} / unit
+                          {line.saleType === 'BUNDLE_DISCOUNTED_SALE' ? 'Bundle Discounted Sale' : 'Normal Sale'}
+                        </span>
+                        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
+                          CAD {(line.pricePerUnit / 100).toFixed(2)} / {line.saleType === 'BUNDLE_DISCOUNTED_SALE' ? 'bundle' : 'unit'}
                         </span>
                       </div>
                       {line.description ? <p className="text-sm leading-6 text-slate-600">Description: {line.description}</p> : null}
+                      {line.saleType === 'BUNDLE_DISCOUNTED_SALE' && formatBundleSummary(line.bundleItemsJson || line.bundleItems) ? (
+                        <p className="text-sm leading-6 text-slate-600">Bundle: {formatBundleSummary(line.bundleItemsJson || line.bundleItems)}</p>
+                      ) : null}
                       {line.pickupInstructions ? <p className="text-sm leading-6 text-slate-600">Location: {line.pickupInstructions}</p> : null}
                     </div>
                     <div className="grid gap-3 sm:grid-cols-[auto_1fr] xl:grid-cols-1">
@@ -1420,6 +1448,9 @@ export default function OrderForm({
               <div key={line.id} className="rounded-2xl border border-slate-200 bg-white/90 px-4 py-3">
                 <p className="text-sm font-semibold text-slate-900">{line.name}</p>
                 {line.description ? <p className="text-sm leading-6 text-slate-600">Description: {line.description}</p> : null}
+                {line.saleType === 'BUNDLE_DISCOUNTED_SALE' && formatBundleSummary(line.bundleItemsJson || line.bundleItems) ? (
+                  <p className="text-sm leading-6 text-slate-600">Bundle: {formatBundleSummary(line.bundleItemsJson || line.bundleItems)}</p>
+                ) : null}
                 <p className="text-sm leading-6 text-slate-600">Quantity: {line.quantity}</p>
                 <p className="text-sm leading-6 text-slate-600">Amount: CAD {((line.quantity * line.pricePerUnit) / 100).toFixed(2)}</p>
               </div>
@@ -1456,7 +1487,7 @@ export default function OrderForm({
             {createdOrder ? (
               <div className="rounded-2xl border border-slate-200 bg-white/90 px-4 py-3 text-sm text-slate-700">
                 <p>
-                  Order reference: <span className="font-semibold text-slate-900">{formatOrderReferenceDisplay(createdOrder.orderReference, createdOrder.createdAt, { firstName, lastName })}</span>
+                  Order reference: <span className="font-semibold text-slate-900">{createdOrder.displayOrderReference || formatOrderReferenceDisplay(createdOrder.orderReference, createdOrder.createdAt, {}, { batchNumber: createdOrder.batchNumber, orderSequence: createdOrder.orderSequence })}</span>
                 </p>
               </div>
             ) : null}

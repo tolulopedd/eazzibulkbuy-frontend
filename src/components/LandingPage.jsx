@@ -102,6 +102,14 @@ function ClockIcon() {
   );
 }
 
+function renderBundleSummary(bundleItems = []) {
+  if (!Array.isArray(bundleItems) || bundleItems.length === 0) {
+    return null;
+  }
+
+  return bundleItems.map((item) => `${item.quantity} × ${item.name}`).join(', ');
+}
+
 export default function LandingPage({ onGoShop, onGoAdmin }) {
   const [activeItems, setActiveItems] = useState([]);
   const [cartItems, setCartItems] = useState(() => readCartItems());
@@ -167,8 +175,8 @@ export default function LandingPage({ onGoShop, onGoAdmin }) {
       </header>
 
       <section id="active-products" className={`${ui.card} space-y-3`}>
-        <h2 className="text-2xl font-bold tracking-tight text-emerald-950">Active Bulk Sales</h2>
-        <p className="mb-2 text-sm leading-6 text-slate-600">Start your order directly from any live sales item below.</p>
+        <h2 className="text-2xl font-bold tracking-tight text-emerald-950">Active Sales Events</h2>
+        <p className="mb-2 text-sm leading-6 text-slate-600">Start your order directly from any live normal sale or bundle discounted sale below.</p>
         <div className="inline-flex flex-wrap items-center gap-2 rounded-2xl border border-emerald-100 bg-emerald-50/70 px-3 py-2 text-sm font-medium text-emerald-900">
           <span className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.08em] text-emerald-700">Payment options</span>
           <span>Pay with credit card, debit card  or Interac e-Transfer.</span>
@@ -187,8 +195,16 @@ export default function LandingPage({ onGoShop, onGoAdmin }) {
               >
                 <div className="space-y-2.5">
                   <h3 className="text-lg font-bold text-emerald-950">{item.name}</h3>
+                  <div className="flex flex-wrap gap-2">
+                    <span className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                      {item.saleType === 'BUNDLE_DISCOUNTED_SALE' ? 'Bundle Discounted Sale' : 'Normal Sale'}
+                    </span>
+                  </div>
                   {item.description ? <p className="text-sm leading-6 text-slate-600">{item.description}</p> : null}
-                  <p className="text-sm leading-6 text-slate-700">Price: CAD {(item.pricePerUnit / 100).toFixed(2)} per unit</p>
+                  {item.saleType === 'BUNDLE_DISCOUNTED_SALE' && Array.isArray(item.bundleItemsJson) && item.bundleItemsJson.length ? (
+                    <p className="text-sm leading-6 text-slate-700">Bundle: {renderBundleSummary(item.bundleItemsJson)}</p>
+                  ) : null}
+                  <p className="text-sm leading-6 text-slate-700">Price: CAD {(item.pricePerUnit / 100).toFixed(2)} {item.saleType === 'BUNDLE_DISCOUNTED_SALE' ? 'per bundle' : 'per unit'}</p>
                   <p className="rounded-xl border border-emerald-200 bg-gradient-to-br from-emerald-100 to-emerald-50 px-3 py-2 shadow-[0_8px_18px_rgba(10,107,67,0.16)] animate-pulse">
                     <span className="block text-[11px] font-bold uppercase tracking-[0.08em] text-emerald-800">Order closes in</span>
                     {countdown ? (
@@ -228,9 +244,9 @@ export default function LandingPage({ onGoShop, onGoAdmin }) {
                     </div>
                   </div>
                   {item.deliveryEnabled ? (
-                    <p className="text-xs font-medium leading-5 text-emerald-800">Pickup and delivery available for this bulk sale.</p>
+                    <p className="text-xs font-medium leading-5 text-emerald-800">Pickup and delivery available for this sales event.</p>
                   ) : (
-                    <p className="text-xs font-medium leading-5 text-slate-500">Pickup available for this bulk sale.</p>
+                    <p className="text-xs font-medium leading-5 text-slate-500">Pickup available for this sales event.</p>
                   )}
                   <p className="text-xs font-medium leading-5 text-slate-600">Checkout supports credit cards and Interac e-Transfer.</p>
                 </div>
