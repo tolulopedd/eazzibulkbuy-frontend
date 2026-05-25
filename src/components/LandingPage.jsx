@@ -102,6 +102,25 @@ function ClockIcon() {
   );
 }
 
+function LoadingSpinner() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className="h-5 w-5 animate-spin text-emerald-700"
+      fill="none"
+    >
+      <circle cx="12" cy="12" r="9" className="stroke-emerald-200" strokeWidth="3" />
+      <path
+        d="M21 12a9 9 0 0 0-9-9"
+        className="stroke-current"
+        strokeWidth="3"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
 function renderBundleSummary(bundleItems = []) {
   if (!Array.isArray(bundleItems) || bundleItems.length === 0) {
     return null;
@@ -181,7 +200,12 @@ export default function LandingPage({ onGoShop, onGoAdmin }) {
           <span className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.08em] text-emerald-700">Payment options</span>
           <span>Pay with credit card, debit card  or Interac e-Transfer.</span>
         </div>
-        {loading ? <p className={ui.note}>Loading active products...</p> : null}
+        {loading ? (
+          <div className="flex items-center gap-3 rounded-2xl border border-emerald-100 bg-emerald-50/60 px-4 py-3 text-sm font-medium text-emerald-900">
+            <LoadingSpinner />
+            <span>Loading active sales events...</span>
+          </div>
+        ) : null}
         {error ? <p className={ui.error}>{error}</p> : null}
 
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
