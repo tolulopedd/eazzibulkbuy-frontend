@@ -37,14 +37,11 @@ export default function AdminLogin({ onLogin, onBack, onForgotPassword, loading,
         </svg>
       </button>
 
-      <div className={`${ui.glass} ${ui.card} mx-auto w-full max-w-xl space-y-1.5 p-4 text-center sm:p-5`}>
-        <BrandLogo align="center" compact imageClassName="w-40 sm:w-44" />
-        <h1 className="text-2xl font-bold tracking-tight text-emerald-950">Admin | Partners Platform</h1>
-        <p className="text-sm leading-6 text-slate-600">By continuing, you agree to your EazziBulkBuy access policy.</p>
-      </div>
-
       <form className={`${ui.card} mx-auto w-full max-w-xl space-y-4 p-4 sm:p-5`} onSubmit={handleSubmit}>
         <div className="space-y-1 text-center">
+          <div className="flex justify-center">
+            <BrandLogo align="center" compact imageClassName="w-32 sm:w-36" />
+          </div>
           <h2 className="text-2xl font-bold tracking-tight text-emerald-950">Sign in</h2>
           <p className={ui.note}>Enter your account credentials to continue.</p>
         </div>

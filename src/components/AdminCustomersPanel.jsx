@@ -216,7 +216,7 @@ export default function AdminCustomersPanel({ onLoadCustomers, onUpdateCustomer,
             <p className="leading-6 text-slate-600">Review and maintain the core customer details in one simple table.</p>
           </div>
 
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto]">
+          <div className={`${ui.filterPanel} grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto]`}>
             <div className={ui.fieldWrap}>
               <label className={ui.label}>Search</label>
               <input
@@ -230,6 +230,7 @@ export default function AdminCustomersPanel({ onLoadCustomers, onUpdateCustomer,
               <button type="button" className={ui.buttonGhost} onClick={handleExport} disabled={exporting}>
                 {exporting ? 'Exporting...' : 'Download to Excel'}
               </button>
+              <p className="text-sm text-slate-500">Filters update automatically as you type.</p>
             </div>
           </div>
 
@@ -251,10 +252,10 @@ export default function AdminCustomersPanel({ onLoadCustomers, onUpdateCustomer,
               <tbody>
                 {customers.map((customer) => (
                   <tr key={customer.id} className={ui.tableRow}>
-                    <td className={`${ui.tableCell} font-semibold text-slate-900`}>{customer.name || '—'}</td>
-                    <td className={ui.tableCell}>{customer.email || '—'}</td>
+                    <td className={`${ui.tableCell} max-w-[12rem] truncate font-semibold text-slate-900`} title={customer.name || '—'}>{customer.name || '—'}</td>
+                    <td className={`${ui.tableCell} max-w-[13rem] truncate`} title={customer.email || '—'}>{customer.email || '—'}</td>
                     <td className={ui.tableCell}>{customer.phone || '—'}</td>
-                    <td className={ui.tableCell}>{customer.address || '—'}</td>
+                    <td className={`${ui.tableCell} max-w-[16rem] truncate`} title={customer.address || '—'}>{customer.address || '—'}</td>
                     <td className={ui.tableCell}>
                       <AdminStatusBadge value={customer.isActive ? 'Active' : 'Inactive'} tone={customer.isActive ? 'success' : 'neutral'} />
                     </td>

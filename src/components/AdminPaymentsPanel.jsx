@@ -85,6 +85,37 @@ function getStatusTone(status) {
   return 'neutral';
 }
 
+function getOrderFulfillmentItems(order) {
+  return Array.isArray(order?.fulfillmentItems) && order.fulfillmentItems.length
+    ? order.fulfillmentItems
+    : [
+        {
+          name: order?.salesItem?.name || 'Order items',
+          quantity: order?.quantity || 0,
+          batchNumber: order?.salesItem?.batchNumber || '',
+        },
+      ];
+}
+
+function getOrderBatchSummary(order) {
+  const batches = [...new Set(getOrderFulfillmentItems(order).map((item) => item.batchNumber).filter(Boolean))];
+  return batches.length ? batches.join(', ') : '—';
+}
+
+function getOrderItemSummary(order) {
+  const groupedItems = new Map();
+
+  getOrderFulfillmentItems(order).forEach((item) => {
+    const name = item?.name || 'Order items';
+    const quantity = Number(item?.quantity) || 0;
+    groupedItems.set(name, (groupedItems.get(name) || 0) + quantity);
+  });
+
+  return [...groupedItems.entries()]
+    .map(([name, quantity]) => `${name} x${quantity}`)
+    .join(' + ');
+}
+
 function PaymentDetailsModal({
   order,
   proofViewUrl,
@@ -104,6 +135,8 @@ function PaymentDetailsModal({
   const canConfirmInterac = isInterac && order.paymentStatus === 'PENDING_REVIEW';
   const canResendConfirmation = order.paymentStatus === 'PAID' || order.status === 'CONFIRMED';
   const transferProofImageSrc = proofViewUrl || transferProof?.screenshotDataUrl || '';
+  const batchSummary = getOrderBatchSummary(order);
+  const itemSummary = getOrderItemSummary(order);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 py-6">
@@ -132,11 +165,11 @@ function PaymentDetailsModal({
               <div className={ui.metricCard}>
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Amount</p>
                 <p className="text-base font-semibold text-slate-900">{formatCurrency(order.totalAmount)}</p>
-                <p className="text-sm text-slate-600">{order.salesItem?.name || 'Order items'}</p>
+                <p className="text-sm text-slate-600">{itemSummary}</p>
               </div>
               <div className={ui.metricCard}>
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Batch</p>
-                <p className="text-base font-semibold text-slate-900">{order.salesItem?.batchNumber || '—'}</p>
+                <p className="text-base font-semibold text-slate-900">{batchSummary}</p>
                 <p className="text-sm text-slate-600">{order.salesItem?.pickupInstructions || 'Location not set'}</p>
               </div>
               <div className={ui.metricCard}>
@@ -362,14 +395,13 @@ export default function AdminPaymentsPanel({
   return (
     <section className="space-y-5">
       <section className={ui.card}>
-        <div className="space-y-5">
-          <div className="space-y-2">
-            <h1 className="text-2xl font-bold tracking-tight text-emerald-950">Payments</h1>
-            <p className="leading-6 text-slate-600">Review Interac and Stripe payments, view receipt proof, and take action from one table.</p>
-            <p className="text-sm text-slate-500">Filters update automatically as you type or change a field.</p>
-          </div>
+          <div className="space-y-5">
+            <div className="space-y-2">
+              <h1 className="text-2xl font-bold tracking-tight text-emerald-950">Payments</h1>
+              <p className="leading-6 text-slate-600">Review Interac and Stripe payments, view receipt proof, and take action from one table.</p>
+            </div>
 
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_210px_210px_210px]">
+          <div className={`${ui.filterPanel} grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_210px_210px_210px]`}>
             <div className={ui.fieldWrap}>
               <label className={ui.label}>Search</label>
               <input
@@ -419,6 +451,9 @@ export default function AdminPaymentsPanel({
                 <option value="PAID">Paid</option>
               </select>
             </div>
+            <div className="xl:col-span-4">
+              <p className="text-sm text-slate-500">Filters update automatically as you type or change a field.</p>
+            </div>
           </div>
 
           {actionStatus ? <p className={ui.success}>{actionStatus}</p> : null}
@@ -443,25 +478,31 @@ export default function AdminPaymentsPanel({
                   const displayPaymentStatus = getDisplayPaymentStatus(order);
                   const canConfirmInterac = order.paymentMethod === 'INTERAC_E_TRANSFER' && order.paymentStatus === 'PENDING_REVIEW';
                   const canResendConfirmation = order.paymentStatus === 'PAID' || order.status === 'CONFIRMED';
+                  const batchSummary = getOrderBatchSummary(order);
+                  const itemSummary = getOrderItemSummary(order);
 
                   return (
                     <tr key={order.id} className={ui.tableRow}>
                       <td className={ui.tableCell}>
-                        <div className="space-y-1">
+                        <div className="max-w-[15rem] space-y-0.5">
                           <p className="font-semibold text-slate-900">
                             {order.displayOrderReference || formatOrderReferenceDisplay(order.orderReference, order.createdAt, order.user, { batchNumber: order.salesItem?.batchNumber, orderSequence: order.orderSequence })}
                           </p>
-                          <p className="text-xs text-slate-500">{order.salesItem?.name || 'Order items'} · Qty {order.quantity}</p>
+                          <p className="truncate text-xs text-slate-500" title={itemSummary}>{itemSummary}</p>
                         </div>
                       </td>
                       <td className={ui.tableCell}>{formatDate(order.createdAt)}</td>
                       <td className={ui.tableCell}>
-                        <div className="space-y-1">
-                          <p className="font-medium text-slate-900">{order.user?.name || 'Unknown buyer'}</p>
-                          <p className="text-xs text-slate-500">{order.user?.email || '—'}</p>
+                        <div className="max-w-[13rem] space-y-0.5">
+                          <p className="truncate font-medium text-slate-900" title={order.user?.name || 'Unknown buyer'}>{order.user?.name || 'Unknown buyer'}</p>
+                          <p className="truncate text-xs text-slate-500" title={order.user?.email || '—'}>{order.user?.email || '—'}</p>
                         </div>
                       </td>
-                      <td className={`${ui.tableCell} font-medium text-slate-900`}>{order.salesItem?.batchNumber || '—'}</td>
+                      <td className={ui.tableCell}>
+                        <div className="max-w-[9rem] space-y-0.5">
+                          <p className="truncate font-medium text-slate-900" title={batchSummary}>{batchSummary}</p>
+                        </div>
+                      </td>
                       <td className={ui.tableCell}>{formatLabel(order.paymentMethod)}</td>
                       <td className={`${ui.tableCell} font-semibold text-slate-900`}>{formatCurrency(order.totalAmount)}</td>
                       <td className={ui.tableCell}>

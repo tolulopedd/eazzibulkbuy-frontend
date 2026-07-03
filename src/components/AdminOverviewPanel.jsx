@@ -200,7 +200,7 @@ export default function AdminOverviewPanel({
       </section>
 
       <SectionShell
-        title="Sales Event Snapshot"
+        title="Sales Events Overview"
         action={
           overview.nextLiveEvent ? (
             <AdminStatusBadge

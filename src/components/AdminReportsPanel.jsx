@@ -225,10 +225,9 @@ export default function AdminReportsPanel({ reports, reportError, loadingReports
         <div className="space-y-2">
           <h1 className="text-2xl font-bold tracking-tight text-emerald-950">{activeReportLabel}</h1>
           <p className="leading-6 text-slate-600">Select the report you want, then refine it with batch, date, fulfilment, and sales event filters.</p>
-          <p className="text-sm text-slate-500">Filters update automatically as you change them.</p>
         </div>
 
-        <form className={`${ui.section} space-y-4`} onSubmit={applyFilters}>
+        <form className={`${ui.filterPanel} space-y-4`} onSubmit={applyFilters}>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-7">
             <DateFilterField
               label="Start date"
@@ -309,6 +308,7 @@ export default function AdminReportsPanel({ reports, reportError, loadingReports
             <button type="button" className={ui.buttonGhost} onClick={clearFilters} disabled={loadingReports}>
               Clear filters
             </button>
+            <p className="self-center text-sm text-slate-500">Filters update automatically as you type or change a field.</p>
           </div>
         </form>
 

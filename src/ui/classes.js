@@ -10,6 +10,8 @@ export const ui = {
   glass: 'bg-white/75 backdrop-blur-md',
   section:
     'rounded-2xl border border-emerald-100 bg-emerald-50/35 p-4 sm:p-5',
+  filterPanel:
+    'rounded-2xl border border-slate-200 bg-slate-50/85 p-4 sm:p-5',
   fieldWrap: 'grid gap-2',
   label: 'block text-sm font-semibold leading-5 text-emerald-900',
   input:
@@ -32,8 +34,8 @@ export const ui = {
   tableWrap: 'overflow-x-auto overflow-y-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_10px_24px_rgba(15,23,42,0.04)]',
   table: 'min-w-full divide-y divide-slate-200',
   tableHeadRow: 'bg-slate-50/90',
-  tableHeaderCell: 'px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.18em] text-slate-500',
-  tableCell: 'px-4 py-3 text-sm text-slate-700 align-top',
+  tableHeaderCell: 'px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500',
+  tableCell: 'px-4 py-2.5 text-sm leading-5 text-slate-700 align-top',
   tableRow: 'border-t border-slate-100 transition hover:bg-slate-50/70',
   iconButton:
     'inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 disabled:cursor-not-allowed disabled:opacity-50',

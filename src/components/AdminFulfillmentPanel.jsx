@@ -35,9 +35,17 @@ function formatCurrency(cents) {
 
 function formatLineAmount(item) {
   if (item.isBundleComponent && (item.lineTotal === null || item.lineTotal === undefined)) {
-    return `Part of bundle ${formatCurrency(item.totalAmount || 0)}`;
+    return `Part of ${formatCurrency(item.totalAmount || 0)}`;
   }
   return formatCurrency(item.lineTotal || 0);
+}
+
+function getAmountMetaLabel(item) {
+  if (item.isBundleComponent) {
+    return 'Bundle';
+  }
+
+  return item.quantity > 1 ? `Qty ${item.quantity}` : 'Single item';
 }
 
 function formatDate(value) {
@@ -63,6 +71,30 @@ function canConfirm(item) {
 function getStatusTone(status) {
   if (status === 'PICKED_UP' || status === 'DELIVERED') return 'success';
   return 'warning';
+}
+
+function getMixedBatchSummary(order) {
+  const items = Array.isArray(order?.fulfillmentItems) && order.fulfillmentItems.length
+    ? order.fulfillmentItems
+    : [{ batchNumber: order?.salesItem?.batchNumber || '' }];
+
+  const batches = [...new Set(items.map((item) => item.batchNumber).filter(Boolean))];
+  return batches.length ? batches.join(', ') : '—';
+}
+
+function getMixedItemSummary(order) {
+  const items = Array.isArray(order?.fulfillmentItems) && order.fulfillmentItems.length
+    ? order.fulfillmentItems
+    : [{ name: order?.salesItem?.name || 'Order items', quantity: order?.quantity || 0 }];
+
+  const grouped = new Map();
+  items.forEach((item) => {
+    const name = item?.name || 'Order items';
+    const quantity = Number(item?.quantity) || 0;
+    grouped.set(name, (grouped.get(name) || 0) + quantity);
+  });
+
+  return [...grouped.entries()].map(([name, quantity]) => `${name} x${quantity}`).join(' + ');
 }
 
 export default function AdminFulfillmentPanel({ onLoadOrders, onUpdateFulfillmentStatus, onRefreshReports }) {
@@ -261,10 +293,9 @@ export default function AdminFulfillmentPanel({ onLoadOrders, onUpdateFulfillmen
           <div className="space-y-2">
             <h1 className="text-2xl font-bold tracking-tight text-emerald-950">Fulfilment</h1>
             <p className="leading-6 text-slate-600">Confirm pickup or delivery for paid orders and download the current delivery view to Excel.</p>
-            <p className="text-sm text-slate-500">Filters update automatically as you type or change a field.</p>
           </div>
 
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.3fr)_200px_220px_220px]">
+          <div className={`${ui.filterPanel} grid gap-4 xl:grid-cols-[minmax(0,1.3fr)_200px_220px_220px]`}>
             <div className={ui.fieldWrap}>
               <label className={ui.label}>Search</label>
               <div className="relative">
@@ -341,6 +372,7 @@ export default function AdminFulfillmentPanel({ onLoadOrders, onUpdateFulfillmen
               <button type="button" className={ui.buttonGhost} onClick={handleExportPaidDeliveryOrders} disabled={exporting}>
                 {exporting ? 'Exporting...' : 'Download to Excel'}
               </button>
+              <p className="text-sm text-slate-500">Filters update automatically as you type or change a field.</p>
             </div>
           </div>
 
@@ -348,7 +380,7 @@ export default function AdminFulfillmentPanel({ onLoadOrders, onUpdateFulfillmen
           {error ? <p className={ui.error}>{error}</p> : null}
 
           <div className={ui.tableWrap}>
-            <table className={`${ui.table} min-w-[980px]`}>
+            <table className={`${ui.table} min-w-[1120px]`}>
               <thead>
                 <tr className={ui.tableHeadRow}>
                   <th className={ui.tableHeaderCell}>Order</th>
@@ -359,42 +391,57 @@ export default function AdminFulfillmentPanel({ onLoadOrders, onUpdateFulfillmen
                   <th className={ui.tableHeaderCell}>Fulfilment</th>
                   <th className={ui.tableHeaderCell}>Status</th>
                   <th className={ui.tableHeaderCell}>Amount</th>
-                  <th className={`${ui.tableHeaderCell} text-right`}>Action</th>
+                  <th className={`${ui.tableHeaderCell} sticky right-0 z-10 bg-slate-50/95 text-right shadow-[-10px_0_18px_rgba(15,23,42,0.04)]`}>
+                    Action
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {fulfillmentRows.map((order) => (
                   <tr key={`${order.id}-${order.itemIndex}`} className={ui.tableRow}>
                     <td className={ui.tableCell}>
-                      <div className="space-y-1">
-                        <p className="font-semibold text-slate-900">{order.displayOrderReference || formatOrderReferenceDisplay(order.orderReference, order.createdAt, order.user, { batchNumber: order.salesItem?.batchNumber, orderSequence: order.orderSequence })}</p>
+                      <div className="max-w-[15rem] space-y-0.5">
+                        <p className="font-semibold text-slate-900">
+                          {order.displayOrderReference || formatOrderReferenceDisplay(order.orderReference, order.createdAt, order.user, { batchNumber: order.salesItem?.batchNumber, orderSequence: order.orderSequence })}
+                        </p>
+                        <p className="truncate text-xs text-slate-500" title={`${getMixedBatchSummary(order)} · ${getMixedItemSummary(order)}`}>
+                          {getMixedBatchSummary(order)} · {getMixedItemSummary(order)}
+                        </p>
                       </div>
                     </td>
                     <td className={ui.tableCell}>
-                      <div className="space-y-1">
-                        <p className="font-medium text-slate-900">{order.name || order.salesItem?.name || 'Order items'}</p>
-                        <p className="text-xs text-slate-500">
+                      <div className="max-w-[13rem] space-y-0.5">
+                        <p className="truncate font-medium text-slate-900" title={order.name || order.salesItem?.name || 'Order items'}>{order.name || order.salesItem?.name || 'Order items'}</p>
+                        <p
+                          className="truncate text-xs text-slate-500"
+                          title={`Qty ${order.quantity}${order.isBundleComponent && order.bundleName ? ` · Bundle: ${order.bundleName}` : ''}`}
+                        >
                           Qty {order.quantity}
                           {order.isBundleComponent && order.bundleName ? ` · Bundle: ${order.bundleName}` : ''}
                         </p>
                       </div>
                     </td>
-                    <td className={ui.tableCell}>{formatDate(order.paidAt || order.createdAt)}</td>
+                    <td className={`${ui.tableCell} whitespace-nowrap`}>{formatDate(order.paidAt || order.createdAt)}</td>
                     <td className={ui.tableCell}>
-                      <div className="space-y-1">
-                        <p className="font-medium text-slate-900">{order.user?.name || 'Unknown buyer'}</p>
-                        <p className="text-xs text-slate-500">{order.user?.phone || order.user?.email || '—'}</p>
+                      <div className="max-w-[12rem] space-y-0.5">
+                        <p className="truncate font-medium text-slate-900" title={order.user?.name || 'Unknown buyer'}>{order.user?.name || 'Unknown buyer'}</p>
+                        <p className="truncate text-xs text-slate-500" title={order.user?.phone || order.user?.email || '—'}>{order.user?.phone || order.user?.email || '—'}</p>
                       </div>
                     </td>
-                    <td className={`${ui.tableCell} font-medium text-slate-900`}>{order.salesItem?.batchNumber || '—'}</td>
+                    <td className={`${ui.tableCell} font-medium text-slate-900`}>{order.batchNumber || order.salesItem?.batchNumber || '—'}</td>
                     <td className={ui.tableCell}>
                       <AdminStatusBadge value={formatLabel(order.fulfillmentMethod)} tone={order.fulfillmentMethod === 'DELIVERY' ? 'warning' : 'success'} />
                     </td>
                     <td className={ui.tableCell}>
                       <AdminStatusBadge value={formatLabel(order.fulfillmentStatus)} tone={getStatusTone(order.fulfillmentStatus)} />
                     </td>
-                    <td className={`${ui.tableCell} font-semibold text-slate-900`}>{formatLineAmount(order)}</td>
-                    <td className={`${ui.tableCell} whitespace-nowrap text-right`}>
+                    <td className={ui.tableCell}>
+                      <div className="min-w-[9.5rem] space-y-0.5 whitespace-nowrap">
+                        <p className="font-semibold text-slate-900">{formatLineAmount(order)}</p>
+                        <p className="text-xs text-slate-500">{getAmountMetaLabel(order)}</p>
+                      </div>
+                    </td>
+                    <td className={`${ui.tableCell} sticky right-0 z-10 whitespace-nowrap bg-white text-right shadow-[-10px_0_18px_rgba(15,23,42,0.04)]`}>
                       {canConfirm(order) ? (
                         <button
                           type="button"

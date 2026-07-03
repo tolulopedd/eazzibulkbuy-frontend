@@ -52,7 +52,7 @@ export default function App() {
         ) : path.startsWith('/admin') ? (
           <AdminModule onBackHome={() => navigate('/')} onGoForgotPassword={() => navigate('/admin/forgot-password')} />
         ) : path === '/shop' ? (
-          <div className="mx-auto w-full max-w-[1280px] space-y-5">
+          <div className="mx-auto w-full max-w-[1280px] space-y-5 pt-12 sm:pt-14 lg:pt-10">
             <button
               type="button"
               className="fixed left-4 top-4 z-20 inline-flex h-10 w-10 items-center justify-center rounded-full border border-emerald-200 bg-white/90 text-emerald-700 shadow-sm transition hover:bg-emerald-50 hover:text-emerald-800 sm:left-6 sm:top-6"
@@ -79,7 +79,6 @@ export default function App() {
         ) : (
           <LandingPage
             onGoShop={() => navigate('/shop')}
-            onGoAdmin={() => navigate('/admin')}
           />
         )}
       </main>

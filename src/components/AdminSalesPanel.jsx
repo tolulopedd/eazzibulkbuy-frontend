@@ -410,9 +410,14 @@ export default function AdminSalesPanel({
               {items.map((item) => (
                 <tr key={item.id} className={ui.tableRow}>
                   <td className={ui.tableCell}>
-                    <div className="space-y-1">
-                      <p className="font-semibold text-slate-900">{item.name}</p>
-                      <p className="text-xs text-slate-500">{item.description || item.pickupInstructions || 'No extra details yet'}</p>
+                    <div className="max-w-[14rem] space-y-0.5">
+                      <p className="truncate font-semibold text-slate-900" title={item.name}>{item.name}</p>
+                      <p
+                        className="truncate text-xs text-slate-500"
+                        title={item.description || item.pickupInstructions || 'No extra details yet'}
+                      >
+                        {item.description || item.pickupInstructions || 'No extra details yet'}
+                      </p>
                     </div>
                   </td>
                   <td className={`${ui.tableCell} font-medium text-slate-900`}>{item.batchNumber}</td>
@@ -575,7 +580,7 @@ export default function AdminSalesPanel({
           </form>
         ) : null}
 
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.5fr)_260px]">
+        <div className={`${ui.filterPanel} grid gap-4 xl:grid-cols-[minmax(0,1.5fr)_260px]`}>
           <div className={ui.fieldWrap}>
             <label className={ui.label}>Search</label>
             <input
