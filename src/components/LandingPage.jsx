@@ -236,6 +236,7 @@ export default function LandingPage({ onGoShop }) {
 
   const highlightedItems = useMemo(() => activeItems.slice(0, 6), [activeItems]);
   const cartQuantity = useMemo(() => getCartQuantityByItem(cartItems), [cartItems]);
+  const canProceedToCart = cartQuantity > 0;
   const selectedSalesCount = useMemo(
     () => cartItems.filter((item) => item.quantity > 0).length,
     [cartItems],
@@ -338,7 +339,12 @@ export default function LandingPage({ onGoShop }) {
             <button
               type="button"
               onClick={() => onGoShop()}
-              className="hidden min-h-12 items-center justify-center rounded-full bg-[#171717] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#0d0d0d] lg:inline-flex"
+              disabled={!canProceedToCart}
+              className={`hidden min-h-12 items-center justify-center rounded-full px-6 py-3 text-sm font-semibold text-white transition lg:inline-flex ${
+                canProceedToCart
+                  ? 'bg-[#171717] hover:bg-[#0d0d0d]'
+                  : 'cursor-not-allowed bg-[#7f857f] text-white/85'
+              }`}
             >
               Order now
             </button>
@@ -380,8 +386,14 @@ export default function LandingPage({ onGoShop }) {
           <div className={`grid gap-6 ${hasLiveItems ? 'lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] lg:items-start' : ''}`}>
             <div className={`space-y-4 pt-1 sm:space-y-5 sm:pt-2 ${hasLiveItems ? '' : 'mx-auto max-w-[920px] text-center'}`}>
               <div className={`flex flex-wrap items-center gap-2 ${hasLiveItems ? '' : 'justify-center'}`}>
-                <span className="inline-flex items-center rounded-full bg-[#171717] px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-white">
-                  {activeItems.length > 0 ? 'Live now' : 'Active Sales Events'}
+                <span
+                  className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] ${
+                    hasLiveItems
+                      ? 'bg-emerald-700 text-white shadow-[0_10px_20px_rgba(4,120,87,0.22)]'
+                      : 'bg-amber-100 text-amber-800 shadow-[0_10px_20px_rgba(180,83,9,0.12)]'
+                  }`}
+                >
+                  {hasLiveItems ? 'Active Sales Events' : 'No Active Sales Events'}
                 </span>
               </div>
               <div className="space-y-3">
@@ -399,10 +411,15 @@ export default function LandingPage({ onGoShop }) {
               <div className={`flex flex-col gap-3 sm:flex-row ${hasLiveItems ? '' : 'justify-center sm:justify-center'}`}>
                 <button
                   type="button"
-                  className="inline-flex min-h-12 w-full items-center justify-center rounded-full bg-[#171717] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#0d0d0d] sm:w-auto"
                   onClick={() => onGoShop()}
+                  disabled={!canProceedToCart}
+                  className={`inline-flex min-h-12 w-full items-center justify-center rounded-full px-6 py-3 text-sm font-semibold text-white transition sm:w-auto ${
+                    canProceedToCart
+                      ? 'bg-[#171717] hover:bg-[#0d0d0d]'
+                      : 'cursor-not-allowed bg-[#7f857f] text-white/85'
+                  }`}
                 >
-                  Continue to cart
+                  {canProceedToCart ? 'Continue to cart' : 'Select items to continue'}
                 </button>
                 <a
                   href="#about-us"
@@ -552,8 +569,8 @@ export default function LandingPage({ onGoShop }) {
         {error ? <p className={ui.error}>{error}</p> : null}
 
         {!loading && highlightedItems.length === 0 ? (
-          <div className="mx-auto mt-4 max-w-[540px] rounded-2xl border border-slate-200 bg-white px-4 py-4 text-center text-sm text-slate-600">
-            <p className="font-semibold text-slate-900">No live sales right now.</p>
+          <div className="mx-auto mt-4 max-w-[540px] rounded-2xl border border-amber-200 bg-amber-50/80 px-4 py-4 text-center text-sm text-amber-900">
+            <p className="font-semibold text-amber-950">No live sales right now.</p>
             <p className="mt-1">Please check back soon for the next sales event.</p>
           </div>
         ) : null}
@@ -576,9 +593,9 @@ export default function LandingPage({ onGoShop }) {
               type="button"
               className={`${ui.buttonPrimary} min-w-[190px] w-full border border-emerald-300/20 bg-[#46d2b8] text-[#0f1612] shadow-[0_14px_24px_rgba(6,95,70,0.18)] hover:bg-[#54d8c0] sm:w-auto ${cartQuantity === 0 ? 'cursor-not-allowed opacity-60' : ''}`}
               onClick={() => onGoShop()}
-              disabled={cartQuantity === 0}
+              disabled={!canProceedToCart}
             >
-              {cartQuantity > 0 ? 'Continue to cart' : 'Select items to continue'}
+              {canProceedToCart ? 'Continue to cart' : 'Select items to continue'}
             </button>
           </div>
         ) : null}
@@ -705,7 +722,12 @@ export default function LandingPage({ onGoShop }) {
             <button
               type="button"
               onClick={() => onGoShop()}
-              className="inline-flex min-h-12 w-full items-center justify-center rounded-full bg-white px-6 py-3 text-sm font-semibold text-[#0b2018] transition hover:bg-[#f1faf6] sm:w-auto"
+              disabled={!canProceedToCart}
+              className={`inline-flex min-h-12 w-full items-center justify-center rounded-full px-6 py-3 text-sm font-semibold transition sm:w-auto ${
+                canProceedToCart
+                  ? 'bg-white text-[#0b2018] hover:bg-[#f1faf6]'
+                  : 'cursor-not-allowed bg-white/30 text-white/70'
+              }`}
             >
               Order now
             </button>
