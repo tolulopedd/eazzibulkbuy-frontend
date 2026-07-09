@@ -274,11 +274,13 @@ export default function LandingPage({ onGoShop }) {
     { label: 'Community impact', href: '#community-impact' },
     { label: 'About us', href: '#about-us' },
   ];
+  const hasLiveItems = highlightedItems.length > 0;
 
   return (
-    <div className={ui.shell}>
-      <header className="rounded-2xl border border-emerald-200/80 bg-gradient-to-r from-[#f5fff7] via-white to-[#eef8ff] px-4 py-4.5 shadow-[0_18px_42px_rgba(15,23,42,0.09)] backdrop-blur-md sm:px-5">
-        <div className="flex items-center justify-between gap-3 lg:grid lg:grid-cols-[1fr_auto_1fr] lg:items-center">
+    <div className={`${ui.shell} space-y-4 sm:space-y-5`}>
+      <section className="overflow-hidden rounded-[30px] border border-[#dfe7df] bg-[linear-gradient(180deg,#fbfdf9_0%,#f5faf6_46%,#edf6ef_100%)] shadow-[0_24px_60px_rgba(15,23,42,0.08)]">
+        <header className="px-3 py-4 sm:px-5 sm:py-5 lg:px-8">
+          <div className="flex items-center justify-between gap-3 lg:grid lg:grid-cols-[auto_1fr_auto] lg:items-center">
           <button
             type="button"
             className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-emerald-200 bg-white/90 text-emerald-900 transition hover:bg-emerald-50 lg:hidden"
@@ -302,43 +304,55 @@ export default function LandingPage({ onGoShop }) {
             </svg>
           </button>
 
-          <div className="hidden lg:block" />
-
-          <nav
-            aria-label="Primary"
-            className="hidden lg:block lg:justify-self-center"
-          >
-            <ul className="flex items-center gap-1 rounded-full border border-emerald-200 bg-white/95 px-2 py-2 shadow-[0_14px_30px_rgba(16,185,129,0.09)]">
+          <div className="hidden lg:flex lg:items-center lg:justify-center lg:gap-10 lg:justify-self-center">
+            <BrandLogo
+              compact
+              className="items-start gap-0"
+              imageClassName="w-[5.25rem]"
+            />
+            <nav
+              aria-label="Primary"
+              className="lg:block"
+            >
+              <ul className="flex items-center gap-3 rounded-full bg-transparent px-2 py-2">
               {headerLinks.map((link) => (
                 <li key={link.href}>
                   <a
                     href={link.href}
                     onClick={handleNavClick}
-                    className={`inline-flex rounded-full px-4 py-2 text-sm font-semibold transition ${
+                    className={`inline-flex rounded-2xl px-4 py-2.5 text-sm font-semibold transition ${
                       currentHash === link.href
-                        ? 'bg-emerald-900 text-white shadow-sm'
-                        : 'text-slate-600 hover:bg-emerald-50 hover:text-emerald-800'
+                        ? 'bg-[#d8f7ee] text-[#159b7a]'
+                        : 'text-slate-700 hover:bg-emerald-50 hover:text-emerald-800'
                     }`}
                   >
                     {link.label}
                   </a>
                 </li>
               ))}
-            </ul>
-          </nav>
+              </ul>
+            </nav>
+          </div>
 
           <div className="flex justify-end lg:justify-self-end">
-            <div className="rounded-xl bg-white/88 px-1.5 py-1.5 shadow-[0_8px_20px_rgba(15,23,42,0.04)]">
+            <button
+              type="button"
+              onClick={() => onGoShop()}
+              className="hidden min-h-12 items-center justify-center rounded-full bg-[#171717] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#0d0d0d] lg:inline-flex"
+            >
+              Order now
+            </button>
+            <div className="lg:hidden rounded-xl bg-white/88 px-1.5 py-1.5 shadow-[0_8px_20px_rgba(15,23,42,0.04)]">
               <BrandLogo
                 compact
                 className="items-end gap-0 text-right"
-                imageClassName="w-[5.5rem] sm:w-[6.5rem]"
+                imageClassName="w-[4.125rem] sm:w-[4.875rem]"
               />
             </div>
           </div>
         </div>
 
-        {mobileMenuOpen ? (
+          {mobileMenuOpen ? (
           <nav aria-label="Mobile primary" className="mt-3 rounded-2xl border border-emerald-100 bg-white p-2 shadow-[0_14px_30px_rgba(15,23,42,0.06)] lg:hidden">
             <ul className="grid gap-1">
               {headerLinks.map((link) => (
@@ -359,180 +373,192 @@ export default function LandingPage({ onGoShop }) {
               ))}
             </ul>
           </nav>
-        ) : null}
-      </header>
+          ) : null}
+        </header>
 
-      <section id="active-products" className={`${ui.card} scroll-mt-28 space-y-4 border-emerald-200 bg-gradient-to-br from-white via-emerald-50/40 to-[#eef9f1]`}>
-        <div className="space-y-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center rounded-full bg-emerald-900 px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-white">
-              {activeItems.length > 0 ? 'Live now' : 'Active Sales Events'}
-            </span>
-          </div>
-          <div className="space-y-1.5">
-            <h2 className="text-3xl font-extrabold tracking-tight text-emerald-950 sm:text-[2.15rem]">
-              Order now
-            </h2>
-            <p className="max-w-3xl text-sm leading-6 text-slate-600">
-              Choose from live normal sales and bundle discounted sales below. Add quantities, review your cart,
-              and complete payment by Interac e-Transfer or card.
-            </p>
-          </div>
-        </div>
+        <section id="active-products" className="scroll-mt-28 px-4 pb-5 pt-2 sm:px-5 lg:px-8 lg:pb-8">
+          <div className={`grid gap-6 ${hasLiveItems ? 'lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] lg:items-start' : ''}`}>
+            <div className={`space-y-4 pt-1 sm:space-y-5 sm:pt-2 ${hasLiveItems ? '' : 'mx-auto max-w-[920px] text-center'}`}>
+              <div className={`flex flex-wrap items-center gap-2 ${hasLiveItems ? '' : 'justify-center'}`}>
+                <span className="inline-flex items-center rounded-full bg-[#171717] px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-white">
+                  {activeItems.length > 0 ? 'Live now' : 'Active Sales Events'}
+                </span>
+              </div>
+              <div className="space-y-3">
+                <h1 className={`text-[2.55rem] font-extrabold leading-[1.04] tracking-tight text-[#171a16] sm:text-[3.3rem] lg:text-[4.1rem] ${hasLiveItems ? 'max-w-xl' : 'mx-auto max-w-[860px]'}`}>
+                  Order your item(s) from sales events below{' '}
+                  <span className="inline-flex translate-y-1 align-middle text-emerald-700" aria-hidden="true">
+                    ↓
+                  </span>
+                </h1>
+                <p className={`text-[0.98rem] leading-7 text-slate-600 sm:text-lg sm:leading-8 ${hasLiveItems ? 'max-w-2xl' : 'mx-auto max-w-[760px]'}`}>
+                  Choose from live normal sales and bundle discounted sales, add your quantities, and complete payment by Interac e-Transfer or card.
+                </p>
+              </div>
 
-        <div className="grid gap-3 lg:grid-cols-[1.25fr_1fr_1.2fr]">
-          <article className="rounded-2xl border border-emerald-200 bg-white/90 p-4 shadow-[0_12px_26px_rgba(16,185,129,0.08)]">
-            <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-emerald-700">Live events</p>
-            <p className="mt-2 text-3xl font-extrabold text-emerald-950">{activeItems.length}</p>
-            <p className="mt-1 text-sm text-slate-600">
-              {activeItems.length === 1
-                ? '1 sales event is currently open for ordering.'
-                : `${activeItems.length} sales events are currently open for ordering.`}
-            </p>
-          </article>
-          <article className="rounded-2xl border border-amber-200 bg-amber-50/90 p-4 shadow-[0_12px_26px_rgba(217,119,6,0.08)]">
-            <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-amber-700">Next event closes</p>
-            <p className="mt-2 text-2xl font-extrabold text-slate-950">
-              {nextClosingCountdown ? formatCountdownLabel(nextClosingCountdown) : 'No active countdown'}
-            </p>
-            <p className="mt-1 text-sm text-slate-600">Review live items early so you do not miss the current order window.</p>
-          </article>
-          <article className="rounded-2xl border border-emerald-200 bg-emerald-50/80 p-4">
-            <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-emerald-700">Checkout options</p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1 text-xs font-semibold text-emerald-800">
-                <BankIcon />
-                <span>Interac e-Transfer</span>
-              </span>
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1 text-xs font-semibold text-emerald-800">
-                <CardIcon />
-                <span>Credit card</span>
-              </span>
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1 text-xs font-semibold text-emerald-800">
-                <CardIcon />
-                <span>Debit card</span>
-              </span>
+              <div className={`flex flex-col gap-3 sm:flex-row ${hasLiveItems ? '' : 'justify-center sm:justify-center'}`}>
+                <button
+                  type="button"
+                  className="inline-flex min-h-12 w-full items-center justify-center rounded-full bg-[#171717] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#0d0d0d] sm:w-auto"
+                  onClick={() => onGoShop()}
+                >
+                  Continue to cart
+                </button>
+                <a
+                  href="#about-us"
+                  onClick={handleNavClick}
+                  className="inline-flex min-h-12 w-full items-center justify-center rounded-full border border-[#cfd8cf] bg-white px-6 py-3 text-sm font-semibold text-[#171a16] transition hover:bg-[#f6f7f2] sm:w-auto"
+                >
+                  Learn more
+                </a>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-3">
+                <article className="rounded-[24px] border border-[#dfe7df] bg-[rgba(255,255,255,0.6)] p-4 shadow-[0_8px_20px_rgba(16,24,40,0.04)] backdrop-blur-[2px]">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-emerald-700">Live events</p>
+                  <p className="mt-2 text-3xl font-extrabold text-[#171a16]">{activeItems.length}</p>
+                  <p className="mt-1 text-sm text-slate-600">
+                    {activeItems.length === 1
+                      ? '1 sales event is currently open.'
+                      : `${activeItems.length} sales events are currently open.`}
+                  </p>
+                </article>
+                <article className="rounded-[24px] border border-[#e9dfc9] bg-[rgba(255,248,239,0.68)] p-4 shadow-[0_8px_20px_rgba(16,24,40,0.04)] backdrop-blur-[2px]">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-amber-700">Next event closes</p>
+                  <p className="mt-2 text-2xl font-extrabold text-[#171a16]">
+                    {nextClosingCountdown ? formatCountdownLabel(nextClosingCountdown) : 'No active countdown'}
+                  </p>
+                  <p className="mt-1 text-sm text-slate-600">Review live items early so you do not miss the current order window.</p>
+                </article>
+                <article className="rounded-[24px] border border-[#dfe7df] bg-[rgba(243,251,246,0.72)] p-4 shadow-[0_8px_20px_rgba(16,24,40,0.03)] backdrop-blur-[2px]">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-emerald-700">Checkout options</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1 text-xs font-semibold text-emerald-800">
+                      <BankIcon />
+                      <span>Interac</span>
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1 text-xs font-semibold text-emerald-800">
+                      <CardIcon />
+                      <span>Credit card</span>
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1 text-xs font-semibold text-emerald-800">
+                      <CardIcon />
+                      <span>Debit card</span>
+                    </span>
+                  </div>
+                </article>
+              </div>
             </div>
-            <p className="mt-3 text-sm leading-6 text-slate-700">
-              Secure checkout with email confirmation after payment.
-            </p>
-          </article>
-        </div>
+
+            {hasLiveItems ? (
+            <div className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-2">
+                {highlightedItems.slice(0, 4).map((item) => {
+                  const countdown = getCountdownParts(item.closingDate, nowMs);
+
+                  return (
+                    <article
+                      key={item.id}
+                      className="flex min-h-[248px] flex-col justify-between gap-4 rounded-[26px] border border-[#dfe7df] bg-[rgba(255,255,255,0.72)] p-4 shadow-[0_12px_24px_rgba(15,23,42,0.04)] backdrop-blur-[2px]"
+                    >
+                      <div className="flex flex-1 flex-col gap-3">
+                        <div className="space-y-2">
+                          <h3 className="text-xl font-bold text-emerald-950">{item.name}</h3>
+                          <div className="flex flex-wrap gap-2">
+                            <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                              {item.saleType === 'BUNDLE_DISCOUNTED_SALE' ? 'Bundle Discounted Sale' : 'Normal Sale'}
+                            </span>
+                            {countdown && countdown.days === 0 ? (
+                              <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">
+                                Closing soon
+                              </span>
+                            ) : null}
+                          </div>
+                        </div>
+                        {item.description ? <p className="text-sm leading-6 text-slate-600">{item.description}</p> : null}
+                        {item.saleType === 'BUNDLE_DISCOUNTED_SALE' && Array.isArray(item.bundleItemsJson) && item.bundleItemsJson.length ? (
+                          <p className="text-sm leading-6 text-slate-700">
+                            Bundle includes: <span className="font-semibold">{renderBundleSummary(item.bundleItemsJson)}</span>
+                          </p>
+                        ) : null}
+                        <div className="mt-auto grid gap-3 sm:grid-cols-2">
+                          <div className="rounded-2xl border border-emerald-200 bg-[rgba(236,253,245,0.8)] px-3 py-2.5 text-left">
+                            <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-emerald-700">Price</p>
+                            <p className="mt-1 text-lg font-extrabold text-emerald-950">CAD {(item.pricePerUnit / 100).toFixed(2)}</p>
+                            <p className="text-xs font-medium text-slate-600">
+                              {item.saleType === 'BUNDLE_DISCOUNTED_SALE' ? 'per bundle' : 'per unit'}
+                            </p>
+                          </div>
+                          <div className="rounded-2xl border border-emerald-200 bg-[linear-gradient(135deg,rgba(209,250,229,0.9),rgba(236,253,245,0.84))] px-3 py-2.5 shadow-[0_8px_18px_rgba(10,107,67,0.08)]">
+                            <span className="block text-[11px] font-bold uppercase tracking-[0.08em] text-emerald-800">Order closes in</span>
+                            {countdown ? (
+                              <span className="mt-1 inline-flex items-center gap-1.5 text-sm tabular-nums">
+                                <ClockIcon />
+                                <span className="whitespace-nowrap font-extrabold text-emerald-900">{formatCountdownLabel(countdown)}</span>
+                              </span>
+                            ) : (
+                              <span className="mt-1 inline-flex font-semibold text-emerald-800">Order window closed</span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-2 text-xs font-semibold">
+                          <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-slate-700">
+                            {item.deliveryEnabled ? 'Pickup or delivery available' : 'Pickup available'}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between rounded-xl border border-emerald-200 bg-[rgba(255,255,255,0.76)] px-3 py-2.5">
+                          <div>
+                            <span className="text-sm font-semibold text-slate-700">Quantity</span>
+                            <p className="text-xs text-slate-500">Adjust again in your cart.</p>
+                          </div>
+                          <div className="inline-flex items-center gap-2">
+                            <button
+                              type="button"
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-emerald-200 text-lg font-semibold text-emerald-800 transition hover:bg-emerald-50"
+                              onClick={() => updateCartQuantity(item.id, Math.max(0, getSelectedQuantity(item.id) - 1))}
+                              aria-label={`Decrease ${item.name} quantity`}
+                            >
+                              -
+                            </button>
+                            <span className="min-w-[2ch] text-center text-base font-bold text-emerald-950">
+                              {getSelectedQuantity(item.id)}
+                            </span>
+                            <button
+                              type="button"
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-emerald-200 text-lg font-semibold text-emerald-800 transition hover:bg-emerald-50"
+                              onClick={() => updateCartQuantity(item.id, getSelectedQuantity(item.id) + 1)}
+                              aria-label={`Increase ${item.name} quantity`}
+                            >
+                              +
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            </div>
+            ) : null}
+          </div>
         {loading ? (
-          <div className="flex items-center gap-3 rounded-2xl border border-emerald-100 bg-emerald-50/60 px-4 py-3 text-sm font-medium text-emerald-900">
+          <div className="mt-4 flex items-center gap-3 rounded-2xl border border-emerald-100 bg-emerald-50/60 px-4 py-3 text-sm font-medium text-emerald-900">
             <LoadingSpinner />
             <span>Loading active sales events...</span>
           </div>
         ) : null}
         {error ? <p className={ui.error}>{error}</p> : null}
 
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {highlightedItems.map((item) => {
-            const countdown = getCountdownParts(item.closingDate, nowMs);
-
-            return (
-              <article
-                key={item.id}
-                className="flex min-h-[250px] flex-col justify-between gap-4 rounded-2xl border border-emerald-200 bg-white p-4 shadow-[0_14px_28px_rgba(15,23,42,0.05)]"
-              >
-                <div className="flex flex-1 flex-col gap-3">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="space-y-2">
-                      <h3 className="text-xl font-bold text-emerald-950">{item.name}</h3>
-                      <div className="flex flex-wrap gap-2">
-                        <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
-                          {item.saleType === 'BUNDLE_DISCOUNTED_SALE' ? 'Bundle Discounted Sale' : 'Normal Sale'}
-                        </span>
-                        {countdown && countdown.days === 0 ? (
-                          <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">
-                            Closing soon
-                          </span>
-                        ) : null}
-                      </div>
-                    </div>
-                  </div>
-                  {item.description ? <p className="text-sm leading-6 text-slate-600">{item.description}</p> : null}
-                  {item.saleType === 'BUNDLE_DISCOUNTED_SALE' && Array.isArray(item.bundleItemsJson) && item.bundleItemsJson.length ? (
-                    <p className="text-sm leading-6 text-slate-700">
-                      Bundle includes: <span className="font-semibold">{renderBundleSummary(item.bundleItemsJson)}</span>
-                    </p>
-                  ) : null}
-                  <div className="mt-auto grid gap-3 sm:grid-cols-2">
-                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-left">
-                      <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-emerald-700">Price</p>
-                      <p className="mt-1 text-lg font-extrabold text-emerald-950">CAD {(item.pricePerUnit / 100).toFixed(2)}</p>
-                      <p className="text-xs font-medium text-slate-600">
-                        {item.saleType === 'BUNDLE_DISCOUNTED_SALE' ? 'per bundle' : 'per unit'}
-                      </p>
-                    </div>
-                    <div className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-100 to-emerald-50 px-3 py-2.5 shadow-[0_8px_18px_rgba(10,107,67,0.16)]">
-                      <span className="block text-[11px] font-bold uppercase tracking-[0.08em] text-emerald-800">Order closes in</span>
-                      {countdown ? (
-                        <span className="mt-1 inline-flex items-center gap-1.5 text-sm tabular-nums">
-                          <ClockIcon />
-                          <span className="whitespace-nowrap font-extrabold text-emerald-900">{formatCountdownLabel(countdown)}</span>
-                        </span>
-                      ) : (
-                        <span className="mt-1 inline-flex font-semibold text-emerald-800">Order window closed</span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap gap-2 text-xs font-semibold">
-                    <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-slate-700">
-                      {item.deliveryEnabled ? 'Pickup or delivery available' : 'Pickup available'}
-                    </span>
-                    {item.pickupInstructions ? (
-                      <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-slate-700">
-                        {item.pickupInstructions}
-                      </span>
-                    ) : null}
-                  </div>
-                </div>
-                <div className="space-y-3">
-                  <div className="rounded-xl border border-dashed border-emerald-200 bg-emerald-50/60 px-3 py-2 text-sm font-medium text-emerald-900">
-                    Add quantity to include this sales event in your cart.
-                  </div>
-                  <div className="flex items-center justify-between rounded-xl border border-emerald-200 bg-white px-3 py-2.5">
-                    <div>
-                      <span className="text-sm font-semibold text-slate-700">Quantity</span>
-                      <p className="text-xs text-slate-500">You can adjust this again in your cart.</p>
-                    </div>
-                    <div className="inline-flex items-center gap-2">
-                      <button
-                        type="button"
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-emerald-200 text-lg font-semibold text-emerald-800 transition hover:bg-emerald-50"
-                        onClick={() => updateCartQuantity(item.id, Math.max(0, getSelectedQuantity(item.id) - 1))}
-                        aria-label={`Decrease ${item.name} quantity`}
-                      >
-                        -
-                      </button>
-                      <span className="min-w-[2ch] text-center text-base font-bold text-emerald-950">
-                        {getSelectedQuantity(item.id)}
-                      </span>
-                      <button
-                        type="button"
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-emerald-200 text-lg font-semibold text-emerald-800 transition hover:bg-emerald-50"
-                        onClick={() => updateCartQuantity(item.id, getSelectedQuantity(item.id) + 1)}
-                        aria-label={`Increase ${item.name} quantity`}
-                      >
-                        +
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </article>
-            );
-          })}
-        </div>
-
         {!loading && highlightedItems.length === 0 ? (
-          <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 text-sm text-slate-600">
+          <div className="mx-auto mt-4 max-w-[540px] rounded-2xl border border-slate-200 bg-white px-4 py-4 text-center text-sm text-slate-600">
             <p className="font-semibold text-slate-900">No live sales right now.</p>
             <p className="mt-1">Please check back soon for the next sales event.</p>
           </div>
         ) : null}
         {!loading && highlightedItems.length > 0 ? (
-          <div className="flex flex-col gap-4 rounded-2xl border border-emerald-200 bg-emerald-900 p-4 text-white shadow-[0_18px_32px_rgba(6,78,59,0.25)] sm:flex-row sm:items-center sm:justify-between">
+          <div className="mt-5 flex flex-col gap-4 rounded-[24px] border border-[#171717] bg-[#171717] p-4 text-white shadow-[0_18px_32px_rgba(6,78,59,0.22)] sm:flex-row sm:items-center sm:justify-between">
             <div className="space-y-1">
               <p className="text-xs font-bold uppercase tracking-[0.12em] text-emerald-100">Cart ready</p>
               <p className="text-lg font-bold">
@@ -548,7 +574,7 @@ export default function LandingPage({ onGoShop }) {
             </div>
             <button
               type="button"
-              className={`${ui.buttonPrimary} min-w-[190px] border border-emerald-300/30 bg-emerald-600 text-white shadow-[0_14px_24px_rgba(6,95,70,0.24)] hover:bg-emerald-500 ${cartQuantity === 0 ? 'cursor-not-allowed opacity-60' : ''}`}
+              className={`${ui.buttonPrimary} min-w-[190px] w-full border border-emerald-300/20 bg-[#46d2b8] text-[#0f1612] shadow-[0_14px_24px_rgba(6,95,70,0.18)] hover:bg-[#54d8c0] sm:w-auto ${cartQuantity === 0 ? 'cursor-not-allowed opacity-60' : ''}`}
               onClick={() => onGoShop()}
               disabled={cartQuantity === 0}
             >
@@ -556,11 +582,15 @@ export default function LandingPage({ onGoShop }) {
             </button>
           </div>
         ) : null}
+        </section>
       </section>
 
-      <section id="about-us" className={`${ui.card} scroll-mt-28 grid gap-6 lg:grid-cols-[1.25fr_0.95fr]`}>
+      <section
+        id="about-us"
+        className={`${ui.card} scroll-mt-28 grid gap-5 border border-slate-200 bg-white p-5 sm:p-6 lg:grid-cols-[1.25fr_0.95fr]`}
+      >
         <div className="space-y-5">
-          <p className="inline-flex w-fit items-center rounded-full border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-emerald-800">
+          <p className="inline-flex w-fit items-center rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold uppercase tracking-wide text-emerald-800 shadow-sm">
             Community-first bulk purchasing
           </p>
           <h1 className="max-w-3xl text-3xl font-extrabold leading-[1.15] tracking-tight py-2 text-emerald-950 sm:text-[2.1rem]">
@@ -572,7 +602,7 @@ export default function LandingPage({ onGoShop }) {
           </p>
           <ul className="grid gap-2.5 text-sm text-slate-700">
             {valuePoints.map((point) => (
-              <li key={point} className="flex items-start gap-2.5 rounded-xl border border-emerald-100 bg-emerald-50/50 px-3 py-2.5 font-medium leading-6">
+              <li key={point} className="flex items-start gap-2.5 rounded-xl border border-slate-200 bg-white px-3 py-2.5 font-medium leading-6 shadow-sm">
                 <span className="mt-1.5 inline-flex h-2.5 w-2.5 shrink-0 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-700 ring-2 ring-emerald-100" aria-hidden="true" />
                 <span>{point}</span>
               </li>
@@ -580,12 +610,17 @@ export default function LandingPage({ onGoShop }) {
           </ul>
         </div>
 
-        <aside id="how-it-works" className="scroll-mt-28 rounded-2xl border border-slate-200 bg-slate-50/85 p-4 sm:p-5">
-          <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Quick preview</p>
-          <h2 className="mt-1 text-xl font-bold tracking-tight text-slate-900">How EazziBulkBuy works</h2>
+        <aside
+          id="how-it-works"
+          className="scroll-mt-28 rounded-[28px] border border-slate-200 bg-white p-4 shadow-[0_18px_36px_rgba(15,23,42,0.05)] sm:p-5"
+        >
+          <p className="inline-flex w-fit items-center rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold uppercase tracking-[0.08em] text-slate-500 shadow-sm">
+            Quick preview
+          </p>
+          <h2 className="mt-3 text-xl font-bold tracking-tight text-slate-900">How EazziBulkBuy works</h2>
           <div className="mt-4 space-y-3">
             {flowSteps.map((step, index) => (
-              <article key={step.title} className="rounded-xl border border-slate-200 bg-white p-3.5">
+              <article key={step.title} className="rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm">
                 <p className="text-xs font-semibold uppercase tracking-[0.06em] text-emerald-700">Step {index + 1}</p>
                 <h3 className="mt-1 text-sm font-semibold text-slate-900">{step.title}</h3>
                 <p className="mt-1 text-sm leading-6 text-slate-600">{step.detail}</p>
@@ -596,12 +631,23 @@ export default function LandingPage({ onGoShop }) {
         </aside>
       </section>
 
-      <section id="community-impact" className={`${ui.card} scroll-mt-28 space-y-3`}>
-        <h2 className="text-2xl font-bold tracking-tight text-emerald-950">Community impact</h2>
-        <p className="text-sm leading-6 text-slate-600">Recent bulk produce volume delivered across community campaigns.</p>
+      <section
+        id="community-impact"
+        className={`${ui.card} scroll-mt-28 space-y-4 border border-slate-200 bg-white p-5 sm:p-6`}
+      >
+        <div className="space-y-2">
+          <p className="inline-flex w-fit items-center rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold uppercase tracking-[0.08em] text-emerald-800 shadow-sm">
+            Community impact
+          </p>
+          <h2 className="text-2xl font-bold tracking-tight text-emerald-950">Community impact</h2>
+          <p className="text-sm leading-6 text-slate-600">Recent bulk produce volume delivered across community campaigns.</p>
+        </div>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {impactItems.map((item) => (
-            <article key={item.name} className="space-y-2.5 rounded-2xl border border-emerald-100 bg-emerald-50/30 p-3">
+            <article
+              key={item.name}
+              className="space-y-2.5 rounded-[24px] border border-slate-200 bg-white p-3 shadow-[0_16px_30px_rgba(15,23,42,0.05)]"
+            >
               <ImpactImage item={item} />
               <h3 className="text-base font-bold text-emerald-950">{item.name}</h3>
               <p className="text-sm leading-6 text-slate-600">{item.sold}</p>
@@ -610,9 +656,68 @@ export default function LandingPage({ onGoShop }) {
         </div>
       </section>
 
-      <footer className="pb-2 pt-1 text-center text-sm leading-6 text-slate-600">
-        <p>Copyright © EazziBulkBuy Canada</p>
-        <p>Solution developed by <span className="font-semibold text-slate-900">Eazzime Technologies Inc.</span> 431-557-1227</p>
+      <footer className="overflow-hidden rounded-[30px] border border-[#0b2a1f] bg-[linear-gradient(135deg,#03150f_0%,#0a2219_55%,#113123_100%)] px-5 py-8 text-white shadow-[0_22px_50px_rgba(3,21,15,0.34)] sm:px-6 sm:py-10 lg:px-8">
+        <div className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr_0.9fr_0.9fr]">
+          <div className="space-y-4">
+            <BrandLogo
+              compact
+              src="/images/brand/eazzibulkbuy-logo-footer-light.png"
+              className="items-start gap-0"
+              imageClassName="w-[5.5rem]"
+            />
+            <p className="max-w-sm text-sm leading-7 text-emerald-50/85">
+              EazziBulkBuy helps Manitoba communities access fresh produce through trusted sales events, simple ordering,
+              and convenient pickup or delivery options.
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            <h3 className="text-sm font-bold uppercase tracking-[0.12em] text-[#46d2b8]">Company</h3>
+            <ul className="space-y-2.5 text-sm text-emerald-50/85">
+              {headerLinks.map((link) => (
+                <li key={`footer-${link.href}`}>
+                  <a
+                    href={link.href}
+                    onClick={handleNavClick}
+                    className="transition hover:text-white"
+                  >
+                    {link.label}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="space-y-3">
+            <h3 className="text-sm font-bold uppercase tracking-[0.12em] text-[#46d2b8]">Contact</h3>
+            <div className="space-y-2.5 text-sm leading-7 text-emerald-50/85">
+              <p>info@eazzibulkbuy.ca</p>
+              <p>431-557-1137</p>
+              <p>Winnipeg, Manitoba, Canada</p>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <h3 className="text-sm font-bold uppercase tracking-[0.12em] text-[#46d2b8]">Get started</h3>
+            <p className="text-sm leading-7 text-emerald-50/85">
+              Join a live sales event and complete your order through Interac e-Transfer or card.
+            </p>
+            <button
+              type="button"
+              onClick={() => onGoShop()}
+              className="inline-flex min-h-12 w-full items-center justify-center rounded-full bg-white px-6 py-3 text-sm font-semibold text-[#0b2018] transition hover:bg-[#f1faf6] sm:w-auto"
+            >
+              Order now
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-8 flex flex-col gap-3 border-t border-white/10 pt-4 text-sm text-emerald-50/75 sm:flex-row sm:items-center sm:justify-between">
+          <p>Copyright © EazziBulkBuy Canada</p>
+          <p>
+            Solution developed by <span className="font-semibold text-white">Eazzime Technologies Inc.</span> 431-557-1227
+          </p>
+        </div>
       </footer>
     </div>
   );

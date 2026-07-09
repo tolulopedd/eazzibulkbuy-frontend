@@ -6,11 +6,11 @@ function cx(...classes) {
 
 export function AdminStatusBadge({ value, tone = 'neutral' }) {
   const toneClasses = {
-    success: 'border border-emerald-200 bg-emerald-50 text-emerald-700',
-    warning: 'border border-amber-200 bg-amber-50 text-amber-700',
-    danger: 'border border-rose-200 bg-rose-50 text-rose-700',
-    info: 'border border-sky-200 bg-sky-50 text-sky-700',
-    neutral: 'border border-slate-200 bg-slate-100 text-slate-600',
+    success: 'border border-[#b8eedf] bg-[#ebfbf5] text-[#169777]',
+    warning: 'border border-[#f2dfae] bg-[#fff8e3] text-[#9d7610]',
+    danger: 'border border-[#f1cccc] bg-[#fff1f1] text-[#c14d4d]',
+    info: 'border border-[#cfeee8] bg-[#effbf8] text-[#118f79]',
+    neutral: 'border border-[#e1e4d9] bg-[#f6f7f2] text-[#666d64]',
   };
 
   return (
@@ -79,16 +79,14 @@ export function CloseIcon() {
 }
 
 export function AdminPagination({ page, totalPages, total, onPrev, onNext, label }) {
-  if (totalPages <= 1) {
-    return null;
-  }
+  if (totalPages <= 1) return null;
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 px-4 py-3">
+    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#ebece4] px-4 py-3">
       <button type="button" className={ui.buttonGhost} onClick={onPrev} disabled={page <= 1}>
         Previous
       </button>
-      <p className="text-sm text-slate-600">
+      <p className="text-sm text-[#6f756b]">
         {label || `Page ${page} of ${totalPages}`} · {total} total
       </p>
       <button type="button" className={ui.buttonGhost} onClick={onNext} disabled={page >= totalPages}>
@@ -99,5 +97,5 @@ export function AdminPagination({ page, totalPages, total, onPrev, onNext, label
 }
 
 export function AdminTableEmpty({ message }) {
-  return <div className="px-4 py-8 text-center text-sm text-slate-500">{message}</div>;
+  return <div className="px-4 py-8 text-center text-sm text-[#767c72]">{message}</div>;
 }

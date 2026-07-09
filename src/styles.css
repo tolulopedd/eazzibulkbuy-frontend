@@ -1,8 +1,9 @@
 @import "tailwindcss";
 
 :root {
-  color: #0f172a;
-  font-family: "Sora", "Manrope", "Segoe UI", sans-serif;
+  color: #171a16;
+  font-family: "Manrope", "Sora", "Segoe UI", sans-serif;
+  background: #f5f6f2;
 }
 
 html {
@@ -17,8 +18,16 @@ body {
   margin: 0;
   min-height: 100vh;
   line-height: 1.45;
+  background: #f5f6f2;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
 }
 
 h1,

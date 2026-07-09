@@ -8,6 +8,8 @@ export default function BrandLogo({
   compact = false,
   className = '',
   imageClassName = '',
+  imageWidth,
+  src = '/images/brand/eazzibulkbuy-logo.png',
 }) {
   return (
     <div
@@ -18,8 +20,9 @@ export default function BrandLogo({
       )}
     >
       <img
-        src="/images/brand/eazzibulkbuy-logo.png"
+        src={src}
         alt="EazziBulkBuy"
+        style={imageWidth ? { width: imageWidth } : undefined}
         className={cx(
           'h-auto object-contain',
           compact ? 'w-44 sm:w-48' : 'w-56 sm:w-64',
