@@ -7,27 +7,63 @@ import BrandLogo from './BrandLogo';
 const impactItems = [
   {
     name: 'Tomatoes',
-    sold: '16,001 boxes distributed last year',
     image: '/images/products/tomatoes-box.jpg',
     fallback: 'https://source.unsplash.com/1200x800/?tomatoes,crate',
   },
   {
     name: 'Habanero',
-    sold: '10,500 boxes distributed last year',
     image: '/images/products/habanero-box.jpg',
     fallback: 'https://source.unsplash.com/1200x800/?habanero,pepper,box',
   },
   {
     name: 'Green Pepper',
-    sold: '13,500 boxes distributed last year',
     image: '/images/products/green-pepper-box.jpg',
     fallback: 'https://source.unsplash.com/1200x800/?green-pepper,vegetable,box',
   },
   {
+    name: 'Red Bell Pepper',
+    image: '/images/products/red-bell-pepper.jpg',
+    fallback: 'https://source.unsplash.com/1200x800/?red-bell-pepper,vegetable,box',
+  },
+  {
+    name: 'Green Bell Pepper',
+    image: '/images/products/green-bell-pepper.jpg',
+    fallback: 'https://source.unsplash.com/1200x800/?green-bell-pepper,vegetable,box',
+  },
+  {
+    name: 'Crimson Pepper',
+    image: '/images/products/crimson-pepper.jpg',
+    fallback: 'https://source.unsplash.com/1200x800/?crimson-pepper,red-pepper,box',
+  },
+  {
+    name: 'Cayenne Pepper',
+    image: '/images/products/cayenne-pepper.jpg',
+    fallback: 'https://source.unsplash.com/1200x800/?cayenne-pepper,red-pepper,box',
+  },
+  {
+    name: 'Ghost Pepper',
+    image: '/images/products/ghost-pepper.jpg',
+    fallback: 'https://source.unsplash.com/1200x800/?ghost-pepper,pepper,box',
+  },
+  {
     name: 'Yam',
-    sold: '1,000 boxes distributed last year',
     image: '/images/products/yam-box.jpg',
     fallback: 'https://source.unsplash.com/1200x800/?yam,tuber,box',
+  },
+  {
+    name: 'Sweet Potatoes',
+    image: '/images/products/caribbean-sweet-potatoes.jpg',
+    fallback: 'https://source.unsplash.com/1200x800/?sweet-potatoes,box,produce',
+  },
+  {
+    name: 'Onions',
+    image: '/images/products/red-onions.jpg',
+    fallback: 'https://source.unsplash.com/1200x800/?red-onions,produce,bag',
+  },
+  {
+    name: 'Plantain',
+    image: '/images/products/plantain.jpg',
+    fallback: 'https://source.unsplash.com/1200x800/?plantain,box,produce',
   },
 ];
 
@@ -654,10 +690,10 @@ export default function LandingPage({ onGoShop }) {
       >
         <div className="space-y-2">
           <p className="inline-flex w-fit items-center rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold uppercase tracking-[0.08em] text-emerald-800 shadow-sm">
-            Community impact
+            Our Produce
           </p>
-          <h2 className="text-2xl font-bold tracking-tight text-emerald-950">Community impact</h2>
-          <p className="text-sm leading-6 text-slate-600">Recent bulk produce volume delivered across community campaigns.</p>
+          <h2 className="text-2xl font-bold tracking-tight text-emerald-950">Our Produce</h2>
+          <p className="text-sm leading-6 text-slate-600">Fresh produce available through our community sales events.</p>
         </div>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {impactItems.map((item) => (
@@ -667,7 +703,6 @@ export default function LandingPage({ onGoShop }) {
             >
               <ImpactImage item={item} />
               <h3 className="text-base font-bold text-emerald-950">{item.name}</h3>
-              <p className="text-sm leading-6 text-slate-600">{item.sold}</p>
             </article>
           ))}
         </div>

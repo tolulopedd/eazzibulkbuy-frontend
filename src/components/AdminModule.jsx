@@ -28,6 +28,22 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  function handleUnauthorizedSession(message = 'Your admin session expired. Please sign in again.') {
+    setAuthenticated(false);
+    setAdminSession(null);
+    setError(message);
+  }
+
+  function rethrowWithSessionHandling(err, fallbackMessage) {
+    if (err?.status === 401) {
+      handleUnauthorizedSession();
+      throw err;
+    }
+
+    setError(err.message || fallbackMessage);
+    throw err;
+  }
+
   useEffect(() => {
     let mounted = true;
     async function check() {
@@ -73,21 +89,32 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
     try {
       await createSalesItem(payload);
     } catch (err) {
-      setError(err.message || 'Unable to create sales item. Please try again.');
-      throw err;
+      rethrowWithSessionHandling(err, 'Unable to create sales item. Please try again.');
     }
   }
 
   async function handleLoadReports(query = {}) {
-    return fetchAdminReports(query);
+    try {
+      return await fetchAdminReports(query);
+    } catch (err) {
+      rethrowWithSessionHandling(err, 'Unable to load reports right now.');
+    }
   }
 
   async function handleLoadSalesItems(query = {}) {
-    return fetchAdminSalesItems(query);
+    try {
+      return await fetchAdminSalesItems(query);
+    } catch (err) {
+      rethrowWithSessionHandling(err, 'Unable to load sales events right now.');
+    }
   }
 
   async function handleLoadCustomers(query = {}) {
-    return fetchAdminCustomers(query);
+    try {
+      return await fetchAdminCustomers(query);
+    } catch (err) {
+      rethrowWithSessionHandling(err, 'Unable to load customers right now.');
+    }
   }
 
   async function handleUpdateCustomer(customerId, payload) {
@@ -95,8 +122,7 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
     try {
       return await updateAdminCustomer(customerId, payload);
     } catch (err) {
-      setError(err.message || 'Unable to update customer details. Please try again.');
-      throw err;
+      rethrowWithSessionHandling(err, 'Unable to update customer details. Please try again.');
     }
   }
 
@@ -105,13 +131,16 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
     try {
       return await exportAdminCustomers(query);
     } catch (err) {
-      setError(err.message || 'Unable to export customers right now.');
-      throw err;
+      rethrowWithSessionHandling(err, 'Unable to export customers right now.');
     }
   }
 
   async function handleLoadOrders(query = {}) {
-    return fetchAdminOrders(query);
+    try {
+      return await fetchAdminOrders(query);
+    } catch (err) {
+      rethrowWithSessionHandling(err, 'Unable to load payments and fulfilment right now.');
+    }
   }
 
   async function handleConfirmInteracPayment(orderReference) {
@@ -119,8 +148,7 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
     try {
       return await confirmAdminInteracPayment(orderReference);
     } catch (err) {
-      setError(err.message || 'Unable to confirm Interac payment. Please try again.');
-      throw err;
+      rethrowWithSessionHandling(err, 'Unable to confirm Interac payment. Please try again.');
     }
   }
 
@@ -129,8 +157,7 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
     try {
       return await resendAdminPaymentConfirmation(orderReference);
     } catch (err) {
-      setError(err.message || 'Unable to resend payment confirmation. Please try again.');
-      throw err;
+      rethrowWithSessionHandling(err, 'Unable to resend payment confirmation. Please try again.');
     }
   }
 
@@ -139,8 +166,7 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
     try {
       return await fetchAdminPaymentProofViewUrl(orderReference);
     } catch (err) {
-      setError(err.message || 'Unable to load the payment proof preview.');
-      throw err;
+      rethrowWithSessionHandling(err, 'Unable to load the payment proof preview.');
     }
   }
 
@@ -149,8 +175,7 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
     try {
       return await updateAdminFulfillmentStatus(orderReference, fulfillmentStatus, itemIndex);
     } catch (err) {
-      setError(err.message || 'Unable to update pickup or delivery status. Please try again.');
-      throw err;
+      rethrowWithSessionHandling(err, 'Unable to update pickup or delivery status. Please try again.');
     }
   }
 
@@ -159,8 +184,7 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
     try {
       await updateSalesItem(salesItemId, payload);
     } catch (err) {
-      setError(err.message || 'Unable to update sales item. Please try again.');
-      throw err;
+      rethrowWithSessionHandling(err, 'Unable to update sales item. Please try again.');
     }
   }
 
@@ -169,8 +193,7 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
     try {
       await deleteSalesItem(salesItemId);
     } catch (err) {
-      setError(err.message || 'Unable to delete sales item. Please try again.');
-      throw err;
+      rethrowWithSessionHandling(err, 'Unable to delete sales item. Please try again.');
     }
   }
 

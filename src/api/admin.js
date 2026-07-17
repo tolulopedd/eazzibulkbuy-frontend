@@ -1,11 +1,52 @@
 import { buildApiUrl } from './config';
 
+const ADMIN_SESSION_STORAGE_KEY = 'eazzibulkbuy_admin_session_token';
+
+function canUseStorage() {
+  return typeof window !== 'undefined' && typeof window.sessionStorage !== 'undefined';
+}
+
+function readAdminSessionToken() {
+  if (!canUseStorage()) {
+    return '';
+  }
+
+  return window.sessionStorage.getItem(ADMIN_SESSION_STORAGE_KEY) || '';
+}
+
+function writeAdminSessionToken(token) {
+  if (!canUseStorage()) {
+    return;
+  }
+
+  if (token) {
+    window.sessionStorage.setItem(ADMIN_SESSION_STORAGE_KEY, token);
+    return;
+  }
+
+  window.sessionStorage.removeItem(ADMIN_SESSION_STORAGE_KEY);
+}
+
+function withAdminSessionHeaders(headers = {}) {
+  const token = readAdminSessionToken();
+  if (!token) {
+    return headers;
+  }
+
+  return {
+    ...headers,
+    Authorization: `Bearer ${token}`,
+  };
+}
+
 async function request(path, options = {}) {
   let response;
+  const headers = withAdminSessionHeaders(options.headers || {});
   try {
     response = await fetch(buildApiUrl(path), {
       credentials: 'include',
       ...options,
+      headers,
     });
   } catch {
     throw new Error('Unable to reach backend API. Check that the production API base URL is configured correctly.');
@@ -13,10 +54,21 @@ async function request(path, options = {}) {
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.message || 'Unable to complete this request. Please try again.');
+    if (response.status === 401) {
+      writeAdminSessionToken('');
+    }
+
+    const error = new Error(errorData.message || 'Unable to complete this request. Please try again.');
+    error.status = response.status;
+    throw error;
   }
 
-  return response.json();
+  return response.json().then((data) => {
+    if (data?.sessionToken) {
+      writeAdminSessionToken(data.sessionToken);
+    }
+    return data;
+  });
 }
 
 export function adminLogin(payload) {
@@ -28,7 +80,9 @@ export function adminLogin(payload) {
 }
 
 export function adminLogout() {
-  return request('/api/admin/auth/logout', { method: 'POST' });
+  return request('/api/admin/auth/logout', { method: 'POST' }).finally(() => {
+    writeAdminSessionToken('');
+  });
 }
 
 export function adminMe() {
@@ -86,6 +140,7 @@ export async function deleteSalesItem(salesItemId) {
     response = await fetch(buildApiUrl(`/api/admin/sales-items/${salesItemId}`), {
       method: 'DELETE',
       credentials: 'include',
+      headers: withAdminSessionHeaders(),
     });
   } catch {
     throw new Error('Unable to reach backend API. Check that the production API base URL is configured correctly.');
@@ -93,7 +148,12 @@ export async function deleteSalesItem(salesItemId) {
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.message || 'Unable to delete sales item. Please try again.');
+    if (response.status === 401) {
+      writeAdminSessionToken('');
+    }
+    const error = new Error(errorData.message || 'Unable to delete sales item. Please try again.');
+    error.status = response.status;
+    throw error;
   }
 }
 
@@ -142,6 +202,7 @@ export async function exportAdminReports(params = {}) {
   try {
     response = await fetch(buildApiUrl(`/api/admin/reports/export${suffix}`), {
       credentials: 'include',
+      headers: withAdminSessionHeaders(),
     });
   } catch {
     throw new Error('Unable to reach backend API. Check that the production API base URL is configured correctly.');
@@ -149,7 +210,12 @@ export async function exportAdminReports(params = {}) {
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.message || 'Unable to export reports right now.');
+    if (response.status === 401) {
+      writeAdminSessionToken('');
+    }
+    const error = new Error(errorData.message || 'Unable to export reports right now.');
+    error.status = response.status;
+    throw error;
   }
 
   return {
@@ -209,6 +275,7 @@ export async function exportAdminCustomers(params = {}) {
   try {
     response = await fetch(buildApiUrl(`/api/admin/customers/export${suffix}`), {
       credentials: 'include',
+      headers: withAdminSessionHeaders(),
     });
   } catch {
     throw new Error('Unable to reach backend API. Check that the production API base URL is configured correctly.');
@@ -216,7 +283,12 @@ export async function exportAdminCustomers(params = {}) {
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.message || 'Unable to export customers right now.');
+    if (response.status === 401) {
+      writeAdminSessionToken('');
+    }
+    const error = new Error(errorData.message || 'Unable to export customers right now.');
+    error.status = response.status;
+    throw error;
   }
 
   return {
@@ -288,6 +360,7 @@ export async function exportAdminOrders(params = {}) {
   try {
     response = await fetch(buildApiUrl(`/api/admin/orders/export${suffix}`), {
       credentials: 'include',
+      headers: withAdminSessionHeaders(),
     });
   } catch {
     throw new Error('Unable to reach backend API. Check that the production API base URL is configured correctly.');
@@ -295,7 +368,12 @@ export async function exportAdminOrders(params = {}) {
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.message || 'Unable to export orders right now.');
+    if (response.status === 401) {
+      writeAdminSessionToken('');
+    }
+    const error = new Error(errorData.message || 'Unable to export orders right now.');
+    error.status = response.status;
+    throw error;
   }
 
   return {
