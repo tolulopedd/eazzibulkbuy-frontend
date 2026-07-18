@@ -21,16 +21,53 @@ function formatCountdownParts(targetDate, now) {
   if (!targetDate) return null;
   const diffMs = new Date(targetDate).getTime() - now.getTime();
   if (diffMs <= 0) {
-    return { label: 'Closed', detail: 'This live sales event has already reached its closing time.' };
+    return { days: 0, hours: 0, minutes: 0, label: 'Closed', detail: 'This live sales event has already reached its closing time.' };
   }
   const totalMinutes = Math.floor(diffMs / (1000 * 60));
   const days = Math.floor(totalMinutes / (60 * 24));
   const hours = Math.floor((totalMinutes % (60 * 24)) / 60);
   const minutes = totalMinutes % 60;
   return {
+    days,
+    hours,
+    minutes,
     label: `${days}d ${hours}h ${minutes}m`,
     detail: `Closes ${formatTimestamp(targetDate)}`,
   };
+}
+
+function CountdownPanel({ countdown }) {
+  if (!countdown) {
+    return (
+      <div className="space-y-2">
+        <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[#6f756b]">Next event closes</p>
+        <h3 className="text-[1.9rem] font-bold tracking-tight text-[#171a16]">No live event</h3>
+        <p className="text-sm text-[#6f756b]">No active sales event is currently running.</p>
+      </div>
+    );
+  }
+
+  const segments = [
+    { label: 'Days', value: String(countdown.days || 0).padStart(2, '0') },
+    { label: 'Hours', value: String(countdown.hours || 0).padStart(2, '0') },
+    { label: 'Minutes', value: String(countdown.minutes || 0).padStart(2, '0') },
+  ];
+
+  return (
+    <div className="space-y-3">
+      <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[#6f756b]">Next event closes</p>
+      <div className="grid grid-cols-3 gap-2.5">
+        {segments.map((segment) => (
+          <div key={segment.label} className="rounded-[20px] border border-[#dfe7df] bg-[#fbfbf8] px-3 py-3 text-center">
+            <p className="text-[1.75rem] font-bold tracking-tight text-[#171a16]">{segment.value}</p>
+            <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.16em] text-[#7a7f75]">{segment.label}</p>
+          </div>
+        ))}
+      </div>
+      <p className="text-sm font-semibold text-[#171a16]">{countdown.label} remaining</p>
+      <p className="text-sm text-[#6f756b]">{countdown.detail}</p>
+    </div>
+  );
 }
 
 function getCustomerStatus(customer) {
@@ -299,11 +336,7 @@ export default function AdminOverviewPanel({ reports, reportError, loadingReport
           aside={overview.nextLiveEvent ? <AdminStatusBadge value={overview.nextLiveEvent.saleType === 'BUNDLE_DISCOUNTED_SALE' ? 'Bundle live' : 'Normal live'} tone="success" /> : null}
         >
           <div className="space-y-5">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[#6f756b]">Next event closes in</p>
-              <h3 className="mt-2 text-[2.2rem] font-bold tracking-tight text-[#171a16]">{nextLiveEventCountdown?.label || 'No live event'}</h3>
-              <p className="mt-2 text-sm text-[#6f756b]">{nextLiveEventCountdown?.detail || 'No active sales event is currently running.'}</p>
-            </div>
+            <CountdownPanel countdown={nextLiveEventCountdown} />
             <div className="rounded-[24px] border border-[#e7e8df] bg-[#fbfbf8] p-4">
               <p className="text-sm font-semibold text-[#171a16]">{overview.nextLiveEvent ? overview.nextLiveEvent.name : 'No active sales event'}</p>
               <p className="mt-1 text-sm text-[#6f756b]">Batch {overview.nextLiveEvent?.batchNumber || '—'}</p>

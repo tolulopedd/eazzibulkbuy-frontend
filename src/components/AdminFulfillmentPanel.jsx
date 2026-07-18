@@ -7,8 +7,93 @@ import {
   AdminTableEmpty,
 } from './AdminTablePrimitives';
 import { exportAdminOrders, fetchAdminCustomers } from '../api/admin';
+import { openPdfExport } from '../utils/pdfExport';
+
+function formatDateInputValue(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function toIsoBoundary(value, endOfDay = false) {
+  if (!value) return '';
+  const suffix = endOfDay ? 'T23:59:59.999' : 'T00:00:00.000';
+  return new Date(`${value}${suffix}`).toISOString();
+}
+
+function formatDisplayDate(value) {
+  if (!value) {
+    return 'Select date';
+  }
+
+  const [year, month, day] = value.split('-').map(Number);
+  if (!year || !month || !day) {
+    return value;
+  }
+
+  return new Date(year, month - 1, day).toLocaleDateString(undefined, {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+}
+
+function DateFilterField({ label, value, onChange, max = TODAY_FILTER }) {
+  const inputRef = useRef(null);
+
+  function openPicker() {
+    const input = inputRef.current;
+    if (!input) {
+      return;
+    }
+
+    if (typeof input.showPicker === 'function') {
+      input.showPicker();
+      return;
+    }
+
+    input.focus();
+    input.click();
+  }
+
+  return (
+    <div className={ui.fieldWrap}>
+      <label className={ui.label}>{label}</label>
+      <div className="relative">
+        <input
+          ref={inputRef}
+          className="pointer-events-none absolute h-0 w-0 opacity-0"
+          type="date"
+          value={value}
+          onChange={onChange}
+          max={max}
+          tabIndex={-1}
+          aria-label={label}
+        />
+        <button
+          type="button"
+          className={`${ui.input} flex min-h-[46px] items-center justify-between gap-3 text-left`}
+          onClick={openPicker}
+        >
+          <span className={value ? 'text-emerald-950' : 'text-slate-400'}>{formatDisplayDate(value)}</span>
+          <svg viewBox="0 0 24 24" className="h-5 w-5 shrink-0 text-slate-400" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+            <path d="M8 2v4" />
+            <path d="M16 2v4" />
+            <rect x="3" y="5" width="18" height="16" rx="2" />
+            <path d="M3 10h18" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+const TODAY_FILTER = formatDateInputValue(new Date());
 
 const DEFAULT_QUERY = {
+  startDate: TODAY_FILTER,
+  endDate: TODAY_FILTER,
   q: '',
   batchNumber: '',
   fulfillmentMethod: '',
@@ -19,6 +104,17 @@ const DEFAULT_QUERY = {
   page: 1,
   limit: 20,
 };
+
+function parseBatchFilters(value) {
+  return String(value || '')
+    .split(',')
+    .map((item) => item.trim().toUpperCase())
+    .filter(Boolean);
+}
+
+function includesInsensitive(value, query) {
+  return String(value || '').toLowerCase().includes(String(query || '').toLowerCase());
+}
 
 function formatLabel(value) {
   if (!value) return 'Unknown';
@@ -53,6 +149,10 @@ function formatDate(value) {
   return new Date(value).toLocaleDateString();
 }
 
+function normalizeDisplayName(value) {
+  return String(value || '').replace(/\bSheppard Pepper\b/gi, 'Shepherd Pepper');
+}
+
 function getActionLabel(item) {
   return item.fulfillmentMethod === 'DELIVERY' ? 'Confirm delivery' : 'Confirm pickup';
 }
@@ -73,28 +173,11 @@ function getStatusTone(status) {
   return 'warning';
 }
 
-function getMixedBatchSummary(order) {
-  const items = Array.isArray(order?.fulfillmentItems) && order.fulfillmentItems.length
-    ? order.fulfillmentItems
-    : [{ batchNumber: order?.salesItem?.batchNumber || '' }];
-
-  const batches = [...new Set(items.map((item) => item.batchNumber).filter(Boolean))];
-  return batches.length ? batches.join(', ') : '—';
-}
-
-function getMixedItemSummary(order) {
-  const items = Array.isArray(order?.fulfillmentItems) && order.fulfillmentItems.length
-    ? order.fulfillmentItems
-    : [{ name: order?.salesItem?.name || 'Order items', quantity: order?.quantity || 0 }];
-
-  const grouped = new Map();
-  items.forEach((item) => {
-    const name = item?.name || 'Order items';
-    const quantity = Number(item?.quantity) || 0;
-    grouped.set(name, (grouped.get(name) || 0) + quantity);
-  });
-
-  return [...grouped.entries()].map(([name, quantity]) => `${name} x${quantity}`).join(' + ');
+function getFulfillmentRowNarration(item, order) {
+  const batchNumber = item?.batchNumber || order?.salesItem?.batchNumber || '—';
+  const itemName = normalizeDisplayName(item?.name || order?.salesItem?.name || 'Order items');
+  const quantity = Number(item?.quantity) || Number(order?.quantity) || 0;
+  return `${batchNumber} · ${itemName} x${quantity}`;
 }
 
 export default function AdminFulfillmentPanel({ onLoadOrders, onUpdateFulfillmentStatus, onRefreshReports }) {
@@ -111,6 +194,7 @@ export default function AdminFulfillmentPanel({ onLoadOrders, onUpdateFulfillmen
   const [status, setStatus] = useState('');
   const [updatingReference, setUpdatingReference] = useState('');
   const [exporting, setExporting] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
   const [searchSuggestions, setSearchSuggestions] = useState([]);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   const didInitFiltersRef = useRef(false);
@@ -119,7 +203,11 @@ export default function AdminFulfillmentPanel({ onLoadOrders, onUpdateFulfillmen
     setLoading(true);
     setError('');
     try {
-      const response = await onLoadOrders(nextQuery);
+      const response = await onLoadOrders({
+        ...nextQuery,
+        startDate: toIsoBoundary(nextQuery.startDate),
+        endDate: toIsoBoundary(nextQuery.endDate, true),
+      });
       setOrders(response.items || []);
       setMeta({
         page: response.page || nextQuery.page,
@@ -147,6 +235,8 @@ export default function AdminFulfillmentPanel({ onLoadOrders, onUpdateFulfillmen
     const timer = window.setTimeout(() => {
       const nextQuery = {
         ...query,
+        startDate: query.startDate,
+        endDate: query.endDate,
         q: query.q.trim(),
         batchNumber: query.batchNumber.trim(),
         page: 1,
@@ -156,7 +246,7 @@ export default function AdminFulfillmentPanel({ onLoadOrders, onUpdateFulfillmen
     }, 250);
 
     return () => window.clearTimeout(timer);
-  }, [query.q, query.batchNumber, query.fulfillmentMethod, query.fulfillmentStatus]);
+  }, [query.startDate, query.endDate, query.q, query.batchNumber, query.fulfillmentMethod, query.fulfillmentStatus]);
 
   useEffect(() => {
     const searchTerm = query.q.trim();
@@ -240,11 +330,15 @@ export default function AdminFulfillmentPanel({ onLoadOrders, onUpdateFulfillmen
     setError('');
     try {
       const { blob, fileName } = await exportAdminOrders({
-        ...query,
+        startDate: toIsoBoundary(query.startDate),
+        endDate: toIsoBoundary(query.endDate, true),
         q: query.q.trim(),
         batchNumber: query.batchNumber.trim(),
         paidOnly: 'true',
-        fulfillmentMethod: 'DELIVERY',
+        fulfillmentMethod: query.fulfillmentMethod || '',
+        fulfillmentStatus: query.fulfillmentStatus || '',
+        sortBy: query.sortBy,
+        sortOrder: query.sortOrder,
       });
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -261,9 +355,38 @@ export default function AdminFulfillmentPanel({ onLoadOrders, onUpdateFulfillmen
     }
   }
 
+  async function handlePdfExport() {
+    setExportingPdf(true);
+    setError('');
+    try {
+      openPdfExport({
+        title: 'Fulfilment',
+        subtitle: 'Current fulfilment view',
+        fileName: 'fulfilment-export',
+        columns: [
+          { key: 'displayOrderReference', label: 'Order', render: (row) => row.displayOrderReference || formatOrderReferenceDisplay(row.orderReference, row.createdAt, row.user, { batchNumber: row.salesItem?.batchNumber, orderSequence: row.orderSequence }) },
+          { key: 'name', label: 'Item', render: (row) => normalizeDisplayName(row.name || row.salesItem?.name || 'Order items') },
+          { key: 'date', label: 'Date', render: (row) => formatDate(row.paidAt || row.createdAt) },
+          { key: 'buyer', label: 'Buyer', render: (row) => row.user?.name || 'Unknown buyer' },
+          { key: 'batch', label: 'Batch', render: (row) => row.batchNumber || row.salesItem?.batchNumber || '—' },
+          { key: 'fulfillmentMethod', label: 'Fulfilment', render: (row) => formatLabel(row.fulfillmentMethod) },
+          { key: 'fulfillmentStatus', label: 'Status', render: (row) => formatLabel(row.fulfillmentStatus) },
+          { key: 'amount', label: 'Amount', render: (row) => formatLineAmount(row) },
+        ],
+        rows: fulfillmentRows,
+      });
+    } catch (err) {
+      setError(err.message || 'Unable to export fulfilment to PDF right now.');
+    } finally {
+      setExportingPdf(false);
+    }
+  }
+
   const listStart = meta.total === 0 ? 0 : (meta.page - 1) * meta.limit + 1;
   const listEnd = meta.total === 0 ? 0 : Math.min(meta.page * meta.limit, meta.total);
   const showSuggestions = query.q.trim().length >= 2 && (loadingSuggestions || searchSuggestions.length > 0);
+  const activeBatchFilters = parseBatchFilters(query.batchNumber);
+  const activeSearchQuery = query.q.trim();
   const fulfillmentRows = orders.flatMap((order) => {
     const items = Array.isArray(order.fulfillmentItems) && order.fulfillmentItems.length
       ? order.fulfillmentItems
@@ -280,10 +403,37 @@ export default function AdminFulfillmentPanel({ onLoadOrders, onUpdateFulfillmen
           },
         ];
 
-    return items.map((item) => ({
-      ...order,
-      ...item,
-    }));
+    return items
+      .filter((item) => {
+        const matchesBatch =
+          !activeBatchFilters.length
+          || activeBatchFilters.some((batch) => includesInsensitive(item.batchNumber, batch));
+
+        const matchesFulfillmentMethod =
+          !query.fulfillmentMethod || item.fulfillmentMethod === query.fulfillmentMethod;
+
+        const matchesFulfillmentStatus =
+          !query.fulfillmentStatus || item.fulfillmentStatus === query.fulfillmentStatus;
+
+        const matchesSearch =
+          !activeSearchQuery
+          || [
+            order.orderReference,
+            order.displayOrderReference,
+            order.user?.name,
+            order.user?.email,
+            order.user?.phone,
+            item.batchNumber,
+            item.name,
+            item.bundleName,
+          ].some((value) => includesInsensitive(value, activeSearchQuery));
+
+        return matchesBatch && matchesFulfillmentMethod && matchesFulfillmentStatus && matchesSearch;
+      })
+      .map((item) => ({
+        ...order,
+        ...item,
+      }));
   });
 
   return (
@@ -295,12 +445,22 @@ export default function AdminFulfillmentPanel({ onLoadOrders, onUpdateFulfillmen
             <p className="leading-6 text-slate-600">Confirm pickup or delivery for paid orders and download the current delivery view to Excel.</p>
           </div>
 
-          <div className={`${ui.filterPanel} grid gap-4 xl:grid-cols-[minmax(0,1.3fr)_200px_220px_220px]`}>
+          <div className={`${ui.filterPanel} grid gap-4 md:grid-cols-2 xl:grid-cols-4`}>
+            <DateFilterField
+              label="Start date"
+              value={query.startDate}
+              onChange={(event) => setQuery((current) => ({ ...current, startDate: event.target.value }))}
+            />
+            <DateFilterField
+              label="End date"
+              value={query.endDate}
+              onChange={(event) => setQuery((current) => ({ ...current, endDate: event.target.value }))}
+            />
             <div className={ui.fieldWrap}>
               <label className={ui.label}>Search</label>
               <div className="relative">
               <input
-                className={ui.input}
+                className={`${ui.input} focus:placeholder-transparent`}
                 value={query.q}
                 onChange={(event) => setQuery((current) => ({ ...current, q: event.target.value }))}
                 placeholder="Name, order number, batch no, email"
@@ -338,16 +498,15 @@ export default function AdminFulfillmentPanel({ onLoadOrders, onUpdateFulfillmen
             <div className={ui.fieldWrap}>
               <label className={ui.label}>Batch number</label>
               <input
-                className={ui.input}
+                className={`${ui.input} focus:placeholder-transparent`}
                 value={query.batchNumber}
                 onChange={(event) =>
                   setQuery((current) => ({
                     ...current,
-                    batchNumber: event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3),
+                    batchNumber: event.target.value.toUpperCase().replace(/[^A-Z0-9,\s]/g, ''),
                   }))
                 }
-                placeholder="AZ1"
-                maxLength={3}
+                placeholder="AZ1, AZ2, AZ3"
               />
             </div>
             <div className={ui.fieldWrap}>
@@ -368,11 +527,13 @@ export default function AdminFulfillmentPanel({ onLoadOrders, onUpdateFulfillmen
                 <option value="DELIVERED">Delivered</option>
               </select>
             </div>
-            <div className="xl:col-span-4 flex flex-wrap items-end gap-3">
+            <div className="xl:col-span-2 flex flex-wrap items-end gap-3">
               <button type="button" className={ui.buttonGhost} onClick={handleExportPaidDeliveryOrders} disabled={exporting}>
                 {exporting ? 'Exporting...' : 'Download to Excel'}
               </button>
-              <p className="text-sm text-slate-500">Filters update automatically as you type or change a field.</p>
+              <button type="button" className={ui.buttonGhost} onClick={handlePdfExport} disabled={exportingPdf}>
+                {exportingPdf ? 'Preparing PDF...' : 'Download to PDF'}
+              </button>
             </div>
           </div>
 
@@ -404,20 +565,22 @@ export default function AdminFulfillmentPanel({ onLoadOrders, onUpdateFulfillmen
                         <p className="font-semibold text-slate-900">
                           {order.displayOrderReference || formatOrderReferenceDisplay(order.orderReference, order.createdAt, order.user, { batchNumber: order.salesItem?.batchNumber, orderSequence: order.orderSequence })}
                         </p>
-                        <p className="truncate text-xs text-slate-500" title={`${getMixedBatchSummary(order)} · ${getMixedItemSummary(order)}`}>
-                          {getMixedBatchSummary(order)} · {getMixedItemSummary(order)}
+                        <p className="truncate text-xs text-slate-500" title={getFulfillmentRowNarration(order, order)}>
+                          {getFulfillmentRowNarration(order, order)}
                         </p>
                       </div>
                     </td>
                     <td className={ui.tableCell}>
                       <div className="max-w-[13rem] space-y-0.5">
-                        <p className="truncate font-medium text-slate-900" title={order.name || order.salesItem?.name || 'Order items'}>{order.name || order.salesItem?.name || 'Order items'}</p>
+                        <p className="truncate font-medium text-slate-900" title={normalizeDisplayName(order.name || order.salesItem?.name || 'Order items')}>
+                          {normalizeDisplayName(order.name || order.salesItem?.name || 'Order items')}
+                        </p>
                         <p
                           className="truncate text-xs text-slate-500"
-                          title={`Qty ${order.quantity}${order.isBundleComponent && order.bundleName ? ` · Bundle: ${order.bundleName}` : ''}`}
+                          title={`Qty ${order.quantity}${order.isBundleComponent && order.bundleName ? ` · Bundle: ${normalizeDisplayName(order.bundleName)}` : ''}`}
                         >
                           Qty {order.quantity}
-                          {order.isBundleComponent && order.bundleName ? ` · Bundle: ${order.bundleName}` : ''}
+                          {order.isBundleComponent && order.bundleName ? ` · Bundle: ${normalizeDisplayName(order.bundleName)}` : ''}
                         </p>
                       </div>
                     </td>

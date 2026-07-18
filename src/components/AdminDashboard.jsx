@@ -31,7 +31,7 @@ function createDefaultSalesForm() {
     pricePerUnit: '',
     closingDate: '',
     status: 'ACTIVE',
-    pickupInstructions: '',
+    pickupInstructions: 'Winnipeg Manitoba',
     description: '',
     bundleItems: DEFAULT_BUNDLE_ITEMS.map((item) => ({ ...item })),
     deliveryEnabled: false,
@@ -369,7 +369,7 @@ export default function AdminDashboard({
       pricePerUnit: formatCentsToDollarInput(item.pricePerUnit),
       closingDate: toDateTimeLocal(item.closingDate),
       status: item.status,
-      pickupInstructions: item.pickupInstructions || '',
+      pickupInstructions: item.pickupInstructions || 'Winnipeg Manitoba',
       description: item.description || '',
       bundleItems:
         Array.isArray(item.bundleItemsJson) && item.bundleItemsJson.length

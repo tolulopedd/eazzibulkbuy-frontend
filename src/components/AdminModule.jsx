@@ -21,6 +21,9 @@ import AdminLogin from './AdminLogin';
 import AdminDashboard from './AdminDashboard';
 import { ui } from '../ui/classes';
 
+const ADMIN_SESSION_TIMEOUT_MS = 5 * 60 * 1000;
+const ADMIN_ACTIVITY_EVENTS = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart'];
+
 export default function AdminModule({ onBackHome, onGoForgotPassword }) {
   const [checking, setChecking] = useState(true);
   const [authenticated, setAuthenticated] = useState(false);
@@ -69,6 +72,41 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
       mounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!authenticated) {
+      return undefined;
+    }
+
+    let timerId = null;
+
+    function expireForInactivity() {
+      adminLogout().catch(() => {});
+      handleUnauthorizedSession('Your admin session ended after 5 minutes of inactivity. Please sign in again.');
+    }
+
+    function resetIdleTimer() {
+      if (timerId) {
+        window.clearTimeout(timerId);
+      }
+
+      timerId = window.setTimeout(expireForInactivity, ADMIN_SESSION_TIMEOUT_MS);
+    }
+
+    resetIdleTimer();
+    ADMIN_ACTIVITY_EVENTS.forEach((eventName) => {
+      window.addEventListener(eventName, resetIdleTimer, { passive: true });
+    });
+
+    return () => {
+      if (timerId) {
+        window.clearTimeout(timerId);
+      }
+      ADMIN_ACTIVITY_EVENTS.forEach((eventName) => {
+        window.removeEventListener(eventName, resetIdleTimer);
+      });
+    };
+  }, [authenticated, adminSession?.email]);
 
   async function handleLogin(credentials) {
     setLoading(true);

@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { ui } from '../ui/classes';
 import { exportAdminReports } from '../api/admin';
+import { openPdfExport } from '../utils/pdfExport';
+
+const TODAY_FILTER = '2026-07-18';
 
 const DEFAULT_FILTERS = {
   startDate: '',
@@ -45,19 +48,30 @@ function formatCad(cents) {
   return `CAD ${((cents || 0) / 100).toFixed(2)}`;
 }
 
-function DateFilterField({ label, value, onChange }) {
+function buildReportExportFileName(label) {
+  const safeLabel = String(label || 'report')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  const dateStamp = new Date().toISOString().slice(0, 10);
+  return `${safeLabel || 'report'}-${dateStamp}`;
+}
+
+function DateFilterField({ label, value, onChange, max = TODAY_FILTER }) {
   return (
     <div className={ui.fieldWrap}>
       <label className={ui.label}>{label}</label>
       <div className="relative">
         <input
-          className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+          className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0"
           type="date"
           value={value}
           onChange={onChange}
+          max={max}
           aria-label={label}
         />
-        <div className={`${ui.input} flex min-h-[46px] items-center justify-between gap-3`}>
+        <div className={`${ui.input} pointer-events-none flex min-h-[46px] items-center justify-between gap-3`}>
           <span className={value ? 'text-emerald-950' : 'text-slate-400'}>{formatDisplayDate(value)}</span>
           <svg viewBox="0 0 24 24" className="h-5 w-5 shrink-0 text-slate-400" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
             <path d="M8 2v4" />
@@ -107,6 +121,7 @@ function ReportTable({ columns, rows, emptyMessage }) {
 export default function AdminReportsPanel({ reports, reportError, loadingReports, onRefreshReports }) {
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
   const [exporting, setExporting] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
   const [exportError, setExportError] = useState('');
   const didInitFiltersRef = useRef(false);
 
@@ -179,6 +194,38 @@ export default function AdminReportsPanel({ reports, reportError, loadingReports
     }
   }
 
+  async function handlePdfExport() {
+    setExportingPdf(true);
+    setExportError('');
+    try {
+      let columns = orderReadyColumns;
+      let rows = reports?.orderReadyRows || [];
+
+      if (activeReportType === 'supplierOrders') {
+        columns = supplierColumns;
+        rows = reports?.supplierOrderRows || [];
+      } else if (activeReportType === 'salesDetails') {
+        columns = salesDetailsColumns.map((column) => ({
+          ...column,
+          render: column.key === 'totalAmount' ? (row) => formatCad(row.totalAmount) : column.render,
+        }));
+        rows = reports?.salesDetailRows || [];
+      }
+
+      openPdfExport({
+        title: activeReportLabel,
+        subtitle: 'Current report view',
+        fileName: buildReportExportFileName(activeReportLabel),
+        columns,
+        rows,
+      });
+    } catch (error) {
+      setExportError(error.message || 'Unable to export this report to PDF right now.');
+    } finally {
+      setExportingPdf(false);
+    }
+  }
+
   const salesItems = reports?.filterOptions?.salesItems || [];
   const activeReportType = reports?.filters?.reportType || filters.reportType;
   const activeReportLabel = REPORT_OPTIONS.find((option) => option.value === activeReportType)?.label || 'Reports';
@@ -228,87 +275,109 @@ export default function AdminReportsPanel({ reports, reportError, loadingReports
         </div>
 
         <form className={`${ui.filterPanel} space-y-4`} onSubmit={applyFilters}>
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-7">
-            <DateFilterField
-              label="Start date"
-              value={filters.startDate}
-              onChange={(e) => setFilters((current) => ({ ...current, startDate: e.target.value }))}
-            />
-            <DateFilterField
-              label="End date"
-              value={filters.endDate}
-              onChange={(e) => setFilters((current) => ({ ...current, endDate: e.target.value }))}
-            />
-            <div className={ui.fieldWrap}>
-              <label className={ui.label}>Sales event</label>
-              <select className={ui.select} value={filters.salesItemId} onChange={(e) => setFilters((current) => ({ ...current, salesItemId: e.target.value }))}>
-                <option value="">All sales events</option>
-                {salesItems.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.name}{item.batchNumber ? ` · ${item.batchNumber}` : ''}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className={ui.fieldWrap}>
-              <label className={ui.label}>Batch number</label>
-              <input
-                className={ui.input}
-                value={filters.batchNumber}
-                onChange={(e) =>
-                  setFilters((current) => ({
-                    ...current,
-                    batchNumber: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3),
-                  }))
-                }
-                placeholder="AZ1"
-                maxLength={3}
-              />
-            </div>
-            <div className={ui.fieldWrap}>
-              <label className={ui.label}>Report</label>
-              <select className={ui.select} value={filters.reportType} onChange={(e) => setFilters((current) => ({ ...current, reportType: e.target.value }))}>
-                {REPORT_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>{option.label}</option>
-                ))}
-              </select>
-            </div>
-            <div className={ui.fieldWrap}>
-              <label className={ui.label}>Pickup or delivery</label>
-              <select
-                className={ui.select}
-                value={filters.fulfillmentMethod}
-                onChange={(e) => setFilters((current) => ({ ...current, fulfillmentMethod: e.target.value }))}
+          <div className={`${ui.section} space-y-4`}>
+            <div className="flex flex-wrap items-end gap-3">
+              <div className={`${ui.fieldWrap} min-w-[280px] flex-1`}>
+                <label className={ui.label}>Report type</label>
+                <select
+                  className={ui.select}
+                  value={filters.reportType}
+                  onChange={(e) => setFilters((current) => ({ ...current, reportType: e.target.value }))}
+                >
+                  {REPORT_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              </div>
+              <button
+                type="button"
+                className={`${ui.buttonGhost} whitespace-nowrap`}
+                onClick={handleExport}
+                disabled={loadingReports || exporting}
               >
-                <option value="">All orders</option>
-                <option value="PICKUP">Pickup</option>
-                <option value="DELIVERY">Delivery</option>
-              </select>
-            </div>
-            <div className={ui.fieldWrap}>
-              <label className={ui.label}>Fulfilment status</label>
-              <select
-                className={ui.select}
-                value={filters.fulfillmentStatus}
-                onChange={(e) => setFilters((current) => ({ ...current, fulfillmentStatus: e.target.value }))}
+                {exporting ? 'Exporting...' : 'Download to Excel'}
+              </button>
+              <button
+                type="button"
+                className={`${ui.buttonGhost} whitespace-nowrap`}
+                onClick={handlePdfExport}
+                disabled={loadingReports || exportingPdf}
               >
-                <option value="">All statuses</option>
-                <option value="PENDING_PICKUP">Pending pickup</option>
-                <option value="PICKED_UP">Picked up</option>
-                <option value="PENDING_DELIVERY">Pending delivery</option>
-                <option value="DELIVERED">Delivered</option>
-              </select>
+                {exportingPdf ? 'Preparing PDF...' : 'Download to PDF'}
+              </button>
+              <button
+                type="button"
+                className={`${ui.buttonGhost} whitespace-nowrap`}
+                onClick={clearFilters}
+                disabled={loadingReports}
+              >
+                Clear filters
+              </button>
             </div>
-          </div>
 
-          <div className="flex flex-wrap gap-3">
-            <button type="button" className={ui.buttonGhost} onClick={handleExport} disabled={loadingReports || exporting}>
-              {exporting ? 'Exporting...' : 'Download to Excel'}
-            </button>
-            <button type="button" className={ui.buttonGhost} onClick={clearFilters} disabled={loadingReports}>
-              Clear filters
-            </button>
-            <p className="self-center text-sm text-slate-500">Filters update automatically as you type or change a field.</p>
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              <DateFilterField
+                label="Start date"
+                value={filters.startDate}
+                onChange={(e) => setFilters((current) => ({ ...current, startDate: e.target.value }))}
+              />
+              <DateFilterField
+                label="End date"
+                value={filters.endDate}
+                onChange={(e) => setFilters((current) => ({ ...current, endDate: e.target.value }))}
+              />
+              <div className={ui.fieldWrap}>
+                <label className={ui.label}>Sales event</label>
+                <select className={ui.select} value={filters.salesItemId} onChange={(e) => setFilters((current) => ({ ...current, salesItemId: e.target.value }))}>
+                  <option value="">All sales events</option>
+                  {salesItems.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name}{item.batchNumber ? ` · ${item.batchNumber}` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className={ui.fieldWrap}>
+                <label className={ui.label}>Batch number</label>
+                <input
+                  className={`${ui.input} focus:placeholder-transparent`}
+                  value={filters.batchNumber}
+                  onChange={(e) =>
+                    setFilters((current) => ({
+                      ...current,
+                      batchNumber: e.target.value.toUpperCase().replace(/[^A-Z0-9,\s]/g, ''),
+                    }))
+                  }
+                  placeholder="AZ1, AZ2, AZ3"
+                />
+              </div>
+              <div className={ui.fieldWrap}>
+                <label className={ui.label}>Pickup or delivery</label>
+                <select
+                  className={ui.select}
+                  value={filters.fulfillmentMethod}
+                  onChange={(e) => setFilters((current) => ({ ...current, fulfillmentMethod: e.target.value }))}
+                >
+                  <option value="">All orders</option>
+                  <option value="PICKUP">Pickup</option>
+                  <option value="DELIVERY">Delivery</option>
+                </select>
+              </div>
+              <div className={ui.fieldWrap}>
+                <label className={ui.label}>Fulfilment status</label>
+                <select
+                  className={ui.select}
+                  value={filters.fulfillmentStatus}
+                  onChange={(e) => setFilters((current) => ({ ...current, fulfillmentStatus: e.target.value }))}
+                >
+                  <option value="">All statuses</option>
+                  <option value="PENDING_PICKUP">Pending pickup</option>
+                  <option value="PICKED_UP">Picked up</option>
+                  <option value="PENDING_DELIVERY">Pending delivery</option>
+                  <option value="DELIVERED">Delivered</option>
+                </select>
+              </div>
+            </div>
           </div>
         </form>
 

@@ -10,7 +10,14 @@ import {
   PencilIcon,
 } from './AdminTablePrimitives';
 
-const SALES_ITEM_OPTIONS = ['Tomatoes', 'Red Habanero', 'Yellow Habanero', 'Chocolate Habanero', 'Green Bell Pepper', 'Crimson Pepper', 'Cayenne Pepper', 'Scorpion Pepper', 'Sheppard Pepper', 'Yam', 'Onion', 'Red Bell Pepper', 'Sweet potatoes', 'Ghost Pepper'];
+const SALES_ITEM_OPTIONS = ['Tomatoes', 'Red Habanero', 'Yellow Habanero', 'Chocolate Habanero', 'Green Bell Pepper', 'Crimson Pepper', 'Cayenne Pepper', 'Scorpion Pepper', 'Shepherd Pepper', 'Yam', 'Onion', 'Red Bell Pepper', 'Sweet potatoes', 'Ghost Pepper'];
+const SALES_LOCATION_OPTIONS = [
+  'Winnipeg Manitoba',
+  'Brandon Manitoba',
+  'Steinbach Manitoba',
+  'Portage la Prairie Manitoba',
+  'Selkirk Manitoba',
+];
 const SALES_TYPE_OPTIONS = [
   { value: 'NORMAL_SALE', label: 'Normal Sale' },
   { value: 'BUNDLE_DISCOUNTED_SALE', label: 'Bundle Discounted Sale' },
@@ -85,6 +92,11 @@ function isDeletableSalesItem(item) {
 
 function formatMoney(value) {
   return `CAD ${(value / 100).toFixed(2)}`;
+}
+
+function isPositiveNumber(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0;
 }
 
 function SalesDetailsModal({
@@ -186,7 +198,17 @@ function SalesDetailsModal({
                 <div className={`${ui.section} space-y-4`}>
                   <div className={ui.fieldWrap}>
                     <label className={ui.label}>Location of sales</label>
-                    <textarea className={ui.textarea} rows={2} value={editForm.pickupInstructions} onChange={(e) => onEditFormChange('pickupInstructions', e.target.value)} />
+                    <select
+                      className={ui.select}
+                      value={editForm.pickupInstructions}
+                      onChange={(e) => onEditFormChange('pickupInstructions', e.target.value)}
+                    >
+                      {SALES_LOCATION_OPTIONS.map((location) => (
+                        <option key={location} value={location}>
+                          {location}
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
                   <div className={ui.fieldWrap}>
@@ -354,6 +376,29 @@ export default function AdminSalesPanel({
     () => salesItems.filter((item) => item.status !== 'ACTIVE' || new Date(item.closingDate) <= new Date()),
     [salesItems],
   );
+  const createFormIsValid = useMemo(() => {
+    const hasName = String(form.name || '').trim().length > 0;
+    const hasBatchNumber = /^[A-Z0-9]{3}$/.test(String(form.batchNumber || '').trim().toUpperCase());
+    const hasClosingDate = Boolean(form.closingDate);
+    const hasLocation = String(form.pickupInstructions || '').trim().length > 0;
+    const hasPrice = isPositiveNumber(form.pricePerUnit);
+
+    const bundleItemsAreValid = form.saleType !== 'BUNDLE_DISCOUNTED_SALE'
+      || (Array.isArray(form.bundleItems)
+        && form.bundleItems.length >= 2
+        && form.bundleItems.every((item) =>
+          String(item?.name || '').trim().length > 0 && isPositiveNumber(item?.quantity),
+        ));
+
+    const deliveryValuesAreValid = !form.deliveryEnabled || (
+      isPositiveNumber(form.deliveryBaseRangeMax)
+      && Number(form.deliveryBaseRangeMax) >= 1
+      && Number(form.deliveryBasePrice) >= 0
+      && Number(form.deliveryAdditionalUnitPrice) >= 0
+    );
+
+    return hasName && hasBatchNumber && hasClosingDate && hasLocation && hasPrice && bundleItemsAreValid && deliveryValuesAreValid;
+  }, [form]);
 
   useEffect(() => {
     if (!didInitFiltersRef.current) {
@@ -464,7 +509,7 @@ export default function AdminSalesPanel({
             <p className="leading-6 text-slate-600">Manage normal sales and bundle discounted sales events in a structured table view.</p>
           </div>
           <button type="button" className={ui.buttonPrimary} onClick={() => setShowCreateForm((current) => !current)}>
-            {showCreateForm ? 'Close Create Sales Event' : 'Create Sales Event'}
+            {showCreateForm ? 'Close Create' : 'Create'}
           </button>
         </div>
 
@@ -538,7 +583,17 @@ export default function AdminSalesPanel({
             ) : null}
             <div className={ui.fieldWrap}>
               <label className={ui.label}>Location of sales</label>
-              <textarea className={ui.textarea} rows={2} placeholder="Winnipeg Manitoba" value={form.pickupInstructions} onChange={(e) => onFormChange('pickupInstructions', e.target.value)} />
+              <select
+                className={ui.select}
+                value={form.pickupInstructions}
+                onChange={(e) => onFormChange('pickupInstructions', e.target.value)}
+              >
+                {SALES_LOCATION_OPTIONS.map((location) => (
+                  <option key={location} value={location}>
+                    {location}
+                  </option>
+                ))}
+              </select>
             </div>
             <div className={`${ui.section} space-y-4`}>
               <div className="flex items-center justify-between gap-3">
@@ -572,8 +627,20 @@ export default function AdminSalesPanel({
             </div>
 
             <div className="flex justify-center pt-1">
-              <button type="submit" className={`${ui.buttonPrimary} min-w-44`} disabled={createLoading}>
-                {createLoading ? 'Creating sales event...' : 'Create Sales Event'}
+              <button
+                type="submit"
+                className={`${ui.buttonPrimary} min-w-44 ${(!createFormIsValid || createLoading) ? 'cursor-not-allowed opacity-50' : ''}`}
+                disabled={createLoading || !createFormIsValid}
+              >
+                <span className="inline-flex items-center justify-center gap-2">
+                  {createLoading ? (
+                    <span
+                      className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white/35 border-t-white"
+                      aria-hidden="true"
+                    />
+                  ) : null}
+                  <span>{createLoading ? 'Creating...' : 'Create'}</span>
+                </span>
               </button>
             </div>
             {createStatus ? <p className={ui.success}>{createStatus}</p> : null}
@@ -584,7 +651,7 @@ export default function AdminSalesPanel({
           <div className={ui.fieldWrap}>
             <label className={ui.label}>Search</label>
             <input
-              className={ui.input}
+              className={`${ui.input} focus:placeholder-transparent`}
               value={salesQuery.q}
               onChange={(e) => onSalesQueryChange('q', e.target.value)}
               placeholder="Item name, batch number, description"
@@ -593,15 +660,12 @@ export default function AdminSalesPanel({
           <div className={ui.fieldWrap}>
             <label className={ui.label}>Batch number</label>
             <input
-              className={ui.input}
+              className={`${ui.input} focus:placeholder-transparent`}
               value={salesQuery.batchNumber || ''}
               maxLength={3}
               onChange={(e) => onSalesQueryChange('batchNumber', e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3))}
               placeholder="AZ1"
             />
-          </div>
-          <div className="xl:col-span-2">
-            <p className="text-sm text-slate-500">Filters update automatically as you type.</p>
           </div>
         </div>
       </section>

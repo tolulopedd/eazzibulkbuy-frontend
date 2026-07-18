@@ -212,10 +212,56 @@ function formatCountdownLabel(countdown) {
   }
 
   if (countdown.days > 0) {
-    return `${countdown.days}d ${countdown.hours}h ${countdown.minutes}m left`;
+    return `${countdown.days}d ${countdown.hours}h ${countdown.minutes}m`;
   }
 
-  return `${countdown.hours}h ${countdown.minutes}m left`;
+  return `${countdown.hours}h ${countdown.minutes}m`;
+}
+
+function CountdownDisplay({ countdown, emptyLabel = 'No active countdown', emptyDetail = 'There is no live sales event closing right now.', accent = 'amber' }) {
+  const accentClasses = accent === 'emerald'
+    ? {
+        card: 'border-emerald-200 bg-[rgba(236,253,245,0.86)]',
+        label: 'text-emerald-700',
+        tile: 'border-emerald-200 bg-white text-emerald-950',
+      }
+    : {
+        card: 'border-[#e9dfc9] bg-[rgba(255,248,239,0.76)]',
+        label: 'text-amber-700',
+        tile: 'border-amber-200 bg-white text-[#171a16]',
+      };
+
+  if (!countdown) {
+    return (
+      <article className={`rounded-[24px] border p-4 shadow-[0_8px_20px_rgba(16,24,40,0.04)] backdrop-blur-[2px] ${accentClasses.card}`}>
+        <p className={`text-[11px] font-bold uppercase tracking-[0.12em] ${accentClasses.label}`}>Next event closes</p>
+        <p className="mt-2 text-xl font-extrabold text-[#171a16]">{emptyLabel}</p>
+        <p className="mt-1 text-sm text-slate-600">{emptyDetail}</p>
+      </article>
+    );
+  }
+
+  const segments = [
+    { label: 'Days', value: String(countdown.days).padStart(2, '0') },
+    { label: 'Hours', value: String(countdown.hours).padStart(2, '0') },
+    { label: 'Minutes', value: String(countdown.minutes).padStart(2, '0') },
+  ];
+
+  return (
+    <article className={`rounded-[24px] border p-4 shadow-[0_8px_20px_rgba(16,24,40,0.04)] backdrop-blur-[2px] ${accentClasses.card}`}>
+      <p className={`text-[11px] font-bold uppercase tracking-[0.12em] ${accentClasses.label}`}>Next event closes</p>
+      <div className="mt-3 grid grid-cols-3 gap-2">
+        {segments.map((segment) => (
+          <div key={segment.label} className={`rounded-2xl border px-3 py-2.5 text-center shadow-[0_6px_16px_rgba(16,24,40,0.04)] ${accentClasses.tile}`}>
+            <p className="text-2xl font-extrabold tracking-tight">{segment.value}</p>
+            <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">{segment.label}</p>
+          </div>
+        ))}
+      </div>
+      <p className="mt-3 text-sm font-semibold text-slate-700">{formatCountdownLabel(countdown)} remaining</p>
+      <p className="mt-1 text-sm text-slate-600">Review live items early so you do not miss the current order window.</p>
+    </article>
+  );
 }
 
 export default function LandingPage({ onGoShop }) {
@@ -308,7 +354,7 @@ export default function LandingPage({ onGoShop }) {
   const headerLinks = [
     { label: 'Active Sales', href: '#active-products' },
     { label: 'How it works', href: '#how-it-works' },
-    { label: 'Community impact', href: '#community-impact' },
+    { label: 'Our Produce', href: '#community-impact' },
     { label: 'About us', href: '#about-us' },
   ];
   const hasLiveItems = highlightedItems.length > 0;
@@ -476,13 +522,12 @@ export default function LandingPage({ onGoShop }) {
                       : `${activeItems.length} sales events are currently open.`}
                   </p>
                 </article>
-                <article className="rounded-[24px] border border-[#e9dfc9] bg-[rgba(255,248,239,0.68)] p-4 shadow-[0_8px_20px_rgba(16,24,40,0.04)] backdrop-blur-[2px]">
-                  <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-amber-700">Next event closes</p>
-                  <p className="mt-2 text-2xl font-extrabold text-[#171a16]">
-                    {nextClosingCountdown ? formatCountdownLabel(nextClosingCountdown) : 'No active countdown'}
-                  </p>
-                  <p className="mt-1 text-sm text-slate-600">Review live items early so you do not miss the current order window.</p>
-                </article>
+                <CountdownDisplay
+                  countdown={nextClosingCountdown}
+                  emptyLabel="No active countdown"
+                  emptyDetail="There is no live sales event closing right now."
+                  accent="amber"
+                />
                 <article className="rounded-[24px] border border-[#dfe7df] bg-[rgba(243,251,246,0.72)] p-4 shadow-[0_8px_20px_rgba(16,24,40,0.03)] backdrop-blur-[2px]">
                   <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-emerald-700">Checkout options</p>
                   <div className="mt-2 flex flex-wrap gap-2">

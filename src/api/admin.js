@@ -300,6 +300,12 @@ export async function exportAdminCustomers(params = {}) {
 export function fetchAdminOrders(params = {}) {
   const search = new URLSearchParams();
 
+  if (params.startDate) {
+    search.set('startDate', params.startDate);
+  }
+  if (params.endDate) {
+    search.set('endDate', params.endDate);
+  }
   if (params.q) {
     search.set('q', params.q);
   }
@@ -344,6 +350,8 @@ export function fetchAdminOrders(params = {}) {
 export async function exportAdminOrders(params = {}) {
   const search = new URLSearchParams();
 
+  if (params.startDate) search.set('startDate', params.startDate);
+  if (params.endDate) search.set('endDate', params.endDate);
   if (params.q) search.set('q', params.q);
   if (params.batchNumber) search.set('batchNumber', params.batchNumber);
   if (params.paidOnly !== undefined && params.paidOnly !== '') search.set('paidOnly', String(params.paidOnly));

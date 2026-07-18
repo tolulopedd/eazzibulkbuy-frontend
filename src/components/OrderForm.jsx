@@ -1019,7 +1019,11 @@ export default function OrderForm({
                   onClick={handleContinueToPayment}
                   disabled={paymentProcessing}
                 >
-                  {paymentProcessing ? 'Processing...' : paymentMethod === 'INTERAC_E_TRANSFER' ? 'Continue with Interac' : 'Continue with Stripe'}
+                  {paymentProcessing
+                    ? 'Processing...'
+                    : paymentMethod === 'INTERAC_E_TRANSFER'
+                    ? 'Continue with Interac'
+                    : 'Continue with Stripe'}
                 </button>
               </div>
             ) : (
@@ -1164,7 +1168,12 @@ export default function OrderForm({
           <section className={`${ui.section} space-y-4`}>
             <div className="flex items-center justify-between gap-3">
               <h2 className="text-lg font-bold tracking-tight text-emerald-950">Buyer details</h2>
-              <button type="button" className={ui.buttonGhost} onClick={handleSaveDetails} disabled={savingDetails}>
+              <button
+                type="button"
+                className={buyerDetailsReady ? ui.buttonPrimary : ui.buttonGhost}
+                onClick={handleSaveDetails}
+                disabled={savingDetails}
+              >
                 {savingDetails ? 'Saving...' : saveDetailsLabel}
               </button>
             </div>

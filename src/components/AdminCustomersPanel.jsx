@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ui } from '../ui/classes';
+import { openPdfExport } from '../utils/pdfExport';
 import {
   AdminIconButton,
   AdminPagination,
@@ -118,6 +119,7 @@ export default function AdminCustomersPanel({ onLoadCustomers, onUpdateCustomer,
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
 
   async function loadCustomers(nextQuery = query) {
     setLoading(true);
@@ -204,6 +206,30 @@ export default function AdminCustomersPanel({ onLoadCustomers, onUpdateCustomer,
     }
   }
 
+  async function handlePdfExport() {
+    setExportingPdf(true);
+    setError('');
+    try {
+      openPdfExport({
+        title: 'Customer',
+        subtitle: 'Current customer view',
+        fileName: 'customers-export',
+        columns: [
+          { key: 'name', label: 'Name' },
+          { key: 'email', label: 'Email' },
+          { key: 'phone', label: 'Phone' },
+          { key: 'address', label: 'Address' },
+          { key: 'status', label: 'Status', render: (row) => row.isActive ? 'Active' : 'Inactive' },
+        ],
+        rows: customers,
+      });
+    } catch (err) {
+      setError(err.message || 'Unable to export customers to PDF right now.');
+    } finally {
+      setExportingPdf(false);
+    }
+  }
+
   const listStart = meta.total === 0 ? 0 : (meta.page - 1) * meta.limit + 1;
   const listEnd = meta.total === 0 ? 0 : Math.min(meta.page * meta.limit, meta.total);
 
@@ -230,7 +256,9 @@ export default function AdminCustomersPanel({ onLoadCustomers, onUpdateCustomer,
               <button type="button" className={ui.buttonGhost} onClick={handleExport} disabled={exporting}>
                 {exporting ? 'Exporting...' : 'Download to Excel'}
               </button>
-              <p className="text-sm text-slate-500">Filters update automatically as you type.</p>
+              <button type="button" className={ui.buttonGhost} onClick={handlePdfExport} disabled={exportingPdf}>
+                {exportingPdf ? 'Preparing PDF...' : 'Download to PDF'}
+              </button>
             </div>
           </div>
 

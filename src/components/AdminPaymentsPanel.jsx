@@ -11,8 +11,94 @@ import {
   EyeIcon,
   MailIcon,
 } from './AdminTablePrimitives';
+import { exportAdminOrders } from '../api/admin';
+import { openPdfExport } from '../utils/pdfExport';
+
+function formatDateInputValue(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function toIsoBoundary(value, endOfDay = false) {
+  if (!value) return '';
+  const suffix = endOfDay ? 'T23:59:59.999' : 'T00:00:00.000';
+  return new Date(`${value}${suffix}`).toISOString();
+}
+
+function formatDisplayDate(value) {
+  if (!value) {
+    return 'Select date';
+  }
+
+  const [year, month, day] = value.split('-').map(Number);
+  if (!year || !month || !day) {
+    return value;
+  }
+
+  return new Date(year, month - 1, day).toLocaleDateString(undefined, {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+}
+
+function DateFilterField({ label, value, onChange, max = TODAY_FILTER }) {
+  const inputRef = useRef(null);
+
+  function openPicker() {
+    const input = inputRef.current;
+    if (!input) {
+      return;
+    }
+
+    if (typeof input.showPicker === 'function') {
+      input.showPicker();
+      return;
+    }
+
+    input.focus();
+    input.click();
+  }
+
+  return (
+    <div className={ui.fieldWrap}>
+      <label className={ui.label}>{label}</label>
+      <div className="relative">
+        <input
+          ref={inputRef}
+          className="pointer-events-none absolute h-0 w-0 opacity-0"
+          type="date"
+          value={value}
+          onChange={onChange}
+          max={max}
+          tabIndex={-1}
+          aria-label={label}
+        />
+        <button
+          type="button"
+          className={`${ui.input} flex min-h-[46px] items-center justify-between gap-3 text-left`}
+          onClick={openPicker}
+        >
+          <span className={value ? 'text-emerald-950' : 'text-slate-400'}>{formatDisplayDate(value)}</span>
+          <svg viewBox="0 0 24 24" className="h-5 w-5 shrink-0 text-slate-400" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+            <path d="M8 2v4" />
+            <path d="M16 2v4" />
+            <rect x="3" y="5" width="18" height="16" rx="2" />
+            <path d="M3 10h18" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+const TODAY_FILTER = formatDateInputValue(new Date());
 
 const DEFAULT_QUERY = {
+  startDate: TODAY_FILTER,
+  endDate: TODAY_FILTER,
   q: '',
   batchNumber: '',
   paidOnly: '',
@@ -233,7 +319,7 @@ function PaymentDetailsModal({
             ) : (
               <p className={ui.note}>
                 {order.paymentMethod === 'STRIPE_CARD'
-                  ? 'Stripe payments do not require a screenshot receipt.'
+                  ? `${formatLabel(order.paymentMethod)} payments do not require a screenshot receipt.`
                   : 'No payment screenshot is available for this transfer.'}
               </p>
             )}
@@ -267,13 +353,19 @@ export default function AdminPaymentsPanel({
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [proofViewUrls, setProofViewUrls] = useState({});
   const [loadingProofReference, setLoadingProofReference] = useState('');
+  const [exporting, setExporting] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
   const didInitFiltersRef = useRef(false);
 
   async function loadPayments(nextQuery = query) {
     setLoading(true);
     setError('');
     try {
-      const response = await onLoadOrders(nextQuery);
+      const response = await onLoadOrders({
+        ...nextQuery,
+        startDate: toIsoBoundary(nextQuery.startDate),
+        endDate: toIsoBoundary(nextQuery.endDate, true),
+      });
       setPayments(response.items || []);
       setMeta({
         page: response.page || nextQuery.page,
@@ -301,6 +393,8 @@ export default function AdminPaymentsPanel({
     const timer = window.setTimeout(() => {
       const nextQuery = {
         ...query,
+        startDate: query.startDate,
+        endDate: query.endDate,
         q: query.q.trim(),
         batchNumber: query.batchNumber.trim(),
         page: 1,
@@ -310,7 +404,7 @@ export default function AdminPaymentsPanel({
     }, 250);
 
     return () => window.clearTimeout(timer);
-  }, [query.q, query.batchNumber, query.paidOnly, query.status, query.paymentStatus, query.paymentMethod]);
+  }, [query.startDate, query.endDate, query.q, query.batchNumber, query.paidOnly, query.status, query.paymentStatus, query.paymentMethod]);
 
   async function applySearch() {
     const nextQuery = {
@@ -389,6 +483,63 @@ export default function AdminPaymentsPanel({
     }
   }
 
+  async function handleExportPayments() {
+    setExporting(true);
+    setError('');
+    try {
+      const { blob, fileName } = await exportAdminOrders({
+        startDate: toIsoBoundary(query.startDate),
+        endDate: toIsoBoundary(query.endDate, true),
+        q: query.q.trim(),
+        batchNumber: query.batchNumber.trim(),
+        paidOnly: query.paidOnly,
+        status: query.status,
+        paymentStatus: query.paymentStatus,
+        paymentMethod: query.paymentMethod,
+        sortBy: query.sortBy,
+        sortOrder: query.sortOrder,
+      });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName.replace(/\.csv$/i, '.csv');
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err.message || 'Unable to export payments right now.');
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  async function handlePdfExport() {
+    setExportingPdf(true);
+    setError('');
+    try {
+      openPdfExport({
+        title: 'Payments',
+        subtitle: 'Current payment view',
+        fileName: 'payments-export',
+        columns: [
+          { key: 'displayOrderReference', label: 'Order', render: (row) => row.displayOrderReference || formatOrderReferenceDisplay(row.orderReference, row.createdAt, row.user, { batchNumber: row.salesItem?.batchNumber, orderSequence: row.orderSequence }) },
+          { key: 'createdAt', label: 'Date', render: (row) => formatDate(row.createdAt) },
+          { key: 'buyer', label: 'Buyer', render: (row) => row.user?.name || 'Unknown buyer' },
+          { key: 'batch', label: 'Batch', render: (row) => getOrderBatchSummary(row) },
+          { key: 'paymentMethod', label: 'Method', render: (row) => formatLabel(row.paymentMethod) },
+          { key: 'totalAmount', label: 'Amount', render: (row) => formatCurrency(row.totalAmount) },
+          { key: 'status', label: 'Status', render: (row) => formatLabel(getDisplayPaymentStatus(row)) },
+        ],
+        rows: payments,
+      });
+    } catch (err) {
+      setError(err.message || 'Unable to export payments to PDF right now.');
+    } finally {
+      setExportingPdf(false);
+    }
+  }
+
   const listStart = meta.total === 0 ? 0 : (meta.page - 1) * meta.limit + 1;
   const listEnd = meta.total === 0 ? 0 : Math.min(meta.page * meta.limit, meta.total);
 
@@ -398,14 +549,24 @@ export default function AdminPaymentsPanel({
           <div className="space-y-5">
             <div className="space-y-2">
               <h1 className="text-2xl font-bold tracking-tight text-emerald-950">Payments</h1>
-              <p className="leading-6 text-slate-600">Review Interac and Stripe payments, view receipt proof, and take action from one table.</p>
+              <p className="leading-6 text-slate-600">Review Interac and Stripe payments, view receipt proof where needed, and take action from one table.</p>
             </div>
 
-          <div className={`${ui.filterPanel} grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_210px_210px_210px]`}>
+          <div className={`${ui.filterPanel} grid gap-4 md:grid-cols-2 xl:grid-cols-4`}>
+            <DateFilterField
+              label="Start date"
+              value={query.startDate}
+              onChange={(event) => setQuery((current) => ({ ...current, startDate: event.target.value }))}
+            />
+            <DateFilterField
+              label="End date"
+              value={query.endDate}
+              onChange={(event) => setQuery((current) => ({ ...current, endDate: event.target.value }))}
+            />
             <div className={ui.fieldWrap}>
               <label className={ui.label}>Search</label>
               <input
-                className={ui.input}
+                className={`${ui.input} focus:placeholder-transparent`}
                 value={query.q}
                 onChange={(event) => setQuery((current) => ({ ...current, q: event.target.value }))}
                 placeholder="Order number, buyer, email"
@@ -414,16 +575,15 @@ export default function AdminPaymentsPanel({
             <div className={ui.fieldWrap}>
               <label className={ui.label}>Batch number</label>
                 <input
-                  className={ui.input}
+                  className={`${ui.input} focus:placeholder-transparent`}
                   value={query.batchNumber}
                   onChange={(event) =>
                     setQuery((current) => ({
                       ...current,
-                      batchNumber: event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3),
+                      batchNumber: event.target.value.toUpperCase().replace(/[^A-Z0-9,\s]/g, ''),
                     }))
                   }
-                  placeholder="AZ1"
-                  maxLength={3}
+                  placeholder="AZ1, AZ2, AZ3"
                 />
               </div>
             <div className={ui.fieldWrap}>
@@ -451,8 +611,13 @@ export default function AdminPaymentsPanel({
                 <option value="PAID">Paid</option>
               </select>
             </div>
-            <div className="xl:col-span-4">
-              <p className="text-sm text-slate-500">Filters update automatically as you type or change a field.</p>
+            <div className="xl:col-span-2 flex flex-wrap items-end gap-3">
+              <button type="button" className={ui.buttonGhost} onClick={handleExportPayments} disabled={exporting}>
+                {exporting ? 'Exporting...' : 'Download to Excel'}
+              </button>
+              <button type="button" className={ui.buttonGhost} onClick={handlePdfExport} disabled={exportingPdf}>
+                {exportingPdf ? 'Preparing PDF...' : 'Download to PDF'}
+              </button>
             </div>
           </div>
 
