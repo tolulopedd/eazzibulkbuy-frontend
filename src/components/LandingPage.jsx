@@ -16,9 +16,34 @@ const impactItems = [
     fallback: 'https://source.unsplash.com/1200x800/?habanero,pepper,box',
   },
   {
-    name: 'Green Pepper',
-    image: '/images/products/green-pepper-box.jpg',
-    fallback: 'https://source.unsplash.com/1200x800/?green-pepper,vegetable,box',
+    name: 'Orange Habanero Pepper',
+    image: '/images/products/orange-habanero-pepper.jpg',
+    fallback: 'https://source.unsplash.com/1200x800/?orange-habanero,pepper,box',
+  },
+  {
+    name: 'Scorpion Pepper',
+    image: '/images/products/scorpion-pepper.jpg',
+    fallback: 'https://source.unsplash.com/1200x800/?scorpion-pepper,pepper,box',
+  },
+  {
+    name: 'Ghost Pepper',
+    image: '/images/products/ghost-pepper.jpg',
+    fallback: 'https://source.unsplash.com/1200x800/?ghost-pepper,pepper,box',
+  },
+  {
+    name: 'Cayenne Pepper',
+    image: '/images/products/cayenne-pepper.jpg',
+    fallback: 'https://source.unsplash.com/1200x800/?cayenne-pepper,red-pepper,box',
+  },
+  {
+    name: 'Crimson Pepper',
+    image: '/images/products/crimson-pepper.jpg',
+    fallback: 'https://source.unsplash.com/1200x800/?crimson-pepper,red-pepper,box',
+  },
+  {
+    name: 'Shepherd Pepper',
+    image: '/images/products/shepherd-pepper.jpg',
+    fallback: 'https://source.unsplash.com/1200x800/?shepherd-pepper,red-pepper,box',
   },
   {
     name: 'Red Bell Pepper',
@@ -31,19 +56,9 @@ const impactItems = [
     fallback: 'https://source.unsplash.com/1200x800/?green-bell-pepper,vegetable,box',
   },
   {
-    name: 'Crimson Pepper',
-    image: '/images/products/crimson-pepper.jpg',
-    fallback: 'https://source.unsplash.com/1200x800/?crimson-pepper,red-pepper,box',
-  },
-  {
-    name: 'Cayenne Pepper',
-    image: '/images/products/cayenne-pepper.jpg',
-    fallback: 'https://source.unsplash.com/1200x800/?cayenne-pepper,red-pepper,box',
-  },
-  {
-    name: 'Ghost Pepper',
-    image: '/images/products/ghost-pepper.jpg',
-    fallback: 'https://source.unsplash.com/1200x800/?ghost-pepper,pepper,box',
+    name: 'Green Pepper',
+    image: '/images/products/green-pepper-box.jpg',
+    fallback: 'https://source.unsplash.com/1200x800/?green-pepper,vegetable,box',
   },
   {
     name: 'Yam',
@@ -64,6 +79,12 @@ const impactItems = [
     name: 'Plantain',
     image: '/images/products/plantain.jpg',
     fallback: 'https://source.unsplash.com/1200x800/?plantain,box,produce',
+  },
+  {
+    name: 'Summer Sales',
+    image: '/images/products/summer-sales.jpg',
+    fallback: 'https://source.unsplash.com/1200x800/?summer-sale,produce',
+    imageFit: 'contain',
   },
 ];
 
@@ -110,7 +131,7 @@ function ImpactImage({ item }) {
       src={src}
       alt={`${item.name} in boxes`}
       loading="lazy"
-      className="h-40 w-full rounded-xl bg-emerald-100 object-cover"
+      className={`h-40 w-full rounded-xl ${item.imageFit === 'contain' ? 'bg-white object-contain' : 'bg-emerald-100 object-cover'}`}
       onError={() => {
         if (src !== item.fallback) {
           setSrc(item.fallback);
@@ -258,8 +279,7 @@ function CountdownDisplay({ countdown, emptyLabel = 'No active countdown', empty
           </div>
         ))}
       </div>
-      <p className="mt-3 text-sm font-semibold text-slate-700">{formatCountdownLabel(countdown)} remaining</p>
-      <p className="mt-1 text-sm text-slate-600">Review live items early so you do not miss the current order window.</p>
+      <p className="mt-3 text-sm text-slate-600">Review live items early so you do not miss the current order window.</p>
     </article>
   );
 }
@@ -763,8 +783,9 @@ export default function LandingPage({ onGoShop }) {
               imageClassName="w-[5.5rem]"
             />
             <p className="max-w-sm text-sm leading-7 text-emerald-50/85">
-              EazziBulkBuy helps Manitoba communities access fresh produce through trusted sales events, simple ordering,
-              and convenient pickup or delivery options.
+              Eazzi Bulk Buy is your trusted source for fresh produce in Canada. Shop online with confidence, enjoy
+              secure and private ordering, receive instant order confirmation, and choose convenient pickup or
+              delivery—all designed to make buying fresh produce simple, affordable, and stress-free.
             </p>
           </div>
 
