@@ -438,18 +438,6 @@ export default function LandingPage({ onGoShop }) {
           </div>
 
           <div className="flex justify-end lg:justify-self-end">
-            <button
-              type="button"
-              onClick={() => onGoShop()}
-              disabled={!canProceedToCart}
-              className={`hidden min-h-12 items-center justify-center rounded-full px-6 py-3 text-sm font-semibold text-white transition lg:inline-flex ${
-                canProceedToCart
-                  ? 'bg-[#171717] hover:bg-[#0d0d0d]'
-                  : 'cursor-not-allowed bg-[#7f857f] text-white/85'
-              }`}
-            >
-              Order now
-            </button>
             <div className="lg:hidden rounded-xl bg-white/88 px-1.5 py-1.5 shadow-[0_8px_20px_rgba(15,23,42,0.04)]">
               <BrandLogo
                 compact
@@ -818,20 +806,8 @@ export default function LandingPage({ onGoShop }) {
           <div className="space-y-4">
             <h3 className="text-sm font-bold uppercase tracking-[0.12em] text-[#46d2b8]">Get started</h3>
             <p className="text-sm leading-7 text-emerald-50/85">
-              Join a live sales event and complete your order through Interac e-Transfer or card.
+              Join a live sales event, select your item quantities, and continue through the cart when ready.
             </p>
-            <button
-              type="button"
-              onClick={() => onGoShop()}
-              disabled={!canProceedToCart}
-              className={`inline-flex min-h-12 w-full items-center justify-center rounded-full px-6 py-3 text-sm font-semibold transition sm:w-auto ${
-                canProceedToCart
-                  ? 'bg-white text-[#0b2018] hover:bg-[#f1faf6]'
-                  : 'cursor-not-allowed bg-white/30 text-white/70'
-              }`}
-            >
-              Order now
-            </button>
           </div>
         </div>
 
