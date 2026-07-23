@@ -39,7 +39,7 @@ export default function CustomerSearch({ onSelect }) {
         className={ui.input}
         value={term}
         onChange={(event) => setTerm(event.target.value)}
-        placeholder="Search by name, email, or phone"
+        placeholder="Find existing buyer by name, email or phone no."
       />
 
       {loading ? <p className={ui.note}>Searching...</p> : null}

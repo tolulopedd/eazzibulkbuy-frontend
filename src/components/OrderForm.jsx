@@ -26,7 +26,7 @@ const PAYMENT_OPTIONS = [
   {
     value: 'STRIPE_CARD',
     label: 'Stripe (Card)',
-    note: 'Pay instantly with Visa, Mastercard, or debit card.',
+    note: 'Pay instantly with Visa, Mastercard, or debit card. (A credit card subcharge fee of 2.90% plus 30c is applied to cover our credit card acceptance and processing costs)',
   },
 ];
 
@@ -990,12 +990,12 @@ export default function OrderForm({
                           <p className="text-sm leading-6 text-slate-600">{option.note}</p>
                           {option.value === 'INTERAC_E_TRANSFER' ? (
                             <p className="text-sm leading-6 text-slate-700">
-                              Processing fee: <span className="font-semibold text-slate-900">CAD 0.00</span>. Total charge: <span className="font-semibold text-slate-900">CAD {((createdOrder?.totalAmount || cartSummary.totalAmount) / 100).toFixed(2)}</span>.
+                              Surcharge fee: <span className="font-semibold text-slate-900">CAD 0.00</span>. Total charge: <span className="font-semibold text-slate-900">CAD {((createdOrder?.totalAmount || cartSummary.totalAmount) / 100).toFixed(2)}</span>.
                             </p>
                           ) : null}
                           {option.value === 'STRIPE_CARD' ? (
                             <p className="text-sm leading-6 text-slate-700">
-                              Processing fee: <span className="font-semibold text-slate-900">CAD {(stripeProcessingFeePreview / 100).toFixed(2)}</span>. Total charge: <span className="font-semibold text-slate-900">CAD {(stripeTotalPreview / 100).toFixed(2)}</span>.
+                              Surcharge fee: <span className="font-semibold text-slate-900">CAD {(stripeProcessingFeePreview / 100).toFixed(2)}</span>. Total charge: <span className="font-semibold text-slate-900">CAD {(stripeTotalPreview / 100).toFixed(2)}</span>.
                             </p>
                           ) : null}
                           {option.value === 'STRIPE_CARD' && !stripeConfigured ? (
@@ -1083,17 +1083,39 @@ export default function OrderForm({
         </div>
 
         <section className={`${ui.section} space-y-3`}>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-lg font-bold tracking-tight text-emerald-950">Returning Buyer?</h2>
-            <button
-              type="button"
-              className={ui.buttonGhost}
-              onClick={() => {
-                resetBuyerFormForNewEntry();
-              }}
-            >
-              New Buyer
-            </button>
+          <div className="flex flex-wrap items-center justify-end gap-3">
+            <div className="inline-flex w-full rounded-full border border-emerald-200 bg-emerald-50 p-1 shadow-sm sm:w-auto">
+              <button
+                type="button"
+                aria-pressed={!newBuyerMode}
+                className={`min-h-10 flex-1 rounded-full px-4 py-2 text-sm font-semibold transition sm:flex-none ${
+                  !newBuyerMode
+                    ? 'bg-emerald-700 text-white shadow-[0_8px_18px_rgba(4,120,87,0.24)]'
+                    : 'text-emerald-900 hover:bg-white/80'
+                }`}
+                onClick={() => {
+                  setNewBuyerMode(false);
+                  setShowBuyerDetails(false);
+                  setEmailConflictBuyer(null);
+                }}
+              >
+                Returning Buyer
+              </button>
+              <button
+                type="button"
+                aria-pressed={newBuyerMode}
+                className={`min-h-10 flex-1 rounded-full px-4 py-2 text-sm font-semibold transition sm:flex-none ${
+                  newBuyerMode
+                    ? 'bg-emerald-700 text-white shadow-[0_8px_18px_rgba(4,120,87,0.24)]'
+                    : 'text-emerald-900 hover:bg-white/80'
+                }`}
+                onClick={() => {
+                  resetBuyerFormForNewEntry();
+                }}
+              >
+                New Buyer
+              </button>
+            </div>
           </div>
           <CustomerSearch
             onSelect={(customer) => {

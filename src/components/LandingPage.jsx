@@ -94,6 +94,25 @@ const valuePoints = [
   'Pick up from agreed pickup point or get your items delivered.',
 ];
 
+const salesItemImageRules = [
+  { terms: ['orange habanero'], image: '/images/products/orange-habanero-pepper.jpg' },
+  { terms: ['habanero'], image: '/images/products/habanero-box.jpg' },
+  { terms: ['scorpion'], image: '/images/products/scorpion-pepper.jpg' },
+  { terms: ['ghost'], image: '/images/products/ghost-pepper.jpg' },
+  { terms: ['cayenne'], image: '/images/products/cayenne-pepper.jpg' },
+  { terms: ['crimson'], image: '/images/products/crimson-pepper.jpg' },
+  { terms: ['shepherd', 'sheperd'], image: '/images/products/shepherd-pepper.jpg' },
+  { terms: ['red bell'], image: '/images/products/red-bell-pepper.jpg' },
+  { terms: ['green bell'], image: '/images/products/green-bell-pepper.jpg' },
+  { terms: ['green pepper'], image: '/images/products/green-pepper-box.jpg' },
+  { terms: ['pepper'], image: '/images/products/red-bell-pepper.jpg' },
+  { terms: ['tomato'], image: '/images/products/tomatoes-box.jpg' },
+  { terms: ['yam'], image: '/images/products/yam-box.jpg' },
+  { terms: ['sweet potato', 'potatoes'], image: '/images/products/caribbean-sweet-potatoes.jpg' },
+  { terms: ['onion'], image: '/images/products/red-onions.jpg' },
+  { terms: ['plantain'], image: '/images/products/plantain.jpg' },
+];
+
 const flowSteps = [
   {
     title: 'Choose a live sales item',
@@ -237,6 +256,23 @@ function formatCountdownLabel(countdown) {
   }
 
   return `${countdown.hours}h ${countdown.minutes}m`;
+}
+
+function getSalesItemSearchText(item) {
+  const bundleText = Array.isArray(item.bundleItemsJson)
+    ? item.bundleItemsJson
+        .map((bundleItem) => [bundleItem?.name, bundleItem?.title, bundleItem?.description].filter(Boolean).join(' '))
+        .join(' ')
+    : '';
+
+  return [item.name, item.description, bundleText].filter(Boolean).join(' ').toLowerCase();
+}
+
+function getSalesItemImage(item) {
+  const searchText = getSalesItemSearchText(item);
+  const match = salesItemImageRules.find((rule) => rule.terms.some((term) => searchText.includes(term)));
+
+  return match?.image || '/images/products/summer-sales.jpg';
 }
 
 function CountdownDisplay({ countdown, emptyLabel = 'No active countdown', emptyDetail = 'There is no live sales event closing right now.', accent = 'amber' }) {
@@ -386,12 +422,12 @@ export default function LandingPage({ onGoShop }) {
           <div className="flex items-center justify-between gap-3 lg:grid lg:grid-cols-[auto_1fr_auto] lg:items-center">
           <button
             type="button"
-            className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-emerald-200 bg-white/90 text-emerald-900 transition hover:bg-emerald-50 lg:hidden"
+            className="inline-flex h-[3.1625rem] w-[3.1625rem] items-center justify-center rounded-full border border-emerald-200 bg-white/90 text-emerald-900 transition hover:bg-emerald-50 lg:hidden"
             aria-label={mobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
             aria-expanded={mobileMenuOpen}
             onClick={() => setMobileMenuOpen((open) => !open)}
           >
-            <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <svg aria-hidden="true" viewBox="0 0 24 24" className="h-[1.4375rem] w-[1.4375rem]" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
               {mobileMenuOpen ? (
                 <>
                   <path d="M6 6l12 12" />
@@ -442,7 +478,7 @@ export default function LandingPage({ onGoShop }) {
               <BrandLogo
                 compact
                 className="items-end gap-0 text-right"
-                imageClassName="w-[4.125rem] sm:w-[4.875rem]"
+                imageClassName="w-[6.1875rem] sm:w-[7.3125rem]"
               />
             </div>
           </div>
@@ -483,11 +519,11 @@ export default function LandingPage({ onGoShop }) {
                       : 'bg-amber-100 text-amber-800 shadow-[0_10px_20px_rgba(180,83,9,0.12)]'
                   }`}
                 >
-                  {hasLiveItems ? 'Active Sales Events' : 'No Active Sales Events'}
+                  {hasLiveItems ? 'Active Sales ' : 'No Active Sales '}
                 </span>
               </div>
               <div className="space-y-3">
-                <h1 className={`text-[2.55rem] font-extrabold leading-[1.04] tracking-tight text-[#171a16] sm:text-[3.3rem] lg:text-[4.1rem] ${hasLiveItems ? 'max-w-xl' : 'mx-auto max-w-[860px]'}`}>
+                <h1 className={`text-[2.05rem] font-extrabold leading-[1.04] tracking-tight text-[#171a16] sm:text-[3.3rem] lg:text-[4.1rem] ${hasLiveItems ? 'max-w-xl' : 'mx-auto max-w-[860px]'}`}>
                   Order your item(s) from sales events below{' '}
                   <span className="inline-flex translate-y-1 align-middle text-emerald-700" aria-hidden="true">
                     ↓
@@ -498,90 +534,78 @@ export default function LandingPage({ onGoShop }) {
                 </p>
               </div>
 
-              <div className={`flex flex-col gap-3 sm:flex-row ${hasLiveItems ? '' : 'justify-center sm:justify-center'}`}>
-                <button
-                  type="button"
-                  onClick={() => onGoShop()}
-                  disabled={!canProceedToCart}
-                  className={`inline-flex min-h-12 w-full items-center justify-center rounded-full px-6 py-3 text-sm font-semibold text-white transition sm:w-auto ${
-                    canProceedToCart
-                      ? 'bg-[#171717] hover:bg-[#0d0d0d]'
-                      : 'cursor-not-allowed bg-[#7f857f] text-white/85'
-                  }`}
-                >
-                  {canProceedToCart ? 'Continue to cart' : 'Select items to continue'}
-                </button>
-                <a
-                  href="#about-us"
-                  onClick={handleNavClick}
-                  className="inline-flex min-h-12 w-full items-center justify-center rounded-full border border-[#cfd8cf] bg-white px-6 py-3 text-sm font-semibold text-[#171a16] transition hover:bg-[#f6f7f2] sm:w-auto"
-                >
-                  Learn more
-                </a>
-              </div>
+            </div>
 
-              <div className="grid gap-3 sm:grid-cols-3">
-                <article className="rounded-[24px] border border-[#dfe7df] bg-[rgba(255,255,255,0.6)] p-4 shadow-[0_8px_20px_rgba(16,24,40,0.04)] backdrop-blur-[2px]">
-                  <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-emerald-700">Live events</p>
-                  <p className="mt-2 text-3xl font-extrabold text-[#171a16]">{activeItems.length}</p>
-                  <p className="mt-1 text-sm text-slate-600">
-                    {activeItems.length === 1
-                      ? '1 sales event is currently open.'
-                      : `${activeItems.length} sales events are currently open.`}
-                  </p>
-                </article>
-                <CountdownDisplay
-                  countdown={nextClosingCountdown}
-                  emptyLabel="No active countdown"
-                  emptyDetail="There is no live sales event closing right now."
-                  accent="amber"
-                />
-                <article className="rounded-[24px] border border-[#dfe7df] bg-[rgba(243,251,246,0.72)] p-4 shadow-[0_8px_20px_rgba(16,24,40,0.03)] backdrop-blur-[2px]">
-                  <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-emerald-700">Checkout options</p>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1 text-xs font-semibold text-emerald-800">
-                      <BankIcon />
-                      <span>Interac</span>
-                    </span>
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1 text-xs font-semibold text-emerald-800">
-                      <CardIcon />
-                      <span>Credit card</span>
-                    </span>
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1 text-xs font-semibold text-emerald-800">
-                      <CardIcon />
-                      <span>Debit card</span>
-                    </span>
-                  </div>
-                </article>
-              </div>
+            <div className="hidden gap-3 lg:grid sm:grid-cols-3">
+              <article className="rounded-[24px] border border-[#dfe7df] bg-[rgba(255,255,255,0.6)] p-4 shadow-[0_8px_20px_rgba(16,24,40,0.04)] backdrop-blur-[2px]">
+                <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-emerald-700">Live events</p>
+                <p className="mt-2 text-3xl font-extrabold text-[#171a16]">{activeItems.length}</p>
+                <p className="mt-1 text-sm text-slate-600">
+                  {activeItems.length === 1
+                    ? '1 sales event is currently open.'
+                    : `${activeItems.length} sales events are currently open.`}
+                </p>
+              </article>
+              <CountdownDisplay
+                countdown={nextClosingCountdown}
+                emptyLabel="No active countdown"
+                emptyDetail="There is no live sales event closing right now."
+                accent="amber"
+              />
+              <article className="rounded-[24px] border border-[#dfe7df] bg-[rgba(243,251,246,0.72)] p-4 shadow-[0_8px_20px_rgba(16,24,40,0.03)] backdrop-blur-[2px]">
+                <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-emerald-700">Checkout options</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1 text-xs font-semibold text-emerald-800">
+                    <BankIcon />
+                    <span>Interac</span>
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1 text-xs font-semibold text-emerald-800">
+                    <CardIcon />
+                    <span>Credit card</span>
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1 text-xs font-semibold text-emerald-800">
+                    <CardIcon />
+                    <span>Debit card</span>
+                  </span>
+                </div>
+              </article>
             </div>
 
             {hasLiveItems ? (
-            <div className="space-y-4">
+            <div className="space-y-4 lg:col-span-2">
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-2">
                 {highlightedItems.slice(0, 4).map((item) => {
                   const countdown = getCountdownParts(item.closingDate, nowMs);
+                  const productImage = getSalesItemImage(item);
 
                   return (
                     <article
                       key={item.id}
                       className="flex min-h-[248px] flex-col justify-between gap-4 rounded-[26px] border border-[#dfe7df] bg-[rgba(255,255,255,0.72)] p-4 shadow-[0_12px_24px_rgba(15,23,42,0.04)] backdrop-blur-[2px]"
                     >
-                      <div className="flex flex-1 flex-col gap-3">
-                        <div className="space-y-2">
-                          <h3 className="text-xl font-bold text-emerald-950">{item.name}</h3>
-                          <div className="flex flex-wrap gap-2">
-                            <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
-                              {item.saleType === 'BUNDLE_DISCOUNTED_SALE' ? 'Bundle Discounted Sale' : 'Normal Sale'}
-                            </span>
-                            {countdown && countdown.days === 0 ? (
-                              <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">
-                                Closing soon
+                      <div className="flex flex-1 flex-col gap-2.5">
+                        <div className="flex items-start gap-3">
+                          <div className="min-w-0 flex-1 space-y-2">
+                            <h3 className="text-lg font-bold leading-tight text-emerald-950">{item.name}</h3>
+                            <div className="flex flex-wrap gap-2">
+                              <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                                {item.saleType === 'BUNDLE_DISCOUNTED_SALE' ? 'Bundle Discounted Sale' : 'Normal Sale'}
                               </span>
-                            ) : null}
+                              {countdown && countdown.days === 0 ? (
+                                <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">
+                                  Closing soon
+                                </span>
+                              ) : null}
+                            </div>
                           </div>
+                          <img
+                            src={productImage}
+                            alt={`${item.name} preview`}
+                            loading="lazy"
+                            className="h-20 w-20 shrink-0 rounded-2xl border border-emerald-100 bg-white object-cover shadow-sm"
+                          />
                         </div>
-                        {item.description ? <p className="text-sm leading-6 text-slate-600">{item.description}</p> : null}
+                        {item.description ? <p className="text-sm leading-5 text-slate-600">{item.description}</p> : null}
                         {item.saleType === 'BUNDLE_DISCOUNTED_SALE' && Array.isArray(item.bundleItemsJson) && item.bundleItemsJson.length ? (
                           <p className="text-sm leading-6 text-slate-700">
                             Bundle includes: <span className="font-semibold">{renderBundleSummary(item.bundleItemsJson)}</span>
@@ -678,16 +702,59 @@ export default function LandingPage({ onGoShop }) {
                   : 'Once you add items, you can continue with one order from your cart.'}
               </p>
             </div>
-            <button
-              type="button"
-              className={`${ui.buttonPrimary} min-w-[190px] w-full border border-emerald-300/20 bg-[#46d2b8] text-[#0f1612] shadow-[0_14px_24px_rgba(6,95,70,0.18)] hover:bg-[#54d8c0] sm:w-auto ${cartQuantity === 0 ? 'cursor-not-allowed opacity-60' : ''}`}
-              onClick={() => onGoShop()}
-              disabled={!canProceedToCart}
-            >
-              {canProceedToCart ? 'Continue to cart' : 'Select items to continue'}
-            </button>
+            <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
+              <button
+                type="button"
+                className={`${ui.buttonPrimary} min-w-[190px] w-full border border-emerald-300/20 bg-[#46d2b8] text-[#0f1612] shadow-[0_14px_24px_rgba(6,95,70,0.18)] hover:bg-[#54d8c0] sm:w-auto ${cartQuantity === 0 ? 'cursor-not-allowed opacity-60' : ''}`}
+                onClick={() => onGoShop()}
+                disabled={!canProceedToCart}
+              >
+                {canProceedToCart ? 'Continue to cart' : 'Select items to continue'}
+              </button>
+              <a
+                href="#about-us"
+                onClick={handleNavClick}
+                className="inline-flex min-h-12 w-full items-center justify-center rounded-full border border-white/20 bg-white px-6 py-3 text-sm font-semibold text-[#0f1612] transition hover:bg-[#f1faf6] sm:w-auto"
+              >
+                Learn more
+              </a>
+            </div>
           </div>
         ) : null}
+        <div className="mt-5 grid gap-3 sm:grid-cols-3 lg:hidden">
+          <article className="rounded-[24px] border border-[#dfe7df] bg-[rgba(243,251,246,0.72)] p-4 shadow-[0_8px_20px_rgba(16,24,40,0.03)] backdrop-blur-[2px]">
+            <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-emerald-700">Checkout options</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1 text-xs font-semibold text-emerald-800">
+                <BankIcon />
+                <span>Interac</span>
+              </span>
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1 text-xs font-semibold text-emerald-800">
+                <CardIcon />
+                <span>Credit card</span>
+              </span>
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1 text-xs font-semibold text-emerald-800">
+                <CardIcon />
+                <span>Debit card</span>
+              </span>
+            </div>
+          </article>
+          <article className="rounded-[24px] border border-[#dfe7df] bg-[rgba(255,255,255,0.6)] p-4 shadow-[0_8px_20px_rgba(16,24,40,0.04)] backdrop-blur-[2px]">
+            <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-emerald-700">Live events</p>
+            <p className="mt-2 text-3xl font-extrabold text-[#171a16]">{activeItems.length}</p>
+            <p className="mt-1 text-sm text-slate-600">
+              {activeItems.length === 1
+                ? '1 sales event is currently open.'
+                : `${activeItems.length} sales events are currently open.`}
+            </p>
+          </article>
+          <CountdownDisplay
+            countdown={nextClosingCountdown}
+            emptyLabel="No active countdown"
+            emptyDetail="There is no live sales event closing right now."
+            accent="amber"
+          />
+        </div>
         </section>
       </section>
 
