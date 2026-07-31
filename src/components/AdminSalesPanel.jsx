@@ -90,6 +90,14 @@ function isDeletableSalesItem(item) {
   return isEditableSalesItem(item) && (item._count?.orders || 0) === 0;
 }
 
+function getDisplayStatus(item, formatStatusLabel) {
+  if (item?.status === 'ACTIVE' && new Date(item?.closingDate) <= new Date()) {
+    return 'Closed';
+  }
+
+  return formatStatusLabel(item?.status);
+}
+
 function formatMoney(value) {
   return `CAD ${(value / 100).toFixed(2)}`;
 }
@@ -321,7 +329,7 @@ function SalesDetailsModal({
               <div className={ui.metricCard}>
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Status</p>
                 <div className="pt-1">
-                  <AdminStatusBadge value={formatStatusLabel(item.status)} tone={item.status === 'ACTIVE' ? 'success' : 'neutral'} />
+                  <AdminStatusBadge value={getDisplayStatus(item, formatStatusLabel)} tone={isEditableSalesItem(item) ? 'success' : 'neutral'} />
                 </div>
               </div>
               <div className={ui.metricCard}>
@@ -477,7 +485,7 @@ export default function AdminSalesPanel({
                   <td className={ui.tableCell}>{item._count?.orders || 0}</td>
                   <td className={ui.tableCell}>{new Date(item.closingDate).toLocaleString()}</td>
                   <td className={ui.tableCell}>
-                    <AdminStatusBadge value={formatStatusLabel(item.status)} tone={isEditableSalesItem(item) ? 'success' : 'neutral'} />
+                    <AdminStatusBadge value={getDisplayStatus(item, formatStatusLabel)} tone={isEditableSalesItem(item) ? 'success' : 'neutral'} />
                   </td>
                   <td className={`${ui.tableCell} whitespace-nowrap text-right`}>
                     <div className="flex justify-end gap-2">

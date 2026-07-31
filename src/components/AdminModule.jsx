@@ -9,11 +9,16 @@ import {
   fetchAdminCustomers,
   updateAdminCustomer,
   exportAdminCustomers,
+  approveAdminCustomerUpdateRequest,
+  declineAdminCustomerUpdateRequest,
   fetchAdminOrders,
   updateSalesItem,
   deleteSalesItem,
   confirmAdminInteracPayment,
   fetchAdminPaymentProofViewUrl,
+  createAdminIncompleteOrderUploadUrl,
+  markAdminIncompleteOrderPendingReview,
+  deleteAdminIncompleteOrder,
   resendAdminPaymentConfirmation,
   updateAdminFulfillmentStatus,
 } from '../api/admin';
@@ -173,6 +178,24 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
     }
   }
 
+  async function handleApproveCustomerUpdateRequest(requestId) {
+    setError('');
+    try {
+      return await approveAdminCustomerUpdateRequest(requestId);
+    } catch (err) {
+      rethrowWithSessionHandling(err, 'Unable to approve customer update request right now.');
+    }
+  }
+
+  async function handleDeclineCustomerUpdateRequest(requestId) {
+    setError('');
+    try {
+      return await declineAdminCustomerUpdateRequest(requestId);
+    } catch (err) {
+      rethrowWithSessionHandling(err, 'Unable to decline customer update request right now.');
+    }
+  }
+
   async function handleLoadOrders(query = {}) {
     try {
       return await fetchAdminOrders(query);
@@ -205,6 +228,33 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
       return await fetchAdminPaymentProofViewUrl(orderReference);
     } catch (err) {
       rethrowWithSessionHandling(err, 'Unable to load the payment proof preview.');
+    }
+  }
+
+  async function handleCreateIncompleteOrderUploadUrl(orderReference, payload) {
+    setError('');
+    try {
+      return await createAdminIncompleteOrderUploadUrl(orderReference, payload);
+    } catch (err) {
+      rethrowWithSessionHandling(err, 'Unable to prepare receipt upload right now.');
+    }
+  }
+
+  async function handleMarkIncompleteOrderPendingReview(orderReference, payload) {
+    setError('');
+    try {
+      return await markAdminIncompleteOrderPendingReview(orderReference, payload);
+    } catch (err) {
+      rethrowWithSessionHandling(err, 'Unable to move this order to pending review right now.');
+    }
+  }
+
+  async function handleDeleteIncompleteOrder(orderReference) {
+    setError('');
+    try {
+      return await deleteAdminIncompleteOrder(orderReference);
+    } catch (err) {
+      rethrowWithSessionHandling(err, 'Unable to delete this incomplete order right now.');
     }
   }
 
@@ -277,9 +327,14 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
         onLoadCustomers={handleLoadCustomers}
         onUpdateCustomer={handleUpdateCustomer}
         onExportCustomers={handleExportCustomers}
+        onApproveCustomerUpdateRequest={handleApproveCustomerUpdateRequest}
+        onDeclineCustomerUpdateRequest={handleDeclineCustomerUpdateRequest}
         onLoadOrders={handleLoadOrders}
         onConfirmInteracPayment={handleConfirmInteracPayment}
         onLoadPaymentProofViewUrl={handleLoadPaymentProofViewUrl}
+        onCreateIncompleteOrderUploadUrl={handleCreateIncompleteOrderUploadUrl}
+        onMarkIncompleteOrderPendingReview={handleMarkIncompleteOrderPendingReview}
+        onDeleteIncompleteOrder={handleDeleteIncompleteOrder}
         onResendPaymentConfirmation={handleResendPaymentConfirmation}
         onUpdateFulfillmentStatus={handleUpdateFulfillmentStatus}
         onLogout={handleLogout}

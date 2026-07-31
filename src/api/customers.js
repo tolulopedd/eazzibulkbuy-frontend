@@ -22,3 +22,18 @@ export async function saveCustomerDetails(payload) {
 
   return response.json();
 }
+
+export async function createCustomerUpdateRequest(customerId, payload) {
+  const response = await fetch(buildApiUrl(`/api/customers/${customerId}/update-request`), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.message || 'Unable to submit customer update request. Please try again.');
+  }
+
+  return response.json();
+}

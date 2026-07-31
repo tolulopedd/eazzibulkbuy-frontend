@@ -146,6 +146,15 @@ function CustomerIcon() {
   );
 }
 
+function CustomerUpdateIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+      <path d="M12 6v6l4 2" />
+      <circle cx="12" cy="12" r="8" />
+    </svg>
+  );
+}
+
 function LogisticsIcon() {
   return (
     <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
@@ -186,9 +195,14 @@ export default function AdminDashboard({
   onLoadCustomers,
   onUpdateCustomer,
   onExportCustomers,
+  onApproveCustomerUpdateRequest,
+  onDeclineCustomerUpdateRequest,
   onLoadOrders,
   onConfirmInteracPayment,
   onLoadPaymentProofViewUrl,
+  onCreateIncompleteOrderUploadUrl,
+  onMarkIncompleteOrderPendingReview,
+  onDeleteIncompleteOrder,
   onResendPaymentConfirmation,
   onUpdateFulfillmentStatus,
   onLogout,
@@ -231,6 +245,7 @@ export default function AdminDashboard({
         { id: 'fulfillment', label: 'Fulfilment', title: 'Fulfilment', icon: FulfillmentIcon },
         { id: 'reports', label: 'Reports', title: 'Reports', icon: ReportsIcon },
         { id: 'customers', label: 'Customer', title: 'Customer', icon: CustomerIcon },
+        { id: 'customer-updates', label: 'Customer Update', title: 'Customer Update', icon: CustomerUpdateIcon },
       ];
     }
 
@@ -519,6 +534,9 @@ export default function AdminDashboard({
           onLoadOrders={onLoadOrders}
           onConfirmInteracPayment={onConfirmInteracPayment}
           onLoadPaymentProofViewUrl={onLoadPaymentProofViewUrl}
+          onCreateIncompleteOrderUploadUrl={onCreateIncompleteOrderUploadUrl}
+          onMarkIncompleteOrderPendingReview={onMarkIncompleteOrderPendingReview}
+          onDeleteIncompleteOrder={onDeleteIncompleteOrder}
           onResendPaymentConfirmation={onResendPaymentConfirmation}
           onRefreshReports={loadReports}
         />
@@ -530,7 +548,29 @@ export default function AdminDashboard({
     }
 
     if (activeModule === 'customers') {
-      return <AdminCustomersPanel onLoadCustomers={onLoadCustomers} onUpdateCustomer={onUpdateCustomer} onExportCustomers={onExportCustomers} />;
+      return (
+        <AdminCustomersPanel
+          onLoadCustomers={onLoadCustomers}
+          onUpdateCustomer={onUpdateCustomer}
+          onExportCustomers={onExportCustomers}
+          onApproveCustomerUpdateRequest={onApproveCustomerUpdateRequest}
+          onDeclineCustomerUpdateRequest={onDeclineCustomerUpdateRequest}
+          mode="customers"
+        />
+      );
+    }
+
+    if (activeModule === 'customer-updates') {
+      return (
+        <AdminCustomersPanel
+          onLoadCustomers={onLoadCustomers}
+          onUpdateCustomer={onUpdateCustomer}
+          onExportCustomers={onExportCustomers}
+          onApproveCustomerUpdateRequest={onApproveCustomerUpdateRequest}
+          onDeclineCustomerUpdateRequest={onDeclineCustomerUpdateRequest}
+          mode="updates"
+        />
+      );
     }
 
     if (activeModule === 'logistics') return renderLogisticsModule();

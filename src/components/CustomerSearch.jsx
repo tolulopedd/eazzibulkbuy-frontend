@@ -11,7 +11,7 @@ export default function CustomerSearch({ onSelect }) {
   useEffect(() => {
     const trimmed = term.trim();
 
-    if (trimmed.length < 2) {
+    if (trimmed.length < 4) {
       setResults([]);
       setError('');
       return;
@@ -39,7 +39,7 @@ export default function CustomerSearch({ onSelect }) {
         className={ui.input}
         value={term}
         onChange={(event) => setTerm(event.target.value)}
-        placeholder="Find existing buyer by name, email or phone no."
+        placeholder="Search by email or phone no."
       />
 
       {loading ? <p className={ui.note}>Searching...</p> : null}
@@ -60,11 +60,6 @@ export default function CustomerSearch({ onSelect }) {
                 }}
               >
                 <span className="block font-semibold text-slate-900">{customer.fullName}</span>
-                <span className="block leading-6 text-slate-600">{customer.email}</span>
-                <span className="block leading-6 text-slate-600">{customer.phone || 'No phone available'}</span>
-                <span className="block leading-6 text-slate-600">
-                  {[customer.address, customer.city, customer.province, customer.postalCode].filter(Boolean).join(', ') || 'No address available'}
-                </span>
               </button>
             </li>
           ))}

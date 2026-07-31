@@ -261,6 +261,18 @@ export function updateAdminCustomer(customerId, payload) {
   });
 }
 
+export function approveAdminCustomerUpdateRequest(requestId) {
+  return request(`/api/admin/customers/update-requests/${requestId}/approve`, {
+    method: 'POST',
+  });
+}
+
+export function declineAdminCustomerUpdateRequest(requestId) {
+  return request(`/api/admin/customers/update-requests/${requestId}/decline`, {
+    method: 'POST',
+  });
+}
+
 export async function exportAdminCustomers(params = {}) {
   const search = new URLSearchParams();
 
@@ -404,6 +416,28 @@ export function resendAdminPaymentConfirmation(orderReference) {
 
 export function fetchAdminPaymentProofViewUrl(orderReference) {
   return request(`/api/admin/payments/${orderReference}/proof-view-url`);
+}
+
+export function createAdminIncompleteOrderUploadUrl(orderReference, payload) {
+  return request(`/api/admin/payments/${orderReference}/incomplete-upload-url`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function markAdminIncompleteOrderPendingReview(orderReference, payload) {
+  return request(`/api/admin/payments/${orderReference}/mark-pending-review`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteAdminIncompleteOrder(orderReference) {
+  return request(`/api/admin/payments/${orderReference}/incomplete-order`, {
+    method: 'DELETE',
+  });
 }
 
 export function updateAdminFulfillmentStatus(orderReference, fulfillmentStatus, itemIndex) {

@@ -190,8 +190,12 @@ function PaymentDetailsModal({
   onClose,
   onConfirm,
   onResend,
+  onSubmitIncompleteReview,
+  onDeleteIncompleteOrder,
   confirmingReference,
   resendingReference,
+  submittingIncompleteReference,
+  deletingIncompleteReference,
 }) {
   if (!order) {
     return null;
@@ -199,16 +203,77 @@ function PaymentDetailsModal({
 
   const transferProof = order.payment?.providerPayloadJson?.transferProof;
   const isInterac = order.paymentMethod === 'INTERAC_E_TRANSFER';
+  const isStripe = order.paymentMethod === 'STRIPE_CARD';
   const canConfirmInterac = isInterac && order.paymentStatus === 'PENDING_REVIEW';
   const canResendConfirmation = order.paymentStatus === 'PAID' || order.status === 'CONFIRMED';
+  const isIncompleteOrder = getDisplayPaymentStatus(order) === 'PENDING_PAYMENT';
   const transferProofImageSrc = proofViewUrl || transferProof?.screenshotDataUrl || '';
+  const showPaymentProofPanel = isInterac || Boolean(transferProofImageSrc);
   const batchSummary = getOrderBatchSummary(order);
   const itemSummary = getOrderItemSummary(order);
+  const [adminComment, setAdminComment] = useState('');
+  const [adminReceiptFile, setAdminReceiptFile] = useState(null);
+  const [adminReceiptName, setAdminReceiptName] = useState('');
+  const [modalError, setModalError] = useState('');
+
+  useEffect(() => {
+    setAdminComment('');
+    setAdminReceiptFile(null);
+    setAdminReceiptName('');
+    setModalError('');
+  }, [order?.orderReference]);
+
+  function handleReceiptChange(event) {
+    const file = event.target.files?.[0];
+    if (!file) {
+      setAdminReceiptFile(null);
+      setAdminReceiptName('');
+      return;
+    }
+
+    if (!file.type.startsWith('image/')) {
+      setModalError('Upload an image receipt for the Interac transfer proof.');
+      event.target.value = '';
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setModalError('Receipt image must be 5MB or smaller.');
+      event.target.value = '';
+      return;
+    }
+
+    setModalError('');
+    setAdminReceiptFile(file);
+    setAdminReceiptName(file.name);
+  }
+
+  async function handleSubmitRecovery() {
+    if (!adminReceiptFile) {
+      setModalError('Upload the Interac receipt before sending for review.');
+      return;
+    }
+
+    if (adminComment.trim().length < 3) {
+      setModalError('Enter a short comment before sending for review.');
+      return;
+    }
+
+    setModalError('');
+    try {
+      await onSubmitIncompleteReview(order.orderReference, {
+        file: adminReceiptFile,
+        comment: adminComment.trim(),
+      });
+    } catch (error) {
+      setModalError(error?.message || 'Unable to move this order to pending review.');
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 py-6">
       <div className="absolute inset-0" onClick={onClose} aria-hidden="true" />
-      <div className="relative z-10 w-full max-w-5xl rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_30px_120px_rgba(15,23,42,0.24)] sm:p-6">
+      <div className="relative z-10 max-h-[88vh] w-full max-w-4xl overflow-y-auto rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_30px_120px_rgba(15,23,42,0.24)] sm:p-6">
         <div className="mb-5 flex items-start justify-between gap-4">
           <div className="space-y-1">
             <h2 className="text-2xl font-bold tracking-tight text-emerald-950">Payment details</h2>
@@ -221,9 +286,9 @@ function PaymentDetailsModal({
           </button>
         </div>
 
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,1.2fr)_360px]">
+        <div className={`grid gap-4 ${showPaymentProofPanel ? 'lg:grid-cols-[minmax(0,1.2fr)_320px]' : ''}`}>
           <div className="space-y-4">
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <div className={ui.metricCard}>
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Buyer</p>
                 <p className="text-sm font-semibold text-slate-900">{order.user?.name || 'Unknown buyer'}</p>
@@ -248,11 +313,14 @@ function PaymentDetailsModal({
               </div>
             </div>
 
-            <div className={`${ui.section} space-y-2`}>
+            <div className={`${ui.section} grid gap-x-5 gap-y-2 sm:grid-cols-2`}>
               <p className="text-sm leading-6 text-slate-700">Submitted: <span className="font-semibold text-slate-900">{formatDateTime(order.createdAt)}</span></p>
               <p className="text-sm leading-6 text-slate-700">Paid at: <span className="font-semibold text-slate-900">{formatDateTime(order.paidAt)}</span></p>
               <p className="text-sm leading-6 text-slate-700">Quantity: <span className="font-semibold text-slate-900">{order.quantity}</span></p>
               <p className="text-sm leading-6 text-slate-700">Order status: <span className="font-semibold text-slate-900">{formatLabel(order.status)}</span></p>
+              {order.payment?.providerPayloadJson?.adminRecovery?.comment ? (
+                <p className="text-sm leading-6 text-slate-700 sm:col-span-2">Admin comment: <span className="font-semibold text-slate-900">{order.payment.providerPayloadJson.adminRecovery.comment}</span></p>
+              ) : null}
               {isInterac ? (
                 <>
                   <p className="text-sm leading-6 text-slate-700">Receipt file: <span className="font-semibold text-slate-900">{transferProof?.fileName || 'No receipt uploaded'}</span></p>
@@ -261,7 +329,7 @@ function PaymentDetailsModal({
               ) : null}
             </div>
 
-            <div className="flex flex-wrap gap-3">
+            <div className="flex flex-wrap gap-2.5">
               {canConfirmInterac ? (
                 <button
                   type="button"
@@ -270,6 +338,16 @@ function PaymentDetailsModal({
                   disabled={confirmingReference === order.orderReference}
                 >
                   {confirmingReference === order.orderReference ? 'Confirming payment...' : 'Confirm Interac payment'}
+                </button>
+              ) : null}
+              {isIncompleteOrder ? (
+                <button
+                  type="button"
+                  className={ui.buttonDanger}
+                  onClick={() => onDeleteIncompleteOrder(order.orderReference)}
+                  disabled={deletingIncompleteReference === order.orderReference}
+                >
+                  {deletingIncompleteReference === order.orderReference ? 'Deleting...' : 'Delete incomplete order'}
                 </button>
               ) : null}
               <button
@@ -282,29 +360,64 @@ function PaymentDetailsModal({
                 {resendingReference === order.orderReference ? 'Resending confirmation...' : 'Resend confirmation'}
               </button>
             </div>
+
+            {isIncompleteOrder && isInterac ? (
+              <div className={`${ui.section} space-y-3`}>
+                <h3 className="text-base font-semibold text-slate-900">Move incomplete order to pending review</h3>
+                <div className={ui.fieldWrap}>
+                  <label className={ui.label}>Upload Interac receipt</label>
+                  <input type="file" accept="image/*" className={ui.input} onChange={handleReceiptChange} />
+                  {adminReceiptName ? <p className="text-xs leading-5 text-slate-500">Selected receipt: {adminReceiptName}</p> : null}
+                </div>
+                <div className={ui.fieldWrap}>
+                  <label className={ui.label}>Comment</label>
+                  <textarea
+                    className={ui.textarea}
+                    rows={3}
+                    value={adminComment}
+                    onChange={(event) => setAdminComment(event.target.value)}
+                    placeholder="Add a short note for this manual Interac review"
+                  />
+                </div>
+                {modalError ? <p className={ui.error}>{modalError}</p> : null}
+                <button
+                  type="button"
+                  className={ui.buttonPrimary}
+                  onClick={handleSubmitRecovery}
+                  disabled={submittingIncompleteReference === order.orderReference}
+                >
+                  {submittingIncompleteReference === order.orderReference ? 'Uploading...' : 'Send to pending review'}
+                </button>
+              </div>
+            ) : null}
+            {isIncompleteOrder && isStripe ? (
+              <p className="text-sm leading-6 text-slate-600">Receipt upload is not available for Stripe card payments.</p>
+            ) : null}
           </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <h3 className="text-base font-semibold text-slate-900">Payment proof</h3>
-              {isInterac && proofViewUrl ? (
-                <a href={proofViewUrl} target="_blank" rel="noreferrer" className="text-sm font-semibold text-emerald-700 underline underline-offset-2">
-                  Open full receipt
-                </a>
-              ) : null}
+          {showPaymentProofPanel ? (
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <h3 className="text-base font-semibold text-slate-900">Payment proof</h3>
+                {isInterac && proofViewUrl ? (
+                  <a href={proofViewUrl} target="_blank" rel="noreferrer" className="text-sm font-semibold text-emerald-700 underline underline-offset-2">
+                    Open full receipt
+                  </a>
+                ) : null}
+              </div>
+              {isInterac && loadingProofReference === order.orderReference && !transferProofImageSrc ? (
+                <p className={ui.note}>Loading private receipt preview...</p>
+              ) : isInterac && transferProofImageSrc ? (
+                <img src={transferProofImageSrc} alt={`Transfer proof for ${order.orderReference}`} className="max-h-[420px] w-full rounded-xl object-contain" />
+              ) : (
+                <p className={ui.note}>
+                  {order.paymentMethod === 'STRIPE_CARD'
+                    ? `${formatLabel(order.paymentMethod)} payments do not require a screenshot receipt.`
+                    : 'No payment screenshot is available for this transfer.'}
+                </p>
+              )}
             </div>
-            {isInterac && loadingProofReference === order.orderReference && !transferProofImageSrc ? (
-              <p className={ui.note}>Loading private receipt preview...</p>
-            ) : isInterac && transferProofImageSrc ? (
-              <img src={transferProofImageSrc} alt={`Transfer proof for ${order.orderReference}`} className="max-h-[420px] w-full rounded-xl object-contain" />
-            ) : (
-              <p className={ui.note}>
-                {order.paymentMethod === 'STRIPE_CARD'
-                  ? `${formatLabel(order.paymentMethod)} payments do not require a screenshot receipt.`
-                  : 'No payment screenshot is available for this transfer.'}
-              </p>
-            )}
-          </div>
+          ) : null}
         </div>
       </div>
     </div>
@@ -316,6 +429,9 @@ export default function AdminPaymentsPanel({
   onConfirmInteracPayment,
   onResendPaymentConfirmation,
   onLoadPaymentProofViewUrl,
+  onCreateIncompleteOrderUploadUrl,
+  onMarkIncompleteOrderPendingReview,
+  onDeleteIncompleteOrder,
   onRefreshReports,
 }) {
   const [payments, setPayments] = useState([]);
@@ -331,6 +447,8 @@ export default function AdminPaymentsPanel({
   const [actionStatus, setActionStatus] = useState('');
   const [confirmingReference, setConfirmingReference] = useState('');
   const [resendingReference, setResendingReference] = useState('');
+  const [submittingIncompleteReference, setSubmittingIncompleteReference] = useState('');
+  const [deletingIncompleteReference, setDeletingIncompleteReference] = useState('');
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [proofViewUrls, setProofViewUrls] = useState({});
   const [loadingProofReference, setLoadingProofReference] = useState('');
@@ -461,6 +579,81 @@ export default function AdminPaymentsPanel({
       setError(err.message || 'Unable to load the private receipt preview.');
     } finally {
       setLoadingProofReference('');
+    }
+  }
+
+  async function handleSubmitIncompleteReview(orderReference, { file, comment }) {
+    setSubmittingIncompleteReference(orderReference);
+    setActionStatus('');
+    setError('');
+    try {
+      const uploadTarget = await onCreateIncompleteOrderUploadUrl(orderReference, {
+        fileName: file.name,
+        contentType: file.type,
+        sizeBytes: file.size,
+      });
+
+      const uploadResponse = await fetch(uploadTarget.uploadUrl, {
+        method: 'PUT',
+        body: file,
+      });
+
+      if (!uploadResponse.ok) {
+        throw new Error('Unable to upload the Interac receipt right now.');
+      }
+
+      const result = await onMarkIncompleteOrderPendingReview(orderReference, {
+        comment,
+        transferProof: {
+          fileName: file.name,
+          contentType: file.type,
+          sizeBytes: file.size,
+          objectKey: uploadTarget.objectKey,
+        },
+      });
+
+      setActionStatus(result.message || 'Incomplete order moved to pending review successfully.');
+      await loadPayments(query);
+      if (selectedOrder?.orderReference === orderReference) {
+        const refreshed = (payments || []).find((entry) => entry.orderReference === orderReference);
+        if (refreshed) {
+          setSelectedOrder(refreshed);
+        }
+      }
+      if (onRefreshReports) {
+        await onRefreshReports();
+      }
+    } catch (err) {
+      setError(err.message || 'Unable to move this order to pending review.');
+      throw err;
+    } finally {
+      setSubmittingIncompleteReference('');
+    }
+  }
+
+  async function handleDeleteIncomplete(orderReference) {
+    const confirmed = window.confirm('Delete this incomplete order? This cannot be undone.');
+    if (!confirmed) {
+      return;
+    }
+
+    setDeletingIncompleteReference(orderReference);
+    setActionStatus('');
+    setError('');
+    try {
+      const result = await onDeleteIncompleteOrder(orderReference);
+      setActionStatus(result.message || 'Incomplete order deleted successfully.');
+      if (selectedOrder?.orderReference === orderReference) {
+        setSelectedOrder(null);
+      }
+      await loadPayments(query);
+      if (onRefreshReports) {
+        await onRefreshReports();
+      }
+    } catch (err) {
+      setError(err.message || 'Unable to delete this incomplete order.');
+    } finally {
+      setDeletingIncompleteReference('');
     }
   }
 
@@ -703,8 +896,12 @@ export default function AdminPaymentsPanel({
         onClose={() => setSelectedOrder(null)}
         onConfirm={handleConfirm}
         onResend={handleResend}
+        onSubmitIncompleteReview={handleSubmitIncompleteReview}
+        onDeleteIncompleteOrder={handleDeleteIncomplete}
         confirmingReference={confirmingReference}
         resendingReference={resendingReference}
+        submittingIncompleteReference={submittingIncompleteReference}
+        deletingIncompleteReference={deletingIncompleteReference}
       />
     </section>
   );
