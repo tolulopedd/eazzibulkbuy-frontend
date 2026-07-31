@@ -21,7 +21,7 @@ const PAYMENT_OPTIONS = [
   {
     value: 'INTERAC_E_TRANSFER',
     label: 'Interac e-Transfer',
-    note: 'Send your payment to eazzibb@gmail.com via Interac e-Transfer using your banking app, attach your receipt and wait to receive confirmation.',
+    note: 'Send your payment to payments@eazzibulkbuy.ca via Interac e-Transfer using your banking app, attach your receipt and wait to receive confirmation.',
   },
   {
     value: 'STRIPE_CARD',
@@ -179,6 +179,19 @@ function formatBundleSummary(bundleItems = []) {
   }
 
   return bundleItems.map((item) => `${item.quantity} × ${item.name}`).join(', ');
+}
+
+function renderPaymentOptionNote(option) {
+  if (option.value === 'INTERAC_E_TRANSFER') {
+    return (
+      <>
+        Send your payment to <span className="font-semibold text-slate-900">payments@eazzibulkbuy.ca</span> via{' '}
+        <span className="font-semibold text-slate-900">Interac e-Transfer</span> using your banking app, attach your receipt and wait to receive confirmation.
+      </>
+    );
+  }
+
+  return option.note;
 }
 
 function PaymentSuccessPage({
@@ -987,7 +1000,7 @@ export default function OrderForm({
                         />
                         <div>
                           <p className="text-sm font-semibold text-emerald-950">{option.label}</p>
-                          <p className="text-sm leading-6 text-slate-600">{option.note}</p>
+                          <p className="text-sm leading-6 text-slate-600">{renderPaymentOptionNote(option)}</p>
                           {option.value === 'INTERAC_E_TRANSFER' ? (
                             <p className="text-sm leading-6 text-slate-700">
                               Surcharge fee: <span className="font-semibold text-slate-900">CAD 0.00</span>. Total charge: <span className="font-semibold text-slate-900">CAD {((createdOrder?.totalAmount || cartSummary.totalAmount) / 100).toFixed(2)}</span>.
