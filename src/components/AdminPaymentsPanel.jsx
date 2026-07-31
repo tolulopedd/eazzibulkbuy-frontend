@@ -134,6 +134,10 @@ function formatLabel(value) {
     return 'Unknown';
   }
 
+  if (value === 'PENDING_PAYMENT') {
+    return 'Incomplete Order';
+  }
+
   return value
     .toLowerCase()
     .split('_')
@@ -167,7 +171,7 @@ function getDisplayPaymentStatus(order) {
 function getStatusTone(status) {
   if (status === 'PAID') return 'success';
   if (status === 'PENDING_REVIEW') return 'warning';
-  if (status === 'PENDING_PAYMENT') return 'info';
+  if (status === 'PENDING_PAYMENT') return 'danger';
   return 'neutral';
 }
 
@@ -606,7 +610,7 @@ export default function AdminPaymentsPanel({
                 onChange={(event) => setQuery((current) => ({ ...current, paymentStatus: event.target.value }))}
               >
                 <option value="">All statuses</option>
-                <option value="PENDING_PAYMENT">Pending payment</option>
+                <option value="PENDING_PAYMENT">Incomplete Order</option>
                 <option value="PENDING_REVIEW">Pending review</option>
                 <option value="PAID">Paid</option>
               </select>
