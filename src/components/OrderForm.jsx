@@ -1368,7 +1368,7 @@ export default function OrderForm({
                       checked={fulfillmentMethod === 'DELIVERY'}
                       onChange={() => setFulfillmentMethod('DELIVERY')}
                       className="h-4 w-4 accent-emerald-700"
-                      //disabled={!cartAllowsDelivery || hasCreatedOrder}
+                      disabled={!cartAllowsDelivery || hasCreatedOrder}
                     />
                     <div>
                       <p className="text-sm font-semibold text-emerald-950">Delivery</p>
