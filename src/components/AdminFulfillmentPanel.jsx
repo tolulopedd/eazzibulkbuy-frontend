@@ -40,42 +40,19 @@ function formatDisplayDate(value) {
 }
 
 function DateFilterField({ label, value, onChange, max = TODAY_FILTER }) {
-  const inputRef = useRef(null);
-
-  function openPicker() {
-    const input = inputRef.current;
-    if (!input) {
-      return;
-    }
-
-    if (typeof input.showPicker === 'function') {
-      input.showPicker();
-      return;
-    }
-
-    input.focus();
-    input.click();
-  }
-
   return (
     <div className={ui.fieldWrap}>
       <label className={ui.label}>{label}</label>
       <div className="relative">
         <input
-          ref={inputRef}
-          className="pointer-events-none absolute h-0 w-0 opacity-0"
+          className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0"
           type="date"
           value={value}
           onChange={onChange}
           max={max}
-          tabIndex={-1}
           aria-label={label}
         />
-        <button
-          type="button"
-          className={`${ui.input} flex min-h-[46px] items-center justify-between gap-3 text-left`}
-          onClick={openPicker}
-        >
+        <div className={`${ui.input} pointer-events-none flex min-h-[46px] items-center justify-between gap-3`}>
           <span className={value ? 'text-emerald-950' : 'text-slate-400'}>{formatDisplayDate(value)}</span>
           <svg viewBox="0 0 24 24" className="h-5 w-5 shrink-0 text-slate-400" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
             <path d="M8 2v4" />
@@ -83,7 +60,7 @@ function DateFilterField({ label, value, onChange, max = TODAY_FILTER }) {
             <rect x="3" y="5" width="18" height="16" rx="2" />
             <path d="M3 10h18" />
           </svg>
-        </button>
+        </div>
       </div>
     </div>
   );
