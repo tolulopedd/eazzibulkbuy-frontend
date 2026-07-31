@@ -291,7 +291,7 @@ function CountdownDisplay({ countdown, emptyLabel = 'No active countdown', empty
   if (!countdown) {
     return (
       <article className={`rounded-[24px] border p-4 shadow-[0_8px_20px_rgba(16,24,40,0.04)] backdrop-blur-[2px] ${accentClasses.card}`}>
-        <p className={`text-[11px] font-bold uppercase tracking-[0.12em] ${accentClasses.label}`}>Next event closes</p>
+        <p className={`text-[11px] font-bold uppercase tracking-[0.12em] ${accentClasses.label}`}>Next sales closes</p>
         <p className="mt-2 text-xl font-extrabold text-[#171a16]">{emptyLabel}</p>
         <p className="mt-1 text-sm text-slate-600">{emptyDetail}</p>
       </article>
@@ -306,7 +306,7 @@ function CountdownDisplay({ countdown, emptyLabel = 'No active countdown', empty
 
   return (
     <article className={`rounded-[24px] border p-4 shadow-[0_8px_20px_rgba(16,24,40,0.04)] backdrop-blur-[2px] ${accentClasses.card}`}>
-      <p className={`text-[11px] font-bold uppercase tracking-[0.12em] ${accentClasses.label}`}>Next event closes</p>
+      <p className={`text-[11px] font-bold uppercase tracking-[0.12em] ${accentClasses.label}`}>Next sales closes</p>
       <div className="mt-3 grid grid-cols-3 gap-2">
         {segments.map((segment) => (
           <div key={segment.label} className={`rounded-2xl border px-3 py-2.5 text-center shadow-[0_6px_16px_rgba(16,24,40,0.04)] ${accentClasses.tile}`}>
@@ -538,7 +538,7 @@ export default function LandingPage({ onGoShop }) {
 
             <div className="hidden gap-3 lg:grid sm:grid-cols-3">
               <article className="rounded-[24px] border border-[#dfe7df] bg-[rgba(255,255,255,0.6)] p-4 shadow-[0_8px_20px_rgba(16,24,40,0.04)] backdrop-blur-[2px]">
-                <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-emerald-700">Live events</p>
+                <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-emerald-700">Active Sales</p>
                 <p className="mt-2 text-3xl font-extrabold text-[#171a16]">{activeItems.length}</p>
                 <p className="mt-1 text-sm text-slate-600">
                   {activeItems.length === 1
@@ -705,7 +705,7 @@ export default function LandingPage({ onGoShop }) {
             <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
               <button
                 type="button"
-                className={`${ui.buttonPrimary} min-w-[190px] w-full border border-emerald-300/20 bg-[#46d2b8] text-[#0f1612] shadow-[0_14px_24px_rgba(6,95,70,0.18)] hover:bg-[#54d8c0] sm:w-auto ${cartQuantity === 0 ? 'cursor-not-allowed opacity-60' : ''}`}
+                className={`${ui.buttonPrimary} min-w-[190px] w-full shadow-[0_14px_24px_rgba(6,95,70,0.18)] sm:w-auto ${canProceedToCart ? 'border border-emerald-300/20 bg-[#46d2b8] text-[#0f1612] hover:bg-[#54d8c0]' : ''}`}
                 onClick={() => onGoShop()}
                 disabled={!canProceedToCart}
               >

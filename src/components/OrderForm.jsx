@@ -21,7 +21,7 @@ const PAYMENT_OPTIONS = [
   {
     value: 'INTERAC_E_TRANSFER',
     label: 'Interac e-Transfer',
-    note: 'Send payment by Interac e-Transfer, share a receipt with us and receive confirmation within 6 hours. Pay instantly using your bank app.',
+    note: 'Send your payment to eazzibb@gmail.com via Interac e-Transfer using your banking app, attach your receipt and wait to receive confirmation.',
   },
   {
     value: 'STRIPE_CARD',
@@ -1192,11 +1192,11 @@ export default function OrderForm({
               <h2 className="text-lg font-bold tracking-tight text-emerald-950">Buyer details</h2>
               <button
                 type="button"
-                className={buyerDetailsReady ? ui.buttonPrimary : ui.buttonGhost}
+                className={ui.buttonPrimary}
                 onClick={handleSaveDetails}
-                disabled={savingDetails}
+                disabled={savingDetails || !buyerDetailsReady}
               >
-                {savingDetails ? 'Saving...' : saveDetailsLabel}
+                {savingDetails ? 'Saving...' : buyerDetailsReady ? saveDetailsLabel : 'Complete details to save'}
               </button>
             </div>
             {!isExistingBuyerFlow ? <p className="text-sm leading-6 text-slate-600">For new buyers click Save to store your details</p> : null}
@@ -1368,12 +1368,12 @@ export default function OrderForm({
                       checked={fulfillmentMethod === 'DELIVERY'}
                       onChange={() => setFulfillmentMethod('DELIVERY')}
                       className="h-4 w-4 accent-emerald-700"
-                      disabled={!cartAllowsDelivery || hasCreatedOrder}
+                      //disabled={!cartAllowsDelivery || hasCreatedOrder}
                     />
                     <div>
                       <p className="text-sm font-semibold text-emerald-950">Delivery</p>
                       <p className="text-xs leading-5 text-slate-500">
-                        {cartAllowsDelivery ? 'Apply delivery to all items in this cart.' : 'Delivery is unavailable until every cart item supports delivery.'}
+                        {cartAllowsDelivery ? 'Once your items are ready for pick up, we will share delivery contact details.' : 'Once your items are ready for pick up, we will share delivery contact details.'}
                       </p>
                     </div>
                   </div>
@@ -1442,10 +1442,10 @@ export default function OrderForm({
         {!hasCreatedOrder ? (
           <button
             type="submit"
-            className={`${ui.buttonPrimary} w-fit min-w-[180px] ${loading || cartLines.length === 0 || !buyerDetailsReady ? 'cursor-not-allowed opacity-60' : ''}`}
+            className={`${ui.buttonPrimary} w-fit min-w-[220px]`}
             disabled={loading || cartLines.length === 0 || !buyerDetailsReady}
           >
-            Create order
+            {cartLines.length === 0 ? 'Select items to continue' : !buyerDetailsReady ? 'Save buyer details to continue' : 'Create order'}
           </button>
         ) : null}
 
@@ -1456,7 +1456,7 @@ export default function OrderForm({
               <p className="text-sm leading-6 text-slate-600">
                 {manualOrder
                   ? 'Your payment steps are ready. Open the payment menu to upload proof or confirm your transfer.'
-                  : 'Your order is ready. Open the payment menu to choose Interac or Stripe. Please note that E-transfer is preferred. Credit card payments are available through Stripe. Kindly note that a small processing fee applies to card transactions.'}
+                  : 'Click to select your payment option. To keep prices as low as possible, Interac E-transfer remains free and our preferred option. For your convenience, credit card payments are also accepted; however, a processing fee will apply.'}
               </p>
             </div>
             <button type="button" className={ui.buttonPrimary} onClick={() => setPaymentModalOpen(true)}>

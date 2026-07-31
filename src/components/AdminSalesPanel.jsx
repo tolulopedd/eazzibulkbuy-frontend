@@ -99,10 +99,35 @@ function isPositiveNumber(value) {
   return Number.isFinite(parsed) && parsed > 0;
 }
 
+function isSalesFormValid(form) {
+  const hasName = String(form.name || '').trim().length > 0;
+  const hasBatchNumber = /^[A-Z0-9]{3}$/.test(String(form.batchNumber || '').trim().toUpperCase());
+  const hasClosingDate = Boolean(form.closingDate);
+  const hasLocation = String(form.pickupInstructions || '').trim().length > 0;
+  const hasPrice = isPositiveNumber(form.pricePerUnit);
+
+  const bundleItemsAreValid = form.saleType !== 'BUNDLE_DISCOUNTED_SALE'
+    || (Array.isArray(form.bundleItems)
+      && form.bundleItems.length >= 2
+      && form.bundleItems.every((item) =>
+        String(item?.name || '').trim().length > 0 && isPositiveNumber(item?.quantity),
+      ));
+
+  const deliveryValuesAreValid = !form.deliveryEnabled || (
+    isPositiveNumber(form.deliveryBaseRangeMax)
+    && Number(form.deliveryBaseRangeMax) >= 1
+    && Number(form.deliveryBasePrice) >= 0
+    && Number(form.deliveryAdditionalUnitPrice) >= 0
+  );
+
+  return hasName && hasBatchNumber && hasClosingDate && hasLocation && hasPrice && bundleItemsAreValid && deliveryValuesAreValid;
+}
+
 function SalesDetailsModal({
   item,
   mode,
   editForm,
+  editFormIsValid,
   onEditFormChange,
   onSaveEdit,
   onCancelEdit,
@@ -263,8 +288,8 @@ function SalesDetailsModal({
             </div>
 
             <div className="flex flex-wrap gap-3">
-              <button type="button" className={ui.buttonPrimary} onClick={onSaveEdit} disabled={saveLoadingId === item.id}>
-                {saveLoadingId === item.id ? 'Saving changes...' : 'Save changes'}
+              <button type="button" className={ui.buttonPrimary} onClick={onSaveEdit} disabled={saveLoadingId === item.id || !editFormIsValid}>
+                {saveLoadingId === item.id ? 'Saving changes...' : editFormIsValid ? 'Save changes' : 'Complete details to save'}
               </button>
               <button type="button" className={ui.buttonGhost} onClick={onCancelEdit}>Close</button>
               {isDeletableSalesItem(item) ? (
@@ -376,29 +401,8 @@ export default function AdminSalesPanel({
     () => salesItems.filter((item) => item.status !== 'ACTIVE' || new Date(item.closingDate) <= new Date()),
     [salesItems],
   );
-  const createFormIsValid = useMemo(() => {
-    const hasName = String(form.name || '').trim().length > 0;
-    const hasBatchNumber = /^[A-Z0-9]{3}$/.test(String(form.batchNumber || '').trim().toUpperCase());
-    const hasClosingDate = Boolean(form.closingDate);
-    const hasLocation = String(form.pickupInstructions || '').trim().length > 0;
-    const hasPrice = isPositiveNumber(form.pricePerUnit);
-
-    const bundleItemsAreValid = form.saleType !== 'BUNDLE_DISCOUNTED_SALE'
-      || (Array.isArray(form.bundleItems)
-        && form.bundleItems.length >= 2
-        && form.bundleItems.every((item) =>
-          String(item?.name || '').trim().length > 0 && isPositiveNumber(item?.quantity),
-        ));
-
-    const deliveryValuesAreValid = !form.deliveryEnabled || (
-      isPositiveNumber(form.deliveryBaseRangeMax)
-      && Number(form.deliveryBaseRangeMax) >= 1
-      && Number(form.deliveryBasePrice) >= 0
-      && Number(form.deliveryAdditionalUnitPrice) >= 0
-    );
-
-    return hasName && hasBatchNumber && hasClosingDate && hasLocation && hasPrice && bundleItemsAreValid && deliveryValuesAreValid;
-  }, [form]);
+  const createFormIsValid = useMemo(() => isSalesFormValid(form), [form]);
+  const editFormIsValid = useMemo(() => isSalesFormValid(editForm), [editForm]);
 
   useEffect(() => {
     if (!didInitFiltersRef.current) {
@@ -629,7 +633,7 @@ export default function AdminSalesPanel({
             <div className="flex justify-center pt-1">
               <button
                 type="submit"
-                className={`${ui.buttonPrimary} min-w-44 ${(!createFormIsValid || createLoading) ? 'cursor-not-allowed opacity-50' : ''}`}
+                className={`${ui.buttonPrimary} min-w-44`}
                 disabled={createLoading || !createFormIsValid}
               >
                 <span className="inline-flex items-center justify-center gap-2">
@@ -639,7 +643,7 @@ export default function AdminSalesPanel({
                       aria-hidden="true"
                     />
                   ) : null}
-                  <span>{createLoading ? 'Creating...' : 'Create'}</span>
+                  <span>{createLoading ? 'Creating...' : createFormIsValid ? 'Create' : 'Complete details to create'}</span>
                 </span>
               </button>
             </div>
@@ -694,6 +698,7 @@ export default function AdminSalesPanel({
         mode={selectedMode}
         editForm={editForm}
         onEditFormChange={onEditFormChange}
+        editFormIsValid={editFormIsValid}
         onSaveEdit={onSaveEdit}
         onCancelEdit={closeSalesItemModal}
         saveLoadingId={saveLoadingId}

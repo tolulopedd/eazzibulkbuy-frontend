@@ -21,7 +21,7 @@ export const ui = {
   textarea:
     'w-full rounded-2xl border border-[#d7d9cf] bg-white px-4 py-3 text-sm leading-5 text-[#151714] placeholder:text-[#8a8f83] focus:outline-none focus:ring-2 focus:ring-[#46d2b8] focus:border-[#46d2b8]',
   buttonPrimary:
-    'inline-flex min-h-11 items-center justify-center rounded-full bg-[#46d2b8] px-5 py-2.5 text-sm font-semibold text-[#0f1612] transition hover:brightness-[0.97] disabled:cursor-not-allowed disabled:opacity-60',
+    'inline-flex min-h-11 items-center justify-center rounded-full border border-transparent bg-[#46d2b8] px-5 py-2.5 text-sm font-semibold text-[#0f1612] transition hover:brightness-[0.97] disabled:cursor-not-allowed disabled:border-[#d5d9d0] disabled:bg-[#e7e9e2] disabled:text-[#7d8478] disabled:hover:brightness-100',
   buttonGhost:
     'inline-flex min-h-11 items-center justify-center rounded-full border border-[#d7d9cf] bg-white px-5 py-2.5 text-sm font-semibold text-[#2c3028] transition hover:bg-[#f7f8f4] disabled:cursor-not-allowed disabled:opacity-60',
   buttonDanger:

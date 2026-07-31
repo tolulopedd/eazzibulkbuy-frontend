@@ -43,6 +43,8 @@ function CustomerEditModal({ customer, onClose, onSave, saving }) {
 
   if (!customer) return null;
 
+  const customerFormIsValid = form.name.trim().length >= 2 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim());
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 py-6">
       <div className="absolute inset-0" onClick={onClose} aria-hidden="true" />
@@ -90,9 +92,9 @@ function CustomerEditModal({ customer, onClose, onSave, saving }) {
               type="button"
               className={ui.buttonPrimary}
               onClick={() => onSave(customer.id, form)}
-              disabled={saving}
+              disabled={saving || !customerFormIsValid}
             >
-              {saving ? 'Saving...' : 'Save customer'}
+              {saving ? 'Saving...' : customerFormIsValid ? 'Save customer' : 'Complete details to save'}
             </button>
             <button type="button" className={ui.buttonGhost} onClick={onClose}>
               Cancel
