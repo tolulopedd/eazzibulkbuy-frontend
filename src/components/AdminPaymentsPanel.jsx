@@ -254,8 +254,8 @@ function PaymentDetailsModal({
       return;
     }
 
-    if (adminComment.trim().length < 3) {
-      setModalError('Enter a short comment before sending for review.');
+    if (adminComment.trim().length <= 2) {
+      setModalError('Enter a comment longer than 2 characters before sending for review.');
       return;
     }
 
@@ -615,10 +615,7 @@ export default function AdminPaymentsPanel({
       setActionStatus(result.message || 'Incomplete order moved to pending review successfully.');
       await loadPayments(query);
       if (selectedOrder?.orderReference === orderReference) {
-        const refreshed = (payments || []).find((entry) => entry.orderReference === orderReference);
-        if (refreshed) {
-          setSelectedOrder(refreshed);
-        }
+        setSelectedOrder(null);
       }
       if (onRefreshReports) {
         await onRefreshReports();
