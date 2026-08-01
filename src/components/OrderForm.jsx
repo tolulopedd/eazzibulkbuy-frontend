@@ -66,6 +66,7 @@ const MANUAL_TRANSFER_WINDOW_SECONDS = 10 * 60;
 const CANADIAN_POSTAL_CODE_REGEX = /^[A-Z]\d[A-Z][ -]?\d[A-Z]\d$/;
 const MAPBOX_ACCESS_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN || '';
 const isMapboxConfigured = Boolean(MAPBOX_ACCESS_TOKEN);
+const CANADIAN_PHONE_DIGITS_REGEX = /^\d{10}$/;
 
 function parseMapboxContext(context = [], feature) {
   const allParts = [...context, ...(feature ? [{ id: feature.id, text: feature.text, short_code: feature.properties?.short_code }] : [])];
@@ -93,6 +94,10 @@ function formatCountdown(totalSeconds) {
   const minutes = Math.floor(safeSeconds / 60);
   const seconds = safeSeconds % 60;
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+}
+
+function normalizePhoneDigits(value) {
+  return value.replace(/\D/g, '').slice(0, 10);
 }
 
 function buildDeliveryGroupKey(item) {
@@ -307,7 +312,6 @@ export default function OrderForm({
   const [addressLookupStatus, setAddressLookupStatus] = useState('');
   const [addressSuggestions, setAddressSuggestions] = useState([]);
   const [showBuyerDetails, setShowBuyerDetails] = useState(false);
-  const [newBuyerMode, setNewBuyerMode] = useState(false);
   const [selectedBuyer, setSelectedBuyer] = useState(null);
   const [showBuyerUpdateForm, setShowBuyerUpdateForm] = useState(false);
   const resetTimerRef = useRef(null);
@@ -322,18 +326,19 @@ export default function OrderForm({
   const trimmedProvince = province.trim();
   const trimmedPostalCode = postalCode.trim().toUpperCase();
   const isValidCanadianPostalCode = CANADIAN_POSTAL_CODE_REGEX.test(trimmedPostalCode);
+  const isValidPhoneNumber = CANADIAN_PHONE_DIGITS_REGEX.test(trimmedPhone);
   const hasBuyerData =
     trimmedFirstName.length >= 2 &&
     trimmedLastName.length >= 2 &&
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail) &&
-    trimmedPhone.length >= 7 &&
+    isValidPhoneNumber &&
     trimmedAddress.length >= 5 &&
     trimmedCity.length >= 2 &&
     trimmedProvince.length >= 2 &&
     isValidCanadianPostalCode;
   const buyerDetailsReady = hasBuyerData;
   const buyerUpdateRequestReady =
-    trimmedPhone.length >= 7 &&
+    isValidPhoneNumber &&
     trimmedAddress.length >= 5 &&
     trimmedCity.length >= 2 &&
     trimmedProvince.length >= 2 &&
@@ -603,14 +608,13 @@ export default function OrderForm({
     setShowSuccessPage(false);
     setSuccessfulOrder(null);
     setShowBuyerDetails(false);
-    setNewBuyerMode(false);
   }
 
-  function resetBuyerFormForNewEntry() {
+  function resetBuyerFormForNewEntry(nextEmail = '') {
     clearBuyerFields();
+    setEmail(nextEmail);
     setSelectedBuyer(null);
     setDetailsStatus('');
-    setNewBuyerMode(true);
     setShowBuyerDetails(true);
     setShowBuyerUpdateForm(false);
   }
@@ -901,7 +905,6 @@ export default function OrderForm({
         id: result.customer?.id,
         fullName: result.customer?.fullName || `${title} ${trimmedFirstName} ${trimmedLastName}`.trim(),
       });
-      setNewBuyerMode(false);
       setShowBuyerDetails(false);
       setShowBuyerUpdateForm(false);
       setDetailsStatus(result.message || 'Buyer details saved.');
@@ -919,7 +922,7 @@ export default function OrderForm({
     }
 
     if (!buyerUpdateRequestReady) {
-      setDetailsStatus('Complete the phone and address fields before sending an update request.');
+      setDetailsStatus('Complete the 10-digit phone number and address fields before sending an update request.');
       return;
     }
 
@@ -1098,51 +1101,40 @@ export default function OrderForm({
         </div>
 
         <section className={`${ui.section} space-y-3`}>
-          <div className="flex flex-wrap items-center justify-end gap-3">
-            <div className="inline-flex w-full rounded-full border border-emerald-200 bg-emerald-50 p-1 shadow-sm sm:w-auto">
-              <button
-                type="button"
-                aria-pressed={!newBuyerMode}
-                className={`min-h-10 flex-1 rounded-full px-4 py-2 text-sm font-semibold transition sm:flex-none ${
-                  !newBuyerMode
-                    ? 'bg-emerald-700 text-white shadow-[0_8px_18px_rgba(4,120,87,0.24)]'
-                    : 'text-emerald-900 hover:bg-white/80'
-                }`}
-                onClick={() => {
-                  setNewBuyerMode(false);
-                  setShowBuyerDetails(false);
-                  setEmailConflictBuyer(null);
-                }}
-              >
-                Returning Buyer
-              </button>
-              <button
-                type="button"
-                aria-pressed={newBuyerMode}
-                className={`min-h-10 flex-1 rounded-full px-4 py-2 text-sm font-semibold transition sm:flex-none ${
-                  newBuyerMode
-                    ? 'bg-emerald-700 text-white shadow-[0_8px_18px_rgba(4,120,87,0.24)]'
-                    : 'text-emerald-900 hover:bg-white/80'
-                }`}
-                onClick={() => {
-                  resetBuyerFormForNewEntry();
-                }}
-              >
-                New Buyer
-              </button>
-            </div>
-          </div>
           <CustomerSearch
-            onSelect={(customer) => {
-              clearBuyerFields();
+            value={email}
+            onChange={(nextEmail) => {
+              setEmail(nextEmail);
+              if (!nextEmail.trim()) {
+                setSelectedBuyer(null);
+                setShowBuyerDetails(false);
+                setShowBuyerUpdateForm(false);
+                setDetailsStatus('');
+              }
+            }}
+            onFound={(customer) => {
               setSelectedBuyer({
                 id: customer.id,
                 fullName: customer.fullName,
               });
-              setNewBuyerMode(false);
+              setEmail(customer.email || email);
               setShowBuyerDetails(false);
               setShowBuyerUpdateForm(false);
               setDetailsStatus('');
+            }}
+            onNotFound={(buyerEmail) => {
+              setSelectedBuyer(null);
+              setShowBuyerUpdateForm(false);
+              if (buyerEmail) {
+                if (!showBuyerDetails) {
+                  resetBuyerFormForNewEntry(buyerEmail);
+                } else if (trimmedEmail.toLowerCase() !== buyerEmail.toLowerCase()) {
+                  setEmail(buyerEmail);
+                }
+                setDetailsStatus('');
+              } else {
+                setShowBuyerDetails(false);
+              }
             }}
           />
           {hasSelectedBuyer ? (
@@ -1180,7 +1172,7 @@ export default function OrderForm({
                 onClick={handleSaveDetails}
                 disabled={savingDetails || !buyerDetailsReady}
               >
-                {savingDetails ? 'Saving...' : buyerDetailsReady ? saveDetailsLabel : 'Complete details to save'}
+                {savingDetails ? 'Saving...' : buyerDetailsReady ? saveDetailsLabel : 'Fill your details & save'}
               </button>
             </div>
             <p className="text-sm leading-6 text-slate-600">For new buyers click Save to store your details</p>
@@ -1209,7 +1201,7 @@ export default function OrderForm({
               </div>
               <div className={ui.fieldWrap}>
                 <label className={ui.label}>Phone</label>
-                <input className={ui.input} autoComplete="tel" required value={phone} onChange={(event) => setPhone(event.target.value)} />
+                <input className={ui.input} autoComplete="tel" inputMode="numeric" maxLength={10} required value={phone} onChange={(event) => setPhone(normalizePhoneDigits(event.target.value))} />
               </div>
             </div>
             <div className={ui.fieldWrap}>
@@ -1327,7 +1319,7 @@ export default function OrderForm({
             <div className="grid gap-3 md:grid-cols-2">
               <div className={ui.fieldWrap}>
                 <label className={ui.label}>Phone</label>
-                <input className={ui.input} autoComplete="tel" required value={phone} onChange={(event) => setPhone(event.target.value)} />
+                <input className={ui.input} autoComplete="tel" inputMode="numeric" maxLength={10} required value={phone} onChange={(event) => setPhone(normalizePhoneDigits(event.target.value))} />
               </div>
             </div>
 
@@ -1549,7 +1541,7 @@ export default function OrderForm({
             className={`${ui.buttonPrimary} w-fit min-w-[220px]`}
             disabled={loading || cartLines.length === 0 || !hasSelectedBuyer}
           >
-            {cartLines.length === 0 ? 'Select items to continue' : !hasSelectedBuyer ? 'Select or save buyer to continue' : 'Create order'}
+            {cartLines.length === 0 ? 'Select items to continue' : !hasSelectedBuyer ? 'Input email to continue' : 'Create order'}
           </button>
         ) : null}
 

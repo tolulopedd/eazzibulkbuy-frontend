@@ -3,7 +3,12 @@ import { ui } from '../ui/classes';
 import { AdminStatusBadge } from './AdminTablePrimitives';
 
 function formatCad(cents) {
-  return `CAD ${((cents || 0) / 100).toFixed(2)}`;
+  return new Intl.NumberFormat('en-CA', {
+    style: 'currency',
+    currency: 'CAD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format((cents || 0) / 100);
 }
 
 function formatTimestamp(value) {

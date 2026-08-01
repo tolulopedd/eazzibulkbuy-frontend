@@ -3,8 +3,11 @@ import {
   adminLogin,
   adminLogout,
   adminMe,
+  createAdminCustomer,
+  createAdminDiscountOrder,
   createSalesItem,
   fetchAdminReports,
+  fetchAdminDiscountOrders,
   fetchAdminSalesItems,
   fetchAdminCustomers,
   updateAdminCustomer,
@@ -136,6 +139,23 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
     }
   }
 
+  async function handleLoadDiscountOrders(query = {}) {
+    try {
+      return await fetchAdminDiscountOrders(query);
+    } catch (err) {
+      rethrowWithSessionHandling(err, 'Unable to load discount orders right now.');
+    }
+  }
+
+  async function handleCreateDiscountOrder(payload) {
+    setError('');
+    try {
+      return await createAdminDiscountOrder(payload);
+    } catch (err) {
+      rethrowWithSessionHandling(err, 'Unable to create discount order right now.');
+    }
+  }
+
   async function handleLoadReports(query = {}) {
     try {
       return await fetchAdminReports(query);
@@ -166,6 +186,15 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
       return await updateAdminCustomer(customerId, payload);
     } catch (err) {
       rethrowWithSessionHandling(err, 'Unable to update customer details. Please try again.');
+    }
+  }
+
+  async function handleCreateCustomer(payload) {
+    setError('');
+    try {
+      return await createAdminCustomer(payload);
+    } catch (err) {
+      rethrowWithSessionHandling(err, 'Unable to create customer right now.');
     }
   }
 
@@ -320,11 +349,14 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
         canManageSales={adminSession?.isSuperAdmin || adminSession?.role === 'ADMIN'}
         isSuperAdmin={Boolean(adminSession?.isSuperAdmin || adminSession?.role === 'SUPERADMIN')}
         onLoadReports={handleLoadReports}
+        onLoadDiscountOrders={handleLoadDiscountOrders}
         onCreateSalesItem={handleCreateSalesItem}
+        onCreateDiscountOrder={handleCreateDiscountOrder}
         onLoadSalesItems={handleLoadSalesItems}
         onUpdateSalesItem={handleUpdateSalesItem}
         onDeleteSalesItem={handleDeleteSalesItem}
         onLoadCustomers={handleLoadCustomers}
+        onCreateCustomer={handleCreateCustomer}
         onUpdateCustomer={handleUpdateCustomer}
         onExportCustomers={handleExportCustomers}
         onApproveCustomerUpdateRequest={handleApproveCustomerUpdateRequest}

@@ -5,6 +5,7 @@ import AdminReportsPanel from './AdminReportsPanel';
 import AdminPaymentsPanel from './AdminPaymentsPanel';
 import AdminCustomersPanel from './AdminCustomersPanel';
 import AdminFulfillmentPanel from './AdminFulfillmentPanel';
+import AdminDiscountOrdersPanel from './AdminDiscountOrdersPanel';
 import BrandLogo from './BrandLogo';
 import { ui } from '../ui/classes';
 
@@ -115,6 +116,17 @@ function PaymentIcon() {
   );
 }
 
+function DiscountIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+      <path d="M7 7h10l-1 10H8L7 7Z" />
+      <path d="M9.5 10.5h5" />
+      <path d="M10.5 13.5h3" />
+      <path d="M9 4h6" />
+    </svg>
+  );
+}
+
 function FulfillmentIcon() {
   return (
     <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
@@ -188,11 +200,14 @@ export default function AdminDashboard({
   canManageSales,
   isSuperAdmin,
   onLoadReports,
+  onLoadDiscountOrders,
   onCreateSalesItem,
+  onCreateDiscountOrder,
   onLoadSalesItems,
   onUpdateSalesItem,
   onDeleteSalesItem,
   onLoadCustomers,
+  onCreateCustomer,
   onUpdateCustomer,
   onExportCustomers,
   onApproveCustomerUpdateRequest,
@@ -241,6 +256,7 @@ export default function AdminDashboard({
       return [
         { id: 'overview', label: 'Dashboard', title: 'Dashboard', icon: DashboardIcon },
         { id: 'sales', label: 'Sales Events', title: 'Sales Events', icon: SalesIcon },
+        { id: 'discount-orders', label: 'Discount Orders', title: 'Discount Orders', icon: DiscountIcon },
         { id: 'payments', label: 'Payments', title: 'Payments', icon: PaymentIcon },
         { id: 'fulfillment', label: 'Fulfilment', title: 'Fulfilment', icon: FulfillmentIcon },
         { id: 'reports', label: 'Reports', title: 'Reports', icon: ReportsIcon },
@@ -539,6 +555,20 @@ export default function AdminDashboard({
           onDeleteIncompleteOrder={onDeleteIncompleteOrder}
           onResendPaymentConfirmation={onResendPaymentConfirmation}
           onRefreshReports={loadReports}
+        />
+      );
+    }
+
+    if (activeModule === 'discount-orders') {
+      return (
+        <AdminDiscountOrdersPanel
+          onLoadCustomers={onLoadCustomers}
+          onCreateCustomer={onCreateCustomer}
+          onLoadSalesItems={onLoadSalesItems}
+          onLoadDiscountOrders={onLoadDiscountOrders}
+          onCreateDiscountOrder={onCreateDiscountOrder}
+          onCreateIncompleteOrderUploadUrl={onCreateIncompleteOrderUploadUrl}
+          onMarkIncompleteOrderPendingReview={onMarkIncompleteOrderPendingReview}
         />
       );
     }

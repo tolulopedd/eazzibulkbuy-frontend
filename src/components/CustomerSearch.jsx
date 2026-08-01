@@ -1,70 +1,86 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { searchCustomers } from '../api/customers';
 import { ui } from '../ui/classes';
 
-export default function CustomerSearch({ onSelect }) {
-  const [term, setTerm] = useState('');
-  const [results, setResults] = useState([]);
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export default function CustomerSearch({ value = '', onChange, onFound, onNotFound }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const onFoundRef = useRef(onFound);
+  const onNotFoundRef = useRef(onNotFound);
 
   useEffect(() => {
-    const trimmed = term.trim();
+    onFoundRef.current = onFound;
+  }, [onFound]);
 
-    if (trimmed.length < 4) {
-      setResults([]);
+  useEffect(() => {
+    onNotFoundRef.current = onNotFound;
+  }, [onNotFound]);
+
+  useEffect(() => {
+    const trimmed = value.trim().toLowerCase();
+
+    if (!EMAIL_REGEX.test(trimmed)) {
+      setLoading(false);
       setError('');
+      onNotFoundRef.current?.(null);
       return;
     }
 
+    let active = true;
     const timer = setTimeout(async () => {
       try {
         setLoading(true);
         setError('');
         const data = await searchCustomers(trimmed);
-        setResults(data);
-      } catch (err) {
-        setError(err.message || 'Unable to search buyers. Please try again.');
-      } finally {
-        setLoading(false);
-      }
-    }, 300);
+        const exactMatch = data.find((customer) => customer.email?.toLowerCase() === trimmed) || null;
 
-    return () => clearTimeout(timer);
-  }, [term]);
+        if (!active) {
+          return;
+        }
+
+        if (exactMatch) {
+          onFoundRef.current?.(exactMatch);
+        } else {
+          onNotFoundRef.current?.(trimmed);
+        }
+      } catch (err) {
+        if (active) {
+          setError(err.message || 'Unable to check buyer email right now.');
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    }, 350);
+
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [value]);
 
   return (
     <div className="space-y-2.5">
-      <input
-        className={ui.input}
-        value={term}
-        onChange={(event) => setTerm(event.target.value)}
-        placeholder="Search by email or phone no."
-      />
+      <div className={ui.fieldWrap}>
+        <label className={ui.label}>Buyer&apos;s email</label>
+        <input
+          className={ui.input}
+          type="email"
+          autoComplete="email"
+          value={value}
+          onChange={(event) => {
+            onChange?.(event.target.value);
+            setError('');
+          }}
+          placeholder="Enter buyer email"
+        />
+      </div>
 
-      {loading ? <p className={ui.note}>Searching...</p> : null}
+      {loading ? <p className={ui.note}>Checking buyer...</p> : null}
       {error ? <p className={ui.error}>{error}</p> : null}
-
-      {results.length > 0 ? (
-        <ul className="overflow-hidden rounded-xl border border-slate-200">
-          {results.map((customer) => (
-            <li key={customer.id} className="border-b border-slate-200 last:border-b-0">
-              <button
-                type="button"
-                className="w-full bg-slate-50 px-3 py-2.5 text-left text-sm text-slate-800 transition hover:bg-slate-100"
-                onClick={() => {
-                  onSelect(customer);
-                  setTerm('');
-                  setResults([]);
-                  setError('');
-                }}
-              >
-                <span className="block font-semibold text-slate-900">{customer.fullName}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      ) : null}
     </div>
   );
 }
