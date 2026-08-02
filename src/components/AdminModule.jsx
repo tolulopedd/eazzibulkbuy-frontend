@@ -23,6 +23,7 @@ import {
   markAdminIncompleteOrderPendingReview,
   deleteAdminIncompleteOrder,
   resendAdminPaymentConfirmation,
+  resolveAdminPayment,
   updateAdminFulfillmentStatus,
 } from '../api/admin';
 import AdminLogin from './AdminLogin';
@@ -31,6 +32,7 @@ import { ui } from '../ui/classes';
 
 const ADMIN_SESSION_TIMEOUT_MS = 5 * 60 * 1000;
 const ADMIN_ACTIVITY_EVENTS = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart'];
+const ADMIN_INACTIVITY_MESSAGE = 'Your admin session ended after 5 minutes of inactivity. Please sign in again.';
 
 export default function AdminModule({ onBackHome, onGoForgotPassword }) {
   const [checking, setChecking] = useState(true);
@@ -90,7 +92,7 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
 
     function expireForInactivity() {
       adminLogout().catch(() => {});
-      handleUnauthorizedSession('Your admin session ended after 5 minutes of inactivity. Please sign in again.');
+      handleUnauthorizedSession(ADMIN_INACTIVITY_MESSAGE);
     }
 
     function resetIdleTimer() {
@@ -251,6 +253,15 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
     }
   }
 
+  async function handleResolvePayment(orderReference, payload) {
+    setError('');
+    try {
+      return await resolveAdminPayment(orderReference, payload);
+    } catch (err) {
+      rethrowWithSessionHandling(err, 'Unable to update this payment right now.');
+    }
+  }
+
   async function handleLoadPaymentProofViewUrl(orderReference) {
     setError('');
     try {
@@ -321,6 +332,8 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
     onBackHome();
   }
 
+  const isInactivityMessage = error === ADMIN_INACTIVITY_MESSAGE;
+
   if (checking) {
     return (
       <section className={`${ui.card} mx-auto w-full max-w-4xl`}>
@@ -343,7 +356,15 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
 
   return (
     <>
-      {error ? <p className={`${ui.error} mx-auto mb-3 w-full max-w-[1280px]`}>{error}</p> : null}
+      {error ? (
+        <p
+          className={`mx-auto mb-3 w-full max-w-[1280px] rounded-2xl border border-[#f1c8c8] bg-[#fff2f2] px-4 py-3 text-sm leading-6 text-[#b14242] ${
+            isInactivityMessage ? '' : 'font-semibold'
+          }`}
+        >
+          {error}
+        </p>
+      ) : null}
       <AdminDashboard
         currentAdmin={adminSession}
         canManageSales={adminSession?.isSuperAdmin || adminSession?.role === 'ADMIN'}
@@ -368,6 +389,7 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
         onMarkIncompleteOrderPendingReview={handleMarkIncompleteOrderPendingReview}
         onDeleteIncompleteOrder={handleDeleteIncompleteOrder}
         onResendPaymentConfirmation={handleResendPaymentConfirmation}
+        onResolvePayment={handleResolvePayment}
         onUpdateFulfillmentStatus={handleUpdateFulfillmentStatus}
         onLogout={handleLogout}
       />

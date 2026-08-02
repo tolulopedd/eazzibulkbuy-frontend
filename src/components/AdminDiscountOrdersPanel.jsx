@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { ui } from '../ui/classes';
 import { AdminPagination, AdminStatusBadge, AdminTableEmpty } from './AdminTablePrimitives';
 
+const SALES_ITEM_OPTIONS = ['Tomatoes', 'Red Habanero', 'Yellow Habanero', 'Chocolate Habanero', 'Green Bell Pepper', 'Crimson Pepper', 'Cayenne Pepper', 'Scorpion Pepper', 'Shepherd Pepper', 'Yam', 'Onion', 'Red Bell Pepper', 'Sweet potatoes', 'Ghost Pepper'];
+
 function formatCurrency(cents) {
   return `CAD ${((cents || 0) / 100).toFixed(2)}`;
 }
@@ -45,29 +47,74 @@ function getEffectiveDeliveryUnits(salesItem, quantity) {
   return quantity * Math.max(1, unitsPerBundle);
 }
 
-function calculateDeliveryFee(salesItem, quantity, fulfillmentMethod) {
-  if (fulfillmentMethod !== 'DELIVERY' || !salesItem?.deliveryEnabled) {
+function calculateDeliveryFee(lines, fulfillmentMethod, salesItemsById) {
+  if (fulfillmentMethod !== 'DELIVERY') {
     return 0;
   }
 
-  const effectiveUnits = getEffectiveDeliveryUnits(salesItem, quantity);
-  const baseRangeMax = Math.max(1, salesItem.deliveryBaseRangeMax || 10);
-  const basePrice = salesItem.deliveryBasePrice || 0;
-  const additionalUnitPrice = salesItem.deliveryAdditionalUnitPrice || 0;
+  const groupedQuantities = new Map();
 
-  return effectiveUnits <= baseRangeMax
-    ? basePrice
-    : basePrice + (effectiveUnits - baseRangeMax) * additionalUnitPrice;
+  for (const line of lines) {
+    if (line.sourceType !== 'SALES_EVENT') {
+      return 0;
+    }
+
+    const salesItem = salesItemsById.get(line.salesItemId);
+    if (!salesItem?.deliveryEnabled) {
+      return 0;
+    }
+
+    const groupKey = [
+      salesItem.deliveryBaseRangeMax || 0,
+      salesItem.deliveryBasePrice || 0,
+      salesItem.deliveryAdditionalUnitPrice || 0,
+    ].join(':');
+
+    const current = groupedQuantities.get(groupKey) || { quantity: 0, salesItem };
+    groupedQuantities.set(groupKey, {
+      quantity: current.quantity + getEffectiveDeliveryUnits(salesItem, Math.max(1, Number(line.quantity) || 1)),
+      salesItem,
+    });
+  }
+
+  let totalFee = 0;
+  for (const group of groupedQuantities.values()) {
+    const baseRangeMax = Math.max(1, group.salesItem.deliveryBaseRangeMax || 10);
+    const basePrice = group.salesItem.deliveryBasePrice || 0;
+    const additionalUnitPrice = group.salesItem.deliveryAdditionalUnitPrice || 0;
+    totalFee += group.quantity <= baseRangeMax
+      ? basePrice
+      : basePrice + (group.quantity - baseRangeMax) * additionalUnitPrice;
+  }
+
+  return totalFee;
 }
 
-const DEFAULT_FORM = {
-  customerId: '',
-  salesItemId: '',
-  quantity: '1',
-  fulfillmentMethod: 'PICKUP',
-  discountedUnitPrice: '',
-  discountReason: '',
-};
+function createSalesEventLine() {
+  return {
+    id: crypto.randomUUID(),
+    sourceType: 'SALES_EVENT',
+    salesItemId: '',
+    customName: '',
+    customDescription: '',
+    customLocation: 'Winnipeg Manitoba',
+    quantity: '1',
+    discountedUnitPrice: '',
+  };
+}
+
+function createCustomLine() {
+  return {
+    id: crypto.randomUUID(),
+    sourceType: 'CUSTOM',
+    salesItemId: '',
+    customName: '',
+    customDescription: '',
+    customLocation: 'Winnipeg Manitoba',
+    quantity: '1',
+    discountedUnitPrice: '',
+  };
+}
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const POSTAL_CODE_REGEX = /^[A-Z]\d[A-Z][ -]?\d[A-Z]\d$/;
@@ -81,7 +128,12 @@ export default function AdminDiscountOrdersPanel({
   onCreateIncompleteOrderUploadUrl,
   onMarkIncompleteOrderPendingReview,
 }) {
-  const [form, setForm] = useState(DEFAULT_FORM);
+  const [form, setForm] = useState({
+    customerId: '',
+    fulfillmentMethod: 'PICKUP',
+    discountReason: '',
+    items: [createSalesEventLine()],
+  });
   const [customerEmail, setCustomerEmail] = useState('');
   const [customerResults, setCustomerResults] = useState([]);
   const [showCustomerForm, setShowCustomerForm] = useState(false);
@@ -109,23 +161,19 @@ export default function AdminDiscountOrdersPanel({
   const [receiptFile, setReceiptFile] = useState(null);
   const [receiptName, setReceiptName] = useState('');
 
+  const normalizedCustomerEmail = customerEmail.trim().toLowerCase();
   const selectedCustomer = useMemo(
     () => customerResults.find((customer) => customer.id === form.customerId) || null,
     [customerResults, form.customerId],
   );
-  const selectedSalesItem = useMemo(
-    () => salesItems.find((item) => item.id === form.salesItemId) || null,
-    [salesItems, form.salesItemId],
+  const salesItemsById = useMemo(
+    () => new Map(salesItems.map((item) => [item.id, item])),
+    [salesItems],
   );
-
-  const quantity = Math.max(1, Number(form.quantity) || 1);
-  const discountedUnitPriceCents = parseDollarInputToCents(form.discountedUnitPrice);
-  const standardUnitPriceCents = selectedSalesItem?.pricePerUnit || 0;
-  const deliveryFeeCents = selectedSalesItem ? calculateDeliveryFee(selectedSalesItem, quantity, form.fulfillmentMethod) : 0;
-  const subtotalCents = discountedUnitPriceCents * quantity;
-  const totalCents = subtotalCents + deliveryFeeCents;
-  const receiptMode = Boolean(receiptFile);
-  const normalizedCustomerEmail = customerEmail.trim().toLowerCase();
+  const hasCustomItems = useMemo(
+    () => form.items.some((item) => item.sourceType === 'CUSTOM'),
+    [form.items],
+  );
   const customerFormReady = Boolean(
     customerForm.firstName.trim().length >= 2 &&
     customerForm.lastName.trim().length >= 2 &&
@@ -137,14 +185,35 @@ export default function AdminDiscountOrdersPanel({
     POSTAL_CODE_REGEX.test(customerForm.postalCode.trim().toUpperCase())
   );
 
+  const normalizedItems = useMemo(() => form.items.map((item) => {
+    const quantity = Math.max(1, Number(item.quantity) || 1);
+    const discountedUnitPrice = parseDollarInputToCents(item.discountedUnitPrice);
+    const salesItem = item.sourceType === 'SALES_EVENT' ? salesItemsById.get(item.salesItemId) : null;
+    const currentUnitPrice = salesItem?.pricePerUnit || 0;
+    const valid = item.sourceType === 'SALES_EVENT'
+      ? Boolean(salesItem && discountedUnitPrice > 0 && discountedUnitPrice < currentUnitPrice)
+      : Boolean(item.customName.trim().length >= 2 && discountedUnitPrice > 0);
+
+    return {
+      ...item,
+      quantity,
+      discountedUnitPrice,
+      currentUnitPrice,
+      salesItem,
+      valid,
+      lineTotal: discountedUnitPrice * quantity,
+    };
+  }), [form.items, salesItemsById]);
+
+  const subtotalCents = normalizedItems.reduce((sum, item) => sum + item.lineTotal, 0);
+  const deliveryFeeCents = calculateDeliveryFee(normalizedItems, form.fulfillmentMethod, salesItemsById);
+  const totalCents = subtotalCents + deliveryFeeCents;
   const formReady = Boolean(
     form.customerId &&
-    form.salesItemId &&
-    quantity > 0 &&
-    discountedUnitPriceCents > 0 &&
-    selectedSalesItem &&
-    discountedUnitPriceCents < standardUnitPriceCents &&
-    form.discountReason.trim().length >= 3
+    normalizedItems.length &&
+    normalizedItems.every((item) => item.valid) &&
+    form.discountReason.trim().length >= 3 &&
+    (form.fulfillmentMethod === 'PICKUP' || !hasCustomItems)
   );
 
   useEffect(() => {
@@ -255,7 +324,12 @@ export default function AdminDiscountOrdersPanel({
   }
 
   function resetForm() {
-    setForm(DEFAULT_FORM);
+    setForm({
+      customerId: '',
+      fulfillmentMethod: 'PICKUP',
+      discountReason: '',
+      items: [createSalesEventLine()],
+    });
     setCustomerEmail('');
     setCustomerResults([]);
     setShowCustomerForm(false);
@@ -308,9 +382,57 @@ export default function AdminDiscountOrdersPanel({
     }
   }
 
+  function updateLine(lineId, field, value) {
+    setForm((current) => ({
+      ...current,
+      items: current.items.map((item) => {
+        if (item.id !== lineId) {
+          return item;
+        }
+
+        if (field === 'sourceType') {
+          return value === 'CUSTOM' ? { ...createCustomLine(), id: lineId } : { ...createSalesEventLine(), id: lineId };
+        }
+
+        if (field === 'salesItemId') {
+          const selected = salesItemsById.get(value);
+          return {
+            ...item,
+            salesItemId: value,
+            discountedUnitPrice: selected ? Math.max(0.01, (selected.pricePerUnit - 100) / 100).toFixed(2) : '',
+          };
+        }
+
+        return {
+          ...item,
+          [field]: value,
+        };
+      }),
+    }));
+  }
+
+  function addSalesEventLine() {
+    setForm((current) => ({ ...current, items: [...current.items, createSalesEventLine()] }));
+  }
+
+  function addCustomLine() {
+    setForm((current) => ({
+      ...current,
+      fulfillmentMethod: 'PICKUP',
+      items: [...current.items, createCustomLine()],
+    }));
+  }
+
+  function removeLine(lineId) {
+    setForm((current) => ({
+      ...current,
+      items: current.items.length === 1 ? [createSalesEventLine()] : current.items.filter((item) => item.id !== lineId),
+    }));
+  }
+
   async function handleCreateDiscountOrder(event) {
     event.preventDefault();
-    if (!formReady || !selectedSalesItem) {
+    if (!formReady) {
       return;
     }
 
@@ -321,11 +443,17 @@ export default function AdminDiscountOrdersPanel({
     try {
       const created = await onCreateDiscountOrder({
         customerId: form.customerId,
-        salesItemId: form.salesItemId,
-        quantity,
         fulfillmentMethod: form.fulfillmentMethod,
-        discountedUnitPrice: discountedUnitPriceCents,
         discountReason: form.discountReason.trim(),
+        items: normalizedItems.map((item) => ({
+          sourceType: item.sourceType,
+          salesItemId: item.sourceType === 'SALES_EVENT' ? item.salesItemId : undefined,
+          customName: item.sourceType === 'CUSTOM' ? item.customName.trim() : undefined,
+          customDescription: item.sourceType === 'CUSTOM' ? item.customDescription.trim() : undefined,
+          customLocation: item.sourceType === 'CUSTOM' ? item.customLocation.trim() : undefined,
+          quantity: item.quantity,
+          discountedUnitPrice: item.discountedUnitPrice,
+        })),
       });
 
       if (receiptFile) {
@@ -376,7 +504,7 @@ export default function AdminDiscountOrdersPanel({
         </div>
 
         <form className="space-y-4" onSubmit={handleCreateDiscountOrder}>
-          <div className="grid gap-4 xl:grid-cols-2">
+          <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
             <div className={`${ui.section} space-y-4`}>
               <div className={ui.fieldWrap}>
                 <label className={ui.label}>Customer email</label>
@@ -385,8 +513,7 @@ export default function AdminDiscountOrdersPanel({
                   type="email"
                   value={customerEmail}
                   onChange={(event) => {
-                    const nextEmail = event.target.value;
-                    setCustomerEmail(nextEmail);
+                    setCustomerEmail(event.target.value);
                     setForm((current) => ({ ...current, customerId: '' }));
                     setStatus('');
                     setError('');
@@ -490,75 +617,151 @@ export default function AdminDiscountOrdersPanel({
                 </div>
               ) : null}
 
-              <div className={ui.fieldWrap}>
-                <label className={ui.label}>Sales event</label>
-                <select
-                  className={ui.select}
-                  value={form.salesItemId}
-                  onChange={(event) => {
-                    const nextId = event.target.value;
-                    const nextItem = salesItems.find((item) => item.id === nextId);
-                    setForm((current) => ({
-                      ...current,
-                      salesItemId: nextId,
-                      fulfillmentMethod: nextItem?.deliveryEnabled ? current.fulfillmentMethod : 'PICKUP',
-                      discountedUnitPrice: nextItem ? ((nextItem.pricePerUnit - 100) / 100).toFixed(2) : '',
-                    }));
-                  }}
-                  disabled={loadingSales}
-                >
-                  <option value="">Select sales event</option>
-                  {salesItems.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.batchNumber} · {item.name} · {formatCurrency(item.pricePerUnit)}
-                    </option>
-                  ))}
-                </select>
+              <div className="flex flex-wrap gap-3">
+                <button type="button" className={ui.buttonPrimary} onClick={addSalesEventLine}>Add sales event item</button>
+                <button type="button" className={ui.buttonGhost} onClick={addCustomLine}>Add custom item</button>
               </div>
 
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className={ui.fieldWrap}>
-                  <label className={ui.label}>Quantity</label>
-                  <input
-                    className={ui.input}
-                    type="number"
-                    min="1"
-                    value={form.quantity}
-                    onChange={(event) => setForm((current) => ({ ...current, quantity: event.target.value }))}
-                  />
-                </div>
-                <div className={ui.fieldWrap}>
-                  <label className={ui.label}>Pickup option</label>
-                  <select
-                    className={ui.select}
-                    value={form.fulfillmentMethod}
-                    onChange={(event) => setForm((current) => ({ ...current, fulfillmentMethod: event.target.value }))}
-                  >
-                    <option value="PICKUP">Pick up</option>
-                    <option value="DELIVERY" disabled={!selectedSalesItem?.deliveryEnabled}>Delivery</option>
-                  </select>
-                </div>
+              <div className="space-y-4">
+                {normalizedItems.map((item, index) => {
+                  const selectedSalesItem = item.sourceType === 'SALES_EVENT' ? salesItemsById.get(item.salesItemId) : null;
+                  const lineDiscount = item.sourceType === 'SALES_EVENT' && item.discountedUnitPrice > 0
+                    ? Math.max(0, item.currentUnitPrice - item.discountedUnitPrice)
+                    : 0;
+
+                  return (
+                    <div key={item.id} className="rounded-[26px] border border-[#dfe6d7] bg-[#fcfdf9] p-4 shadow-[0_14px_32px_rgba(18,52,45,0.06)]">
+                      <div className="mb-4 flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-emerald-950">Item {index + 1}</p>
+                          <p className="text-xs text-slate-500">{item.sourceType === 'SALES_EVENT' ? 'Discount from an active sales event' : 'Create a discounted custom item'}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <select className={ui.select} value={item.sourceType} onChange={(event) => updateLine(item.id, 'sourceType', event.target.value)}>
+                            <option value="SALES_EVENT">Sales event</option>
+                            <option value="CUSTOM">Custom item</option>
+                          </select>
+                          <button type="button" className={ui.buttonGhost} onClick={() => removeLine(item.id)} disabled={form.items.length === 1}>Remove</button>
+                        </div>
+                      </div>
+
+                      {item.sourceType === 'SALES_EVENT' ? (
+                        <div className="space-y-4">
+                          <div className={ui.fieldWrap}>
+                            <label className={ui.label}>Sales event item</label>
+                            <select
+                              className={ui.select}
+                              value={item.salesItemId}
+                              onChange={(event) => updateLine(item.id, 'salesItemId', event.target.value)}
+                              disabled={loadingSales}
+                            >
+                              <option value="">Select sales event item</option>
+                              {salesItems.map((salesItem) => (
+                                <option key={salesItem.id} value={salesItem.id}>
+                                  {salesItem.batchNumber} · {salesItem.name} · {formatCurrency(salesItem.pricePerUnit)}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div className="grid gap-4 md:grid-cols-3">
+                            <div className={ui.fieldWrap}>
+                              <label className={ui.label}>Current unit price</label>
+                              <input className={ui.input} disabled value={selectedSalesItem ? formatCurrency(selectedSalesItem.pricePerUnit) : ''} />
+                            </div>
+                            <div className={ui.fieldWrap}>
+                              <label className={ui.label}>Discounted unit price</label>
+                              <input className={ui.input} type="number" min="0.01" step="0.01" value={item.discountedUnitPrice} onChange={(event) => updateLine(item.id, 'discountedUnitPrice', event.target.value)} placeholder="0.00" />
+                            </div>
+                            <div className={ui.fieldWrap}>
+                              <label className={ui.label}>Quantity</label>
+                              <input className={ui.input} type="number" min="1" value={item.quantity} onChange={(event) => updateLine(item.id, 'quantity', event.target.value)} />
+                            </div>
+                          </div>
+
+                          <div className="grid gap-3 md:grid-cols-3">
+                            <div className={ui.metricCard}>
+                              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Discount</p>
+                              <p className="text-base font-semibold text-slate-900">{formatCurrency(lineDiscount)}</p>
+                            </div>
+                            <div className={ui.metricCard}>
+                              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Location</p>
+                              <p className="text-sm font-semibold text-slate-900">{selectedSalesItem?.pickupInstructions || '—'}</p>
+                            </div>
+                            <div className={ui.metricCard}>
+                              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Line total</p>
+                              <p className="text-base font-semibold text-slate-900">{formatCurrency(item.lineTotal)}</p>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          <div className="grid gap-4 md:grid-cols-2">
+                            <div className={ui.fieldWrap}>
+                              <label className={ui.label}>Item name</label>
+                              <select className={ui.select} value={item.customName} onChange={(event) => updateLine(item.id, 'customName', event.target.value)}>
+                                <option value="">Select item name</option>
+                                {SALES_ITEM_OPTIONS.map((itemName) => (
+                                  <option key={`${item.id}-${itemName}`} value={itemName}>
+                                    {itemName}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <div className={ui.fieldWrap}>
+                              <label className={ui.label}>Location</label>
+                              <input className={ui.input} value={item.customLocation} onChange={(event) => updateLine(item.id, 'customLocation', event.target.value)} placeholder="Winnipeg Manitoba" />
+                            </div>
+                          </div>
+
+                          <div className={ui.fieldWrap}>
+                            <label className={ui.label}>Description</label>
+                            <textarea className={ui.textarea} rows={2} value={item.customDescription} onChange={(event) => updateLine(item.id, 'customDescription', event.target.value)} placeholder="Describe the custom item" />
+                          </div>
+
+                          <div className="grid gap-4 md:grid-cols-2">
+                            <div className={ui.fieldWrap}>
+                              <label className={ui.label}>Discounted unit price</label>
+                              <input className={ui.input} type="number" min="0.01" step="0.01" value={item.discountedUnitPrice} onChange={(event) => updateLine(item.id, 'discountedUnitPrice', event.target.value)} placeholder="0.00" />
+                            </div>
+                            <div className={ui.fieldWrap}>
+                              <label className={ui.label}>Quantity</label>
+                              <input className={ui.input} type="number" min="1" value={item.quantity} onChange={(event) => updateLine(item.id, 'quantity', event.target.value)} />
+                            </div>
+                          </div>
+
+                          <div className="grid gap-3 md:grid-cols-2">
+                            <div className={ui.metricCard}>
+                              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Pickup only</p>
+                              <p className="text-sm font-semibold text-slate-900">Custom discount items currently use pickup.</p>
+                            </div>
+                            <div className={ui.metricCard}>
+                              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Line total</p>
+                              <p className="text-base font-semibold text-slate-900">{formatCurrency(item.lineTotal)}</p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
             <div className={`${ui.section} space-y-4`}>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className={ui.fieldWrap}>
-                  <label className={ui.label}>Current unit price</label>
-                  <input className={ui.input} value={selectedSalesItem ? formatCurrency(selectedSalesItem.pricePerUnit) : ''} disabled />
-                </div>
-                <div className={ui.fieldWrap}>
-                  <label className={ui.label}>Discounted unit price</label>
-                  <input
-                    className={ui.input}
-                    type="number"
-                    min="0.01"
-                    step="0.01"
-                    value={form.discountedUnitPrice}
-                    onChange={(event) => setForm((current) => ({ ...current, discountedUnitPrice: event.target.value }))}
-                    placeholder="0.00"
-                  />
-                </div>
+              <div className={ui.fieldWrap}>
+                <label className={ui.label}>Pickup option</label>
+                <select
+                  className={ui.select}
+                  value={form.fulfillmentMethod}
+                  onChange={(event) => setForm((current) => ({ ...current, fulfillmentMethod: event.target.value }))}
+                >
+                  <option value="PICKUP">Pick up</option>
+                  <option value="DELIVERY" disabled={hasCustomItems || normalizedItems.some((item) => item.sourceType === 'SALES_EVENT' && item.salesItem && !item.salesItem.deliveryEnabled)}>
+                    Delivery
+                  </option>
+                </select>
+                {hasCustomItems ? <p className={ui.note}>Custom items currently support pickup only.</p> : null}
               </div>
 
               <div className={ui.fieldWrap}>
@@ -589,12 +792,8 @@ export default function AdminDiscountOrdersPanel({
 
               <div className="grid gap-3 md:grid-cols-3">
                 <div className={ui.metricCard}>
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Discount</p>
-                  <p className="text-base font-semibold text-slate-900">
-                    {selectedSalesItem && discountedUnitPriceCents > 0
-                      ? formatCurrency(Math.max(0, selectedSalesItem.pricePerUnit - discountedUnitPriceCents))
-                      : 'CAD 0.00'}
-                  </p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Items</p>
+                  <p className="text-base font-semibold text-slate-900">{normalizedItems.length}</p>
                 </div>
                 <div className={ui.metricCard}>
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Delivery fee</p>
@@ -603,6 +802,25 @@ export default function AdminDiscountOrdersPanel({
                 <div className={ui.metricCard}>
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Order total</p>
                   <p className="text-base font-semibold text-slate-900">{formatCurrency(totalCents)}</p>
+                </div>
+              </div>
+
+              <div className={`${ui.metricCard} space-y-3`}>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Order summary</p>
+                <div className="space-y-2 text-sm text-slate-700">
+                  {normalizedItems.map((item) => (
+                    <div key={item.id} className="flex items-start justify-between gap-4 border-b border-[#e8ece4] pb-2 last:border-b-0 last:pb-0">
+                      <div>
+                        <p className="font-semibold text-slate-900">{item.sourceType === 'SALES_EVENT' ? (item.salesItem?.name || 'Select sales event item') : (item.customName || 'Custom item')}</p>
+                        <p className="text-xs text-slate-500">
+                          {item.sourceType === 'SALES_EVENT'
+                            ? `${item.salesItem?.batchNumber || '—'} · Qty ${item.quantity}`
+                            : `Custom item · Qty ${item.quantity}`}
+                        </p>
+                      </div>
+                      <p className="font-semibold text-slate-900">{formatCurrency(item.lineTotal)}</p>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
@@ -622,7 +840,7 @@ export default function AdminDiscountOrdersPanel({
         </form>
       </section>
 
-      <section className={`${ui.tableWrap}`}>
+      <section className={ui.tableWrap}>
         <div className="border-b border-[#ebece4] px-4 py-4">
           <h2 className="text-lg font-bold tracking-tight text-emerald-950">Recent Discount Orders</h2>
         </div>
@@ -638,7 +856,7 @@ export default function AdminDiscountOrdersPanel({
                   <tr>
                     <th className={ui.tableHeaderCell}>Order</th>
                     <th className={ui.tableHeaderCell}>Buyer</th>
-                    <th className={ui.tableHeaderCell}>Sales Event</th>
+                    <th className={ui.tableHeaderCell}>Items</th>
                     <th className={ui.tableHeaderCell}>Reason</th>
                     <th className={ui.tableHeaderCell}>Amount</th>
                     <th className={ui.tableHeaderCell}>Status</th>
@@ -650,24 +868,24 @@ export default function AdminDiscountOrdersPanel({
                     <tr key={order.id} className={ui.tableRow}>
                       <td className={ui.tableCell}>
                         <p className="font-semibold text-[#171a16]">{order.displayOrderReference}</p>
-                        <p className="text-xs text-[#767c72]">{order.salesItem?.batchNumber || '—'}</p>
+                        <p className="text-xs text-[#767c72]">{order.cartItems?.map((item) => item.batchNumber).filter(Boolean).join(', ') || '—'}</p>
                       </td>
                       <td className={ui.tableCell}>
                         <p className="font-semibold text-[#171a16]">{order.user?.name || 'Unknown buyer'}</p>
                         <p className="text-xs text-[#767c72]">{order.user?.email || '—'}</p>
                       </td>
                       <td className={ui.tableCell}>
-                        <p className="font-semibold text-[#171a16]">{order.salesItem?.name || 'Unknown sales event'}</p>
-                        <p className="text-xs text-[#767c72]">Qty {order.quantity} · {formatLabel(order.fulfillmentMethod)}</p>
+                        <p className="font-semibold text-[#171a16]">
+                          {order.cartItems?.map((item) => `${item.name} x${item.quantity}`).join(' + ') || '—'}
+                        </p>
+                        <p className="text-xs text-[#767c72]">{formatLabel(order.fulfillmentMethod)}</p>
                       </td>
                       <td className={ui.tableCell}>
                         <p className="font-medium text-[#171a16]">{order.discountMeta?.discountReason || '—'}</p>
                       </td>
                       <td className={ui.tableCell}>
                         <p className="font-semibold text-[#171a16]">{formatCurrency(order.totalAmount)}</p>
-                        <p className="text-xs text-[#767c72]">
-                          {formatCurrency(order.discountMeta?.discountedUnitPrice || 0)} / unit
-                        </p>
+                        <p className="text-xs text-[#767c72]">Subtotal {formatCurrency(order.subtotal || 0)}</p>
                       </td>
                       <td className={ui.tableCell}>
                         <AdminStatusBadge value={formatLabel(order.paymentStatus)} tone={getStatusTone(order.paymentStatus)} />

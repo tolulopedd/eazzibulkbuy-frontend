@@ -219,6 +219,7 @@ export default function AdminDashboard({
   onMarkIncompleteOrderPendingReview,
   onDeleteIncompleteOrder,
   onResendPaymentConfirmation,
+  onResolvePayment,
   onUpdateFulfillmentStatus,
   onLogout,
 }) {
@@ -554,6 +555,7 @@ export default function AdminDashboard({
           onMarkIncompleteOrderPendingReview={onMarkIncompleteOrderPendingReview}
           onDeleteIncompleteOrder={onDeleteIncompleteOrder}
           onResendPaymentConfirmation={onResendPaymentConfirmation}
+          onResolvePayment={onResolvePayment}
           onRefreshReports={loadReports}
         />
       );

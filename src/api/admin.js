@@ -453,6 +453,14 @@ export function resendAdminPaymentConfirmation(orderReference) {
   });
 }
 
+export function resolveAdminPayment(orderReference, payload) {
+  return request(`/api/admin/payments/${orderReference}/resolve`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
 export function fetchAdminPaymentProofViewUrl(orderReference) {
   return request(`/api/admin/payments/${orderReference}/proof-view-url`);
 }

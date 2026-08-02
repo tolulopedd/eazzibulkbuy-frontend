@@ -3,7 +3,14 @@ import { ui } from '../ui/classes';
 import { exportAdminReports } from '../api/admin';
 import { openPdfExport } from '../utils/pdfExport';
 
-const TODAY_FILTER = '2026-07-18';
+function formatDateInputValue(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+const TODAY_FILTER = formatDateInputValue(new Date());
 
 const DEFAULT_FILTERS = {
   startDate: '',

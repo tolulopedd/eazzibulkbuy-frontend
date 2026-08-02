@@ -6,7 +6,7 @@ import {
   AdminStatusBadge,
   AdminTableEmpty,
 } from './AdminTablePrimitives';
-import { exportAdminOrders, fetchAdminCustomers } from '../api/admin';
+import { fetchAdminCustomers } from '../api/admin';
 import { openPdfExport } from '../utils/pdfExport';
 
 function formatDateInputValue(date) {
@@ -104,6 +104,14 @@ function formatLabel(value) {
 
 function formatCurrency(cents) {
   return `CAD ${((cents || 0) / 100).toFixed(2)}`;
+}
+
+function escapeCsv(value) {
+  const stringValue = String(value ?? '');
+  if (/[",\n]/.test(stringValue)) {
+    return `"${stringValue.replace(/"/g, '""')}"`;
+  }
+  return stringValue;
 }
 
 function formatLineAmount(item) {
@@ -306,27 +314,65 @@ export default function AdminFulfillmentPanel({ onLoadOrders, onUpdateFulfillmen
     setExporting(true);
     setError('');
     try {
-      const { blob, fileName } = await exportAdminOrders({
-        startDate: toIsoBoundary(query.startDate),
-        endDate: toIsoBoundary(query.endDate, true),
-        q: query.q.trim(),
-        batchNumber: query.batchNumber.trim(),
-        paidOnly: 'true',
-        fulfillmentMethod: query.fulfillmentMethod || '',
-        fulfillmentStatus: query.fulfillmentStatus || '',
-        sortBy: query.sortBy,
-        sortOrder: query.sortOrder,
-      });
+      const csvRows = [
+        [
+          'Order Reference',
+          'Batch Number',
+          'Sales Item',
+          'Buyer Name',
+          'Buyer Email',
+          'Buyer Phone',
+          'Address',
+          'City',
+          'Province',
+          'Postal Code',
+          'Quantity',
+          'Payment Method',
+          'Payment Status',
+          'Order Status',
+          'Fulfillment Method',
+          'Fulfillment Status',
+          'Line Amount (CAD)',
+          'Created At',
+          'Paid At',
+          'Location of Sales',
+        ].map(escapeCsv).join(','),
+        ...fulfillmentRows.map((row) => [
+          row.displayOrderReference || formatOrderReferenceDisplay(row.orderReference, row.createdAt, row.user, { batchNumber: row.salesItem?.batchNumber, orderSequence: row.orderSequence }),
+          row.batchNumber || row.salesItem?.batchNumber || '',
+          normalizeDisplayName(row.name || row.salesItem?.name || 'Order items'),
+          row.user?.name || '',
+          row.user?.email || '',
+          row.user?.phone || '',
+          row.user?.address || '',
+          row.user?.city || '',
+          row.user?.province || '',
+          row.user?.postalCode || '',
+          row.quantity,
+          formatLabel(row.paymentMethod),
+          formatLabel(row.paymentStatus),
+          formatLabel(row.status),
+          formatLabel(row.fulfillmentMethod),
+          formatLabel(row.fulfillmentStatus),
+          ((row.isBundleComponent ? (row.bundleLineTotal ?? row.totalAmount ?? 0) : (row.lineTotal || 0)) / 100).toFixed(2),
+          row.createdAt ? new Date(row.createdAt).toISOString() : '',
+          row.paidAt ? new Date(row.paidAt).toISOString() : '',
+          row.location || row.salesItem?.pickupInstructions || '',
+        ].map(escapeCsv).join(',')),
+      ].join('\n');
+
+      const blob = new Blob([csvRows], { type: 'text/csv;charset=utf-8;' });
+      const fileName = `fulfilment-export-${new Date().toISOString().slice(0, 10)}.csv`;
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = fileName.replace(/\.csv$/i, '.csv');
+      link.download = fileName;
       document.body.appendChild(link);
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
     } catch (err) {
-      setError(err.message || 'Unable to export paid delivery orders right now.');
+      setError(err.message || 'Unable to export fulfilment right now.');
     } finally {
       setExporting(false);
     }

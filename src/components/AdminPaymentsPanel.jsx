@@ -132,6 +132,11 @@ function isPaidLike(order) {
 }
 
 function getDisplayPaymentStatus(order) {
+  const resolutionAction = order?.payment?.providerPayloadJson?.adminResolution?.action;
+  if (resolutionAction === 'REFUNDED' || resolutionAction === 'CANCELLED') {
+    return resolutionAction;
+  }
+
   if (order?.paymentMethod === 'STRIPE_CARD') {
     return isPaidLike(order) ? 'PAID' : 'PENDING_PAYMENT';
   }
@@ -149,6 +154,8 @@ function getStatusTone(status) {
   if (status === 'PAID') return 'success';
   if (status === 'PENDING_REVIEW') return 'warning';
   if (status === 'PENDING_PAYMENT') return 'danger';
+  if (status === 'REFUNDED') return 'warning';
+  if (status === 'CANCELLED') return 'danger';
   return 'neutral';
 }
 
@@ -192,6 +199,7 @@ function PaymentDetailsModal({
   onResend,
   onSubmitIncompleteReview,
   onDeleteIncompleteOrder,
+  onResolvePayment,
   confirmingReference,
   resendingReference,
   submittingIncompleteReference,
@@ -207,6 +215,8 @@ function PaymentDetailsModal({
   const canConfirmInterac = isInterac && order.paymentStatus === 'PENDING_REVIEW';
   const canResendConfirmation = order.paymentStatus === 'PAID' || order.status === 'CONFIRMED';
   const isIncompleteOrder = getDisplayPaymentStatus(order) === 'PENDING_PAYMENT';
+  const paymentResolution = order.payment?.providerPayloadJson?.adminResolution || null;
+  const canResolvePayment = !paymentResolution && (order.paymentStatus === 'PENDING_REVIEW' || isPaidLike(order));
   const transferProofImageSrc = proofViewUrl || transferProof?.screenshotDataUrl || '';
   const showPaymentProofPanel = isInterac || Boolean(transferProofImageSrc);
   const batchSummary = getOrderBatchSummary(order);
@@ -215,12 +225,20 @@ function PaymentDetailsModal({
   const [adminReceiptFile, setAdminReceiptFile] = useState(null);
   const [adminReceiptName, setAdminReceiptName] = useState('');
   const [modalError, setModalError] = useState('');
+  const [resolutionAction, setResolutionAction] = useState('CANCELLED');
+  const [resolutionComment, setResolutionComment] = useState('');
+  const [notifyBuyer, setNotifyBuyer] = useState(false);
+  const [resolvingPaymentReference, setResolvingPaymentReference] = useState('');
 
   useEffect(() => {
     setAdminComment('');
     setAdminReceiptFile(null);
     setAdminReceiptName('');
     setModalError('');
+    setResolutionAction('CANCELLED');
+    setResolutionComment('');
+    setNotifyBuyer(false);
+    setResolvingPaymentReference('');
   }, [order?.orderReference]);
 
   function handleReceiptChange(event) {
@@ -267,6 +285,30 @@ function PaymentDetailsModal({
       });
     } catch (error) {
       setModalError(error?.message || 'Unable to move this order to pending review.');
+    }
+  }
+
+  async function handleResolvePaymentAction() {
+    if (resolutionComment.trim().length <= 2) {
+      setModalError('Enter a reason longer than 2 characters before saving this action.');
+      return;
+    }
+
+    setModalError('');
+    setResolvingPaymentReference(order.orderReference);
+    try {
+      const result = await onResolvePayment(order.orderReference, {
+        action: resolutionAction,
+        comment: resolutionComment.trim(),
+        notifyBuyer,
+      });
+      onClose();
+      return result;
+    } catch (error) {
+      setModalError(error?.message || 'Unable to update this payment.');
+      throw error;
+    } finally {
+      setResolvingPaymentReference('');
     }
   }
 
@@ -320,6 +362,11 @@ function PaymentDetailsModal({
               <p className="text-sm leading-6 text-slate-700">Order status: <span className="font-semibold text-slate-900">{formatLabel(order.status)}</span></p>
               {order.payment?.providerPayloadJson?.adminRecovery?.comment ? (
                 <p className="text-sm leading-6 text-slate-700 sm:col-span-2">Admin comment: <span className="font-semibold text-slate-900">{order.payment.providerPayloadJson.adminRecovery.comment}</span></p>
+              ) : null}
+              {paymentResolution?.comment ? (
+                <p className="text-sm leading-6 text-slate-700 sm:col-span-2">
+                  Resolution note: <span className="font-semibold text-slate-900">{paymentResolution.comment}</span>
+                </p>
               ) : null}
               {isInterac ? (
                 <>
@@ -393,6 +440,47 @@ function PaymentDetailsModal({
             {isIncompleteOrder && isStripe ? (
               <p className="text-sm leading-6 text-slate-600">Receipt upload is not available for Stripe card payments.</p>
             ) : null}
+            {canResolvePayment ? (
+              <div className={`${ui.section} space-y-3`}>
+                <h3 className="text-base font-semibold text-slate-900">Cancel or refund payment</h3>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className={ui.fieldWrap}>
+                    <label className={ui.label}>Action</label>
+                    <select className={ui.select} value={resolutionAction} onChange={(event) => setResolutionAction(event.target.value)}>
+                      <option value="CANCELLED">Cancel</option>
+                      <option value="REFUNDED">Refund</option>
+                    </select>
+                  </div>
+                  <label className={`${ui.section} flex items-center gap-3 px-4 py-3 text-sm text-slate-700`}>
+                    <input type="checkbox" checked={notifyBuyer} onChange={(event) => setNotifyBuyer(event.target.checked)} />
+                    <span>Send notification email to buyer</span>
+                  </label>
+                </div>
+                <div className={ui.fieldWrap}>
+                  <label className={ui.label}>Reason</label>
+                  <textarea
+                    className={ui.textarea}
+                    rows={3}
+                    value={resolutionComment}
+                    onChange={(event) => setResolutionComment(event.target.value)}
+                    placeholder="Enter the reason for this cancellation or refund"
+                  />
+                </div>
+                {modalError ? <p className={ui.error}>{modalError}</p> : null}
+                <button
+                  type="button"
+                  className={resolutionAction === 'REFUNDED' ? ui.buttonGhost : ui.buttonDanger}
+                  onClick={handleResolvePaymentAction}
+                  disabled={resolvingPaymentReference === order.orderReference}
+                >
+                  {resolvingPaymentReference === order.orderReference
+                    ? 'Saving...'
+                    : resolutionAction === 'REFUNDED'
+                      ? 'Save refund'
+                      : 'Save cancellation'}
+                </button>
+              </div>
+            ) : null}
           </div>
 
           {showPaymentProofPanel ? (
@@ -432,6 +520,7 @@ export default function AdminPaymentsPanel({
   onCreateIncompleteOrderUploadUrl,
   onMarkIncompleteOrderPendingReview,
   onDeleteIncompleteOrder,
+  onResolvePayment,
   onRefreshReports,
 }) {
   const [payments, setPayments] = useState([]);
@@ -449,6 +538,7 @@ export default function AdminPaymentsPanel({
   const [resendingReference, setResendingReference] = useState('');
   const [submittingIncompleteReference, setSubmittingIncompleteReference] = useState('');
   const [deletingIncompleteReference, setDeletingIncompleteReference] = useState('');
+  const [resolvingPaymentReference, setResolvingPaymentReference] = useState('');
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [proofViewUrls, setProofViewUrls] = useState({});
   const [loadingProofReference, setLoadingProofReference] = useState('');
@@ -654,6 +744,29 @@ export default function AdminPaymentsPanel({
     }
   }
 
+  async function handleResolvePayment(orderReference, payload) {
+    setResolvingPaymentReference(orderReference);
+    setActionStatus('');
+    setError('');
+    try {
+      const result = await onResolvePayment(orderReference, payload);
+      setActionStatus(result.message || 'Payment updated successfully.');
+      if (selectedOrder?.orderReference === orderReference) {
+        setSelectedOrder(null);
+      }
+      await loadPayments(query);
+      if (onRefreshReports) {
+        await onRefreshReports();
+      }
+      return result;
+    } catch (err) {
+      setError(err.message || 'Unable to update this payment.');
+      throw err;
+    } finally {
+      setResolvingPaymentReference('');
+    }
+  }
+
   async function handleExportPayments() {
     setExporting(true);
     setError('');
@@ -780,6 +893,8 @@ export default function AdminPaymentsPanel({
                 <option value="PENDING_PAYMENT">Incomplete Order</option>
                 <option value="PENDING_REVIEW">Pending review</option>
                 <option value="PAID">Paid</option>
+                <option value="CANCELLED">Cancelled</option>
+                <option value="REFUNDED">Refunded</option>
               </select>
             </div>
             <div className="xl:col-span-2 flex flex-wrap items-end gap-3">
@@ -895,10 +1010,12 @@ export default function AdminPaymentsPanel({
         onResend={handleResend}
         onSubmitIncompleteReview={handleSubmitIncompleteReview}
         onDeleteIncompleteOrder={handleDeleteIncomplete}
+        onResolvePayment={handleResolvePayment}
         confirmingReference={confirmingReference}
         resendingReference={resendingReference}
         submittingIncompleteReference={submittingIncompleteReference}
         deletingIncompleteReference={deletingIncompleteReference}
+        resolvingPaymentReference={resolvingPaymentReference}
       />
     </section>
   );
