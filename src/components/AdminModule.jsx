@@ -7,6 +7,7 @@ import {
   createAdminDiscountOrder,
   createSalesItem,
   fetchAdminReports,
+  fetchAdminPickupNotices,
   fetchAdminDiscountOrders,
   fetchAdminSalesItems,
   fetchAdminCustomers,
@@ -24,6 +25,7 @@ import {
   deleteAdminIncompleteOrder,
   resendAdminPaymentConfirmation,
   resolveAdminPayment,
+  sendAdminPickupNotices,
   updateAdminFulfillmentStatus,
 } from '../api/admin';
 import AdminLogin from './AdminLogin';
@@ -146,6 +148,23 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
       return await fetchAdminDiscountOrders(query);
     } catch (err) {
       rethrowWithSessionHandling(err, 'Unable to load discount orders right now.');
+    }
+  }
+
+  async function handleLoadPickupNotices(query = {}) {
+    try {
+      return await fetchAdminPickupNotices(query);
+    } catch (err) {
+      rethrowWithSessionHandling(err, 'Unable to load pickup notices right now.');
+    }
+  }
+
+  async function handleSendPickupNotices(payload) {
+    setError('');
+    try {
+      return await sendAdminPickupNotices(payload);
+    } catch (err) {
+      rethrowWithSessionHandling(err, 'Unable to send pickup notices right now.');
     }
   }
 
@@ -371,6 +390,7 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
         isSuperAdmin={Boolean(adminSession?.isSuperAdmin || adminSession?.role === 'SUPERADMIN')}
         onLoadReports={handleLoadReports}
         onLoadDiscountOrders={handleLoadDiscountOrders}
+        onLoadPickupNotices={handleLoadPickupNotices}
         onCreateSalesItem={handleCreateSalesItem}
         onCreateDiscountOrder={handleCreateDiscountOrder}
         onLoadSalesItems={handleLoadSalesItems}
@@ -390,6 +410,7 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
         onDeleteIncompleteOrder={handleDeleteIncompleteOrder}
         onResendPaymentConfirmation={handleResendPaymentConfirmation}
         onResolvePayment={handleResolvePayment}
+        onSendPickupNotices={handleSendPickupNotices}
         onUpdateFulfillmentStatus={handleUpdateFulfillmentStatus}
         onLogout={handleLogout}
       />

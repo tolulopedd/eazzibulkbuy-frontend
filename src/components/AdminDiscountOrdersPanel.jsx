@@ -37,6 +37,34 @@ function parseDollarInputToCents(value) {
   return Math.round(amount * 100);
 }
 
+function sanitizeCurrencyInput(value) {
+  const sanitized = String(value || '').replace(/[^0-9.]/g, '');
+  const [whole = '', ...fractionParts] = sanitized.split('.');
+  const fraction = fractionParts.join('').slice(0, 2);
+  if (!sanitized.includes('.')) {
+    return whole;
+  }
+  return `${whole}.${fraction}`;
+}
+
+function MoneyInput({ value, onChange, placeholder = '0.00' }) {
+  return (
+    <div className="relative">
+      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-slate-500">
+        CAD
+      </span>
+      <input
+        className={`${ui.input} pl-[3.9rem]`}
+        type="text"
+        inputMode="decimal"
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+      />
+    </div>
+  );
+}
+
 function getEffectiveDeliveryUnits(salesItem, quantity) {
   if (salesItem?.saleType !== 'BUNDLE_DISCOUNTED_SALE') {
     return quantity;
@@ -187,21 +215,21 @@ export default function AdminDiscountOrdersPanel({
 
   const normalizedItems = useMemo(() => form.items.map((item) => {
     const quantity = Math.max(1, Number(item.quantity) || 1);
-    const discountedUnitPrice = parseDollarInputToCents(item.discountedUnitPrice);
+    const discountedUnitPriceCents = parseDollarInputToCents(item.discountedUnitPrice);
     const salesItem = item.sourceType === 'SALES_EVENT' ? salesItemsById.get(item.salesItemId) : null;
     const currentUnitPrice = salesItem?.pricePerUnit || 0;
     const valid = item.sourceType === 'SALES_EVENT'
-      ? Boolean(salesItem && discountedUnitPrice > 0 && discountedUnitPrice < currentUnitPrice)
-      : Boolean(item.customName.trim().length >= 2 && discountedUnitPrice > 0);
+      ? Boolean(salesItem && discountedUnitPriceCents > 0 && discountedUnitPriceCents < currentUnitPrice)
+      : Boolean(item.customName.trim().length >= 2 && discountedUnitPriceCents > 0);
 
     return {
       ...item,
       quantity,
-      discountedUnitPrice,
+      discountedUnitPriceCents,
       currentUnitPrice,
       salesItem,
       valid,
-      lineTotal: discountedUnitPrice * quantity,
+      lineTotal: discountedUnitPriceCents * quantity,
     };
   }), [form.items, salesItemsById]);
 
@@ -403,6 +431,13 @@ export default function AdminDiscountOrdersPanel({
           };
         }
 
+        if (field === 'discountedUnitPrice') {
+          return {
+            ...item,
+            discountedUnitPrice: sanitizeCurrencyInput(value),
+          };
+        }
+
         return {
           ...item,
           [field]: value,
@@ -452,7 +487,7 @@ export default function AdminDiscountOrdersPanel({
           customDescription: item.sourceType === 'CUSTOM' ? item.customDescription.trim() : undefined,
           customLocation: item.sourceType === 'CUSTOM' ? item.customLocation.trim() : undefined,
           quantity: item.quantity,
-          discountedUnitPrice: item.discountedUnitPrice,
+          discountedUnitPrice: item.discountedUnitPriceCents,
         })),
       });
 
@@ -625,8 +660,8 @@ export default function AdminDiscountOrdersPanel({
               <div className="space-y-4">
                 {normalizedItems.map((item, index) => {
                   const selectedSalesItem = item.sourceType === 'SALES_EVENT' ? salesItemsById.get(item.salesItemId) : null;
-                  const lineDiscount = item.sourceType === 'SALES_EVENT' && item.discountedUnitPrice > 0
-                    ? Math.max(0, item.currentUnitPrice - item.discountedUnitPrice)
+                  const lineDiscount = item.sourceType === 'SALES_EVENT' && item.discountedUnitPriceCents > 0
+                    ? Math.max(0, item.currentUnitPrice - item.discountedUnitPriceCents)
                     : 0;
 
                   return (
@@ -671,7 +706,10 @@ export default function AdminDiscountOrdersPanel({
                             </div>
                             <div className={ui.fieldWrap}>
                               <label className={ui.label}>Discounted unit price</label>
-                              <input className={ui.input} type="number" min="0.01" step="0.01" value={item.discountedUnitPrice} onChange={(event) => updateLine(item.id, 'discountedUnitPrice', event.target.value)} placeholder="0.00" />
+                              <MoneyInput
+                                value={item.discountedUnitPrice}
+                                onChange={(event) => updateLine(item.id, 'discountedUnitPrice', event.target.value)}
+                              />
                             </div>
                             <div className={ui.fieldWrap}>
                               <label className={ui.label}>Quantity</label>
@@ -722,7 +760,10 @@ export default function AdminDiscountOrdersPanel({
                           <div className="grid gap-4 md:grid-cols-2">
                             <div className={ui.fieldWrap}>
                               <label className={ui.label}>Discounted unit price</label>
-                              <input className={ui.input} type="number" min="0.01" step="0.01" value={item.discountedUnitPrice} onChange={(event) => updateLine(item.id, 'discountedUnitPrice', event.target.value)} placeholder="0.00" />
+                              <MoneyInput
+                                value={item.discountedUnitPrice}
+                                onChange={(event) => updateLine(item.id, 'discountedUnitPrice', event.target.value)}
+                              />
                             </div>
                             <div className={ui.fieldWrap}>
                               <label className={ui.label}>Quantity</label>

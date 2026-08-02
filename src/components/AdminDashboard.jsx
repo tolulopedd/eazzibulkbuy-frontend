@@ -3,6 +3,7 @@ import AdminOverviewPanel from './AdminOverviewPanel';
 import AdminSalesPanel from './AdminSalesPanel';
 import AdminReportsPanel from './AdminReportsPanel';
 import AdminPaymentsPanel from './AdminPaymentsPanel';
+import AdminPickupNoticesPanel from './AdminPickupNoticesPanel';
 import AdminCustomersPanel from './AdminCustomersPanel';
 import AdminFulfillmentPanel from './AdminFulfillmentPanel';
 import AdminDiscountOrdersPanel from './AdminDiscountOrdersPanel';
@@ -116,6 +117,15 @@ function PaymentIcon() {
   );
 }
 
+function NoticeIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+      <path d="M4 6h16v12H4z" />
+      <path d="m4 8 8 6 8-6" />
+    </svg>
+  );
+}
+
 function DiscountIcon() {
   return (
     <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
@@ -213,6 +223,8 @@ export default function AdminDashboard({
   onApproveCustomerUpdateRequest,
   onDeclineCustomerUpdateRequest,
   onLoadOrders,
+  onLoadPickupNotices,
+  onSendPickupNotices,
   onConfirmInteracPayment,
   onLoadPaymentProofViewUrl,
   onCreateIncompleteOrderUploadUrl,
@@ -259,6 +271,7 @@ export default function AdminDashboard({
         { id: 'sales', label: 'Sales Events', title: 'Sales Events', icon: SalesIcon },
         { id: 'discount-orders', label: 'Discount Orders', title: 'Discount Orders', icon: DiscountIcon },
         { id: 'payments', label: 'Payments', title: 'Payments', icon: PaymentIcon },
+        { id: 'pickup-notices', label: 'Pickup Notices', title: 'Pickup Notices', icon: NoticeIcon },
         { id: 'fulfillment', label: 'Fulfilment', title: 'Fulfilment', icon: FulfillmentIcon },
         { id: 'reports', label: 'Reports', title: 'Reports', icon: ReportsIcon },
         { id: 'customers', label: 'Customer', title: 'Customer', icon: CustomerIcon },
@@ -557,6 +570,15 @@ export default function AdminDashboard({
           onResendPaymentConfirmation={onResendPaymentConfirmation}
           onResolvePayment={onResolvePayment}
           onRefreshReports={loadReports}
+        />
+      );
+    }
+
+    if (activeModule === 'pickup-notices') {
+      return (
+        <AdminPickupNoticesPanel
+          onLoadPickupNotices={onLoadPickupNotices}
+          onSendPickupNotices={onSendPickupNotices}
         />
       );
     }

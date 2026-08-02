@@ -120,6 +120,33 @@ export function fetchAdminDiscountOrders(params = {}) {
   return request(`/api/admin/discount-orders${suffix}`);
 }
 
+export function fetchAdminPickupNotices(params = {}) {
+  const search = new URLSearchParams();
+
+  if (params.startDate) search.set('startDate', params.startDate);
+  if (params.endDate) search.set('endDate', params.endDate);
+  if (params.q) search.set('q', params.q);
+  if (params.batchNumber) search.set('batchNumber', params.batchNumber);
+  if (params.location) search.set('location', params.location);
+  if (params.fulfillmentMethod) search.set('fulfillmentMethod', params.fulfillmentMethod);
+  if (params.noticeStatus) search.set('noticeStatus', params.noticeStatus);
+  if (params.sortBy) search.set('sortBy', params.sortBy);
+  if (params.sortOrder) search.set('sortOrder', params.sortOrder);
+  if (params.page) search.set('page', String(params.page));
+  if (params.limit) search.set('limit', String(params.limit));
+
+  const suffix = search.toString() ? `?${search.toString()}` : '';
+  return request(`/api/admin/pickup-notices${suffix}`);
+}
+
+export function sendAdminPickupNotices(payload) {
+  return request('/api/admin/pickup-notices/send', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
 export function createAdminDiscountOrder(payload) {
   return request('/api/admin/discount-orders', {
     method: 'POST',
