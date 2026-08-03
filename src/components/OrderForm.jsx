@@ -62,7 +62,7 @@ const PROVINCE_CITY_OPTIONS = {
   Yukon: ['Whitehorse', 'Dawson City', 'Watson Lake', 'Haines Junction', 'Carmacks'],
 };
 
-const MANUAL_TRANSFER_WINDOW_SECONDS = 10 * 60;
+const MANUAL_TRANSFER_WINDOW_SECONDS = 20 * 60;
 const CANADIAN_POSTAL_CODE_REGEX = /^[A-Z]\d[A-Z][ -]?\d[A-Z]\d$/;
 const MAPBOX_ACCESS_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN || '';
 const isMapboxConfigured = Boolean(MAPBOX_ACCESS_TOKEN);

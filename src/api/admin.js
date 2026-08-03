@@ -155,6 +155,14 @@ export function createAdminDiscountOrder(payload) {
   });
 }
 
+export function createAdminDiscountOrderUploadUrl(payload) {
+  return request('/api/admin/discount-orders/upload-url', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
 export function fetchAdminSalesItems(params = {}) {
   const search = new URLSearchParams();
 

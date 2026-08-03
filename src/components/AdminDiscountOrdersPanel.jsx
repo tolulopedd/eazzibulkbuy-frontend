@@ -153,8 +153,7 @@ export default function AdminDiscountOrdersPanel({
   onLoadSalesItems,
   onLoadDiscountOrders,
   onCreateDiscountOrder,
-  onCreateIncompleteOrderUploadUrl,
-  onMarkIncompleteOrderPendingReview,
+  onCreateDiscountOrderUploadUrl,
 }) {
   const [form, setForm] = useState({
     customerId: '',
@@ -240,6 +239,7 @@ export default function AdminDiscountOrdersPanel({
     form.customerId &&
     normalizedItems.length &&
     normalizedItems.every((item) => item.valid) &&
+    receiptFile &&
     form.discountReason.trim().length >= 3 &&
     (form.fulfillmentMethod === 'PICKUP' || !hasCustomItems)
   );
@@ -468,6 +468,9 @@ export default function AdminDiscountOrdersPanel({
   async function handleCreateDiscountOrder(event) {
     event.preventDefault();
     if (!formReady) {
+      if (!receiptFile) {
+        setError('Upload the Interac receipt before creating this discount order.');
+      }
       return;
     }
 
@@ -476,23 +479,10 @@ export default function AdminDiscountOrdersPanel({
     setError('');
 
     try {
-      const created = await onCreateDiscountOrder({
-        customerId: form.customerId,
-        fulfillmentMethod: form.fulfillmentMethod,
-        discountReason: form.discountReason.trim(),
-        items: normalizedItems.map((item) => ({
-          sourceType: item.sourceType,
-          salesItemId: item.sourceType === 'SALES_EVENT' ? item.salesItemId : undefined,
-          customName: item.sourceType === 'CUSTOM' ? item.customName.trim() : undefined,
-          customDescription: item.sourceType === 'CUSTOM' ? item.customDescription.trim() : undefined,
-          customLocation: item.sourceType === 'CUSTOM' ? item.customLocation.trim() : undefined,
-          quantity: item.quantity,
-          discountedUnitPrice: item.discountedUnitPriceCents,
-        })),
-      });
+      let transferProof;
 
       if (receiptFile) {
-        const uploadTarget = await onCreateIncompleteOrderUploadUrl(created.order.orderReference, {
+        const uploadTarget = await onCreateDiscountOrderUploadUrl({
           fileName: receiptFile.name,
           contentType: receiptFile.type,
           sizeBytes: receiptFile.size,
@@ -507,19 +497,31 @@ export default function AdminDiscountOrdersPanel({
           throw new Error('Unable to upload the Interac receipt right now.');
         }
 
-        await onMarkIncompleteOrderPendingReview(created.order.orderReference, {
-          comment: form.discountReason.trim(),
-          transferProof: {
-            fileName: receiptFile.name,
-            contentType: receiptFile.type,
-            sizeBytes: receiptFile.size,
-            objectKey: uploadTarget.objectKey,
-          },
-        });
-        setStatus('Discount order created and moved to pending review.');
-      } else {
-        setStatus(created.message || 'Discount order created successfully.');
+        transferProof = {
+          fileName: receiptFile.name,
+          contentType: receiptFile.type,
+          sizeBytes: receiptFile.size,
+          objectKey: uploadTarget.objectKey,
+        };
       }
+
+      const created = await onCreateDiscountOrder({
+        customerId: form.customerId,
+        fulfillmentMethod: form.fulfillmentMethod,
+        discountReason: form.discountReason.trim(),
+        transferProof,
+        items: normalizedItems.map((item) => ({
+          sourceType: item.sourceType,
+          salesItemId: item.sourceType === 'SALES_EVENT' ? item.salesItemId : undefined,
+          customName: item.sourceType === 'CUSTOM' ? item.customName.trim() : undefined,
+          customDescription: item.sourceType === 'CUSTOM' ? item.customDescription.trim() : undefined,
+          customLocation: item.sourceType === 'CUSTOM' ? item.customLocation.trim() : undefined,
+          quantity: item.quantity,
+          discountedUnitPrice: item.discountedUnitPriceCents,
+        })),
+      });
+
+      setStatus(created.message || 'Discount order created and sent to pending review.');
 
       resetForm();
       await loadDiscountOrders(1);
@@ -817,7 +819,7 @@ export default function AdminDiscountOrdersPanel({
               </div>
 
               <div className={ui.fieldWrap}>
-                <label className={ui.label}>Upload Interac receipt (optional)</label>
+                <label className={ui.label}>Upload Interac receipt</label>
                 <input
                   className={ui.input}
                   type="file"
@@ -828,7 +830,7 @@ export default function AdminDiscountOrdersPanel({
                     setReceiptName(file?.name || '');
                   }}
                 />
-                {receiptName ? <p className={ui.note}>Selected receipt: {receiptName}</p> : <p className={ui.note}>Leave empty to create this discount order as Incomplete Order.</p>}
+                {receiptName ? <p className={ui.note}>Selected receipt: {receiptName}</p> : <p className={ui.note}>Receipt proof is required before you can create this discount order.</p>}
               </div>
 
               <div className="grid gap-3 md:grid-cols-3">
@@ -875,7 +877,7 @@ export default function AdminDiscountOrdersPanel({
               Clear
             </button>
             <button type="submit" className={ui.buttonPrimary} disabled={!formReady || creating}>
-              {creating ? 'Creating...' : receiptFile ? 'Create & send to pending review' : 'Save'}
+              {creating ? 'Creating...' : 'Save'}
             </button>
           </div>
         </form>

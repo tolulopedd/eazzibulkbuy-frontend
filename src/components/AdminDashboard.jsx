@@ -213,6 +213,7 @@ export default function AdminDashboard({
   onLoadDiscountOrders,
   onCreateSalesItem,
   onCreateDiscountOrder,
+  onCreateDiscountOrderUploadUrl,
   onLoadSalesItems,
   onUpdateSalesItem,
   onDeleteSalesItem,
@@ -591,6 +592,7 @@ export default function AdminDashboard({
           onLoadSalesItems={onLoadSalesItems}
           onLoadDiscountOrders={onLoadDiscountOrders}
           onCreateDiscountOrder={onCreateDiscountOrder}
+          onCreateDiscountOrderUploadUrl={onCreateDiscountOrderUploadUrl}
           onCreateIncompleteOrderUploadUrl={onCreateIncompleteOrderUploadUrl}
           onMarkIncompleteOrderPendingReview={onMarkIncompleteOrderPendingReview}
         />

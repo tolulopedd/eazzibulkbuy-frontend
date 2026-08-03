@@ -190,6 +190,12 @@ function getOrderItemSummary(order) {
     .join(' + ');
 }
 
+function getDiscountReason(order) {
+  return order?.discountMeta?.discountReason
+    || order?.payment?.providerPayloadJson?.adminDiscount?.discountReason
+    || '';
+}
+
 function PaymentDetailsModal({
   order,
   proofViewUrl,
@@ -221,6 +227,7 @@ function PaymentDetailsModal({
   const showPaymentProofPanel = isInterac || Boolean(transferProofImageSrc);
   const batchSummary = getOrderBatchSummary(order);
   const itemSummary = getOrderItemSummary(order);
+  const discountReason = getDiscountReason(order);
   const [adminComment, setAdminComment] = useState('');
   const [adminReceiptFile, setAdminReceiptFile] = useState(null);
   const [adminReceiptName, setAdminReceiptName] = useState('');
@@ -360,6 +367,9 @@ function PaymentDetailsModal({
               <p className="text-sm leading-6 text-slate-700">Paid at: <span className="font-semibold text-slate-900">{formatDateTime(order.paidAt)}</span></p>
               <p className="text-sm leading-6 text-slate-700">Quantity: <span className="font-semibold text-slate-900">{order.quantity}</span></p>
               <p className="text-sm leading-6 text-slate-700">Order status: <span className="font-semibold text-slate-900">{formatLabel(order.status)}</span></p>
+              {discountReason ? (
+                <p className="text-sm leading-6 text-slate-700 sm:col-span-2">Reason for discount: <span className="font-semibold text-slate-900">{discountReason}</span></p>
+              ) : null}
               {order.payment?.providerPayloadJson?.adminRecovery?.comment ? (
                 <p className="text-sm leading-6 text-slate-700 sm:col-span-2">Admin comment: <span className="font-semibold text-slate-900">{order.payment.providerPayloadJson.adminRecovery.comment}</span></p>
               ) : null}

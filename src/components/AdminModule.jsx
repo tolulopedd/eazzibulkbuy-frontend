@@ -5,6 +5,7 @@ import {
   adminMe,
   createAdminCustomer,
   createAdminDiscountOrder,
+  createAdminDiscountOrderUploadUrl,
   createSalesItem,
   fetchAdminReports,
   fetchAdminPickupNotices,
@@ -174,6 +175,15 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
       return await createAdminDiscountOrder(payload);
     } catch (err) {
       rethrowWithSessionHandling(err, 'Unable to create discount order right now.');
+    }
+  }
+
+  async function handleCreateDiscountOrderUploadUrl(payload) {
+    setError('');
+    try {
+      return await createAdminDiscountOrderUploadUrl(payload);
+    } catch (err) {
+      rethrowWithSessionHandling(err, 'Unable to prepare the discount order receipt upload right now.');
     }
   }
 
@@ -393,6 +403,7 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
         onLoadPickupNotices={handleLoadPickupNotices}
         onCreateSalesItem={handleCreateSalesItem}
         onCreateDiscountOrder={handleCreateDiscountOrder}
+        onCreateDiscountOrderUploadUrl={handleCreateDiscountOrderUploadUrl}
         onLoadSalesItems={handleLoadSalesItems}
         onUpdateSalesItem={handleUpdateSalesItem}
         onDeleteSalesItem={handleDeleteSalesItem}
