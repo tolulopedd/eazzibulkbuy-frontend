@@ -165,6 +165,60 @@ function getFulfillmentRowNarration(item, order) {
   return `${batchNumber} · ${itemName} x${quantity}`;
 }
 
+function buildFulfillmentRows(orders, query) {
+  const activeBatchFilters = parseBatchFilters(query.batchNumber);
+  const activeSearchQuery = query.q.trim();
+
+  return orders.flatMap((order) => {
+    const items = Array.isArray(order.fulfillmentItems) && order.fulfillmentItems.length
+      ? order.fulfillmentItems
+      : [
+          {
+            itemIndex: 0,
+            name: order.salesItem?.name || 'Order items',
+            quantity: order.quantity,
+            lineTotal: order.subtotal || order.totalAmount,
+            fulfillmentMethod: order.fulfillmentMethod,
+            fulfillmentStatus: order.fulfillmentStatus,
+            batchNumber: order.salesItem?.batchNumber || '',
+            location: order.salesItem?.pickupInstructions || '',
+          },
+        ];
+
+    return items
+      .filter((item) => {
+        const matchesBatch =
+          !activeBatchFilters.length
+          || activeBatchFilters.some((batch) => includesInsensitive(item.batchNumber, batch));
+
+        const matchesFulfillmentMethod =
+          !query.fulfillmentMethod || item.fulfillmentMethod === query.fulfillmentMethod;
+
+        const matchesFulfillmentStatus =
+          !query.fulfillmentStatus || item.fulfillmentStatus === query.fulfillmentStatus;
+
+        const matchesSearch =
+          !activeSearchQuery
+          || [
+            order.orderReference,
+            order.displayOrderReference,
+            order.user?.name,
+            order.user?.email,
+            order.user?.phone,
+            item.batchNumber,
+            item.name,
+            item.bundleName,
+          ].some((value) => includesInsensitive(value, activeSearchQuery));
+
+        return matchesBatch && matchesFulfillmentMethod && matchesFulfillmentStatus && matchesSearch;
+      })
+      .map((item) => ({
+        ...order,
+        ...item,
+      }));
+  });
+}
+
 export default function AdminFulfillmentPanel({ onLoadOrders, onUpdateFulfillmentStatus, onRefreshReports }) {
   const [orders, setOrders] = useState([]);
   const [query, setQuery] = useState(DEFAULT_QUERY);
@@ -310,10 +364,46 @@ export default function AdminFulfillmentPanel({ onLoadOrders, onUpdateFulfillmen
     }
   }
 
+  async function loadAllFulfillmentRowsForExport() {
+    const exportLimit = 200;
+    const baseQuery = {
+      ...query,
+      startDate: toIsoBoundary(query.startDate),
+      endDate: toIsoBoundary(query.endDate, true),
+      page: 1,
+      limit: exportLimit,
+    };
+
+    const firstPage = await onLoadOrders(baseQuery);
+    const firstPageOrders = firstPage.items || [];
+    const totalPages = Math.max(1, firstPage.totalPages || 1);
+
+    if (totalPages === 1) {
+      return buildFulfillmentRows(firstPageOrders, query);
+    }
+
+    const remainingPages = await Promise.all(
+      Array.from({ length: totalPages - 1 }, (_, index) =>
+        onLoadOrders({
+          ...baseQuery,
+          page: index + 2,
+        }),
+      ),
+    );
+
+    const allOrders = [
+      ...firstPageOrders,
+      ...remainingPages.flatMap((pageResponse) => pageResponse.items || []),
+    ];
+
+    return buildFulfillmentRows(allOrders, query);
+  }
+
   async function handleExportPaidDeliveryOrders() {
     setExporting(true);
     setError('');
     try {
+      const exportRows = await loadAllFulfillmentRowsForExport();
       const csvRows = [
         [
           'Order Reference',
@@ -337,7 +427,7 @@ export default function AdminFulfillmentPanel({ onLoadOrders, onUpdateFulfillmen
           'Paid At',
           'Location of Sales',
         ].map(escapeCsv).join(','),
-        ...fulfillmentRows.map((row) => [
+        ...exportRows.map((row) => [
           row.displayOrderReference || formatOrderReferenceDisplay(row.orderReference, row.createdAt, row.user, { batchNumber: row.salesItem?.batchNumber, orderSequence: row.orderSequence }),
           row.batchNumber || row.salesItem?.batchNumber || '',
           normalizeDisplayName(row.name || row.salesItem?.name || 'Order items'),
@@ -382,6 +472,7 @@ export default function AdminFulfillmentPanel({ onLoadOrders, onUpdateFulfillmen
     setExportingPdf(true);
     setError('');
     try {
+      const exportRows = await loadAllFulfillmentRowsForExport();
       openPdfExport({
         title: 'Fulfilment',
         subtitle: 'Current fulfilment view',
@@ -396,7 +487,7 @@ export default function AdminFulfillmentPanel({ onLoadOrders, onUpdateFulfillmen
           { key: 'fulfillmentStatus', label: 'Status', render: (row) => formatLabel(row.fulfillmentStatus) },
           { key: 'amount', label: 'Amount', render: (row) => formatLineAmount(row) },
         ],
-        rows: fulfillmentRows,
+        rows: exportRows,
       });
     } catch (err) {
       setError(err.message || 'Unable to export fulfilment to PDF right now.');
@@ -408,56 +499,7 @@ export default function AdminFulfillmentPanel({ onLoadOrders, onUpdateFulfillmen
   const listStart = meta.total === 0 ? 0 : (meta.page - 1) * meta.limit + 1;
   const listEnd = meta.total === 0 ? 0 : Math.min(meta.page * meta.limit, meta.total);
   const showSuggestions = query.q.trim().length >= 2 && (loadingSuggestions || searchSuggestions.length > 0);
-  const activeBatchFilters = parseBatchFilters(query.batchNumber);
-  const activeSearchQuery = query.q.trim();
-  const fulfillmentRows = orders.flatMap((order) => {
-    const items = Array.isArray(order.fulfillmentItems) && order.fulfillmentItems.length
-      ? order.fulfillmentItems
-      : [
-          {
-            itemIndex: 0,
-            name: order.salesItem?.name || 'Order items',
-            quantity: order.quantity,
-            lineTotal: order.subtotal || order.totalAmount,
-            fulfillmentMethod: order.fulfillmentMethod,
-            fulfillmentStatus: order.fulfillmentStatus,
-            batchNumber: order.salesItem?.batchNumber || '',
-            location: order.salesItem?.pickupInstructions || '',
-          },
-        ];
-
-    return items
-      .filter((item) => {
-        const matchesBatch =
-          !activeBatchFilters.length
-          || activeBatchFilters.some((batch) => includesInsensitive(item.batchNumber, batch));
-
-        const matchesFulfillmentMethod =
-          !query.fulfillmentMethod || item.fulfillmentMethod === query.fulfillmentMethod;
-
-        const matchesFulfillmentStatus =
-          !query.fulfillmentStatus || item.fulfillmentStatus === query.fulfillmentStatus;
-
-        const matchesSearch =
-          !activeSearchQuery
-          || [
-            order.orderReference,
-            order.displayOrderReference,
-            order.user?.name,
-            order.user?.email,
-            order.user?.phone,
-            item.batchNumber,
-            item.name,
-            item.bundleName,
-          ].some((value) => includesInsensitive(value, activeSearchQuery));
-
-        return matchesBatch && matchesFulfillmentMethod && matchesFulfillmentStatus && matchesSearch;
-      })
-      .map((item) => ({
-        ...order,
-        ...item,
-      }));
-  });
+  const fulfillmentRows = buildFulfillmentRows(orders, query);
 
   return (
     <section className="space-y-5">

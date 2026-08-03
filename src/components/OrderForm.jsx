@@ -1166,14 +1166,6 @@ export default function OrderForm({
           <section className={`${ui.section} space-y-4`}>
             <div className="flex items-center justify-between gap-3">
               <h2 className="text-lg font-bold tracking-tight text-emerald-950">Buyer details</h2>
-              <button
-                type="button"
-                className={ui.buttonPrimary}
-                onClick={handleSaveDetails}
-                disabled={savingDetails || !buyerDetailsReady}
-              >
-                {savingDetails ? 'Saving...' : buyerDetailsReady ? saveDetailsLabel : 'Fill your details & save'}
-              </button>
             </div>
             <p className="text-sm leading-6 text-slate-600">For new buyers click Save to store your details</p>
             <div className="grid gap-3 md:grid-cols-[140px_minmax(0,1fr)_minmax(0,1fr)]">
@@ -1295,6 +1287,16 @@ export default function OrderForm({
                   onChange={(event) => setPostalCode(event.target.value.toUpperCase())}
                 />
               </div>
+            </div>
+            <div className="flex justify-start">
+              <button
+                type="button"
+                className={ui.buttonPrimary}
+                onClick={handleSaveDetails}
+                disabled={savingDetails || !buyerDetailsReady}
+              >
+                {savingDetails ? 'Saving...' : saveDetailsLabel}
+              </button>
             </div>
             {detailsStatus ? <p className={detailsStatus.toLowerCase().includes('unable') ? ui.error : ui.note}>{detailsStatus}</p> : null}
           </section>
