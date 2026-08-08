@@ -137,6 +137,22 @@ function getDisplayPaymentStatus(order) {
     return resolutionAction;
   }
 
+  const resolvedItems = getResolvedOrderSourceItems(order);
+  if (resolvedItems.length) {
+    const hasRefunded = resolvedItems.some((item) => item.resolutionAction === 'REFUNDED');
+    const hasCancelled = resolvedItems.some((item) => item.resolutionAction === 'CANCELLED');
+
+    if (hasRefunded && hasCancelled) {
+      return 'PARTIALLY_RESOLVED';
+    }
+    if (hasRefunded) {
+      return 'PARTIALLY_REFUNDED';
+    }
+    if (hasCancelled) {
+      return 'PARTIALLY_CANCELLED';
+    }
+  }
+
   if (order?.paymentMethod === 'STRIPE_CARD') {
     return isPaidLike(order) ? 'PAID' : 'PENDING_PAYMENT';
   }
@@ -156,7 +172,135 @@ function getStatusTone(status) {
   if (status === 'PENDING_PAYMENT') return 'danger';
   if (status === 'REFUNDED') return 'warning';
   if (status === 'CANCELLED') return 'danger';
+  if (status === 'PARTIALLY_REFUNDED' || status === 'PARTIALLY_RESOLVED') return 'warning';
+  if (status === 'PARTIALLY_CANCELLED') return 'danger';
   return 'neutral';
+}
+
+function parseOrderNotes(notes) {
+  if (!notes) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(notes);
+  } catch {
+    return null;
+  }
+}
+
+function getSourceItemResolutionAction(item) {
+  const action = item?.paymentResolution?.action;
+  return action === 'CANCELLED' || action === 'REFUNDED' ? action : '';
+}
+
+function buildFallbackSourceItem(order) {
+  return {
+    salesItemId: order?.salesItem?.id || order?.salesItemId,
+    name: order?.salesItem?.name || 'Order items',
+    quantity: order?.quantity || 0,
+    lineTotal: order?.subtotal || order?.totalAmount || 0,
+    batchNumber: order?.salesItem?.batchNumber || '',
+    location: order?.salesItem?.pickupInstructions || '',
+    saleType: order?.salesItem?.saleType || 'NORMAL_SALE',
+    bundleItems: [],
+  };
+}
+
+function getOrderSourceItems(order, { includeResolved = false } = {}) {
+  const snapshot = parseOrderNotes(order?.notes);
+  const rawItems = Array.isArray(snapshot?.items) && snapshot.items.length
+    ? snapshot.items
+    : [buildFallbackSourceItem(order)];
+
+  return rawItems
+    .map((item, sourceIndex) => ({
+      ...item,
+      sourceIndex,
+      resolutionAction: getSourceItemResolutionAction(item),
+    }))
+    .filter((item) => includeResolved || !item.resolutionAction);
+}
+
+function getResolvedOrderSourceItems(order) {
+  return getOrderSourceItems(order, { includeResolved: true }).filter((item) => item.resolutionAction);
+}
+
+function summarizeSourceItems(items = []) {
+  const groupedItems = new Map();
+
+  items.forEach((item) => {
+    const name = item?.name || 'Order items';
+    const quantity = Number(item?.quantity) || 0;
+    groupedItems.set(name, (groupedItems.get(name) || 0) + quantity);
+  });
+
+  return [...groupedItems.entries()]
+    .map(([name, quantity]) => `${name} x${quantity}`)
+    .join(' + ');
+}
+
+function sumSourceItemQuantity(items = []) {
+  return items.reduce((sum, item) => sum + (Number(item?.quantity) || 0), 0);
+}
+
+function sumSourceItemLineTotal(items = []) {
+  return items.reduce((sum, item) => sum + (Number(item?.lineTotal) || 0), 0);
+}
+
+function getBatchSummaryFromSourceItems(items = []) {
+  const batches = [...new Set(items.map((item) => item?.batchNumber).filter(Boolean))];
+  return batches.length ? batches.join(', ') : '—';
+}
+
+function buildPaymentDisplayRows(order, paymentStatusFilter = '') {
+  const activeItems = getOrderSourceItems(order);
+  const resolvedItems = getResolvedOrderSourceItems(order);
+  const rows = [];
+
+  if (activeItems.length) {
+    rows.push({
+      id: `${order.id}-active`,
+      rowType: 'ACTIVE',
+      order,
+      status: isPaidLike(order)
+        ? 'PAID'
+        : order.paymentStatus === 'PENDING_REVIEW'
+          ? 'PENDING_REVIEW'
+          : 'PENDING_PAYMENT',
+      amount: sumSourceItemLineTotal(activeItems) + (activeItems.length ? (order.serviceFee || 0) : 0),
+      itemSummary: summarizeSourceItems(activeItems),
+      batchSummary: getBatchSummaryFromSourceItems(activeItems),
+      items: activeItems,
+      canConfirmInterac: order.paymentMethod === 'INTERAC_E_TRANSFER' && order.paymentStatus === 'PENDING_REVIEW',
+      canResendConfirmation: order.paymentStatus === 'PAID' || order.status === 'CONFIRMED',
+    });
+  }
+
+  const resolvedGroups = new Map();
+  resolvedItems.forEach((item) => {
+    const action = item.resolutionAction || 'RESOLVED';
+    const current = resolvedGroups.get(action) || [];
+    current.push(item);
+    resolvedGroups.set(action, current);
+  });
+
+  resolvedGroups.forEach((items, action) => {
+    rows.push({
+      id: `${order.id}-${action.toLowerCase()}`,
+      rowType: 'RESOLVED',
+      order,
+      status: action,
+      amount: sumSourceItemLineTotal(items),
+      itemSummary: summarizeSourceItems(items),
+      batchSummary: getBatchSummaryFromSourceItems(items),
+      items,
+      canConfirmInterac: false,
+      canResendConfirmation: false,
+    });
+  });
+
+  return rows.filter((row) => !paymentStatusFilter || row.status === paymentStatusFilter);
 }
 
 function getOrderFulfillmentItems(order) {
@@ -188,6 +332,19 @@ function getOrderItemSummary(order) {
   return [...groupedItems.entries()]
     .map(([name, quantity]) => `${name} x${quantity}`)
     .join(' + ');
+}
+
+function getOrderPaymentSummary(order) {
+  const activeSummary = summarizeSourceItems(getOrderSourceItems(order));
+  const resolvedItems = getResolvedOrderSourceItems(order);
+
+  if (!resolvedItems.length) {
+    return activeSummary;
+  }
+
+  const resolvedSummary = summarizeSourceItems(resolvedItems);
+  const resolvedLabel = formatLabel(getDisplayPaymentStatus(order)).toLowerCase();
+  return `${activeSummary} | ${resolvedLabel}: ${resolvedSummary}`;
 }
 
 function getDiscountReason(order) {
@@ -226,7 +383,9 @@ function PaymentDetailsModal({
   const transferProofImageSrc = proofViewUrl || transferProof?.screenshotDataUrl || '';
   const showPaymentProofPanel = isInterac || Boolean(transferProofImageSrc);
   const batchSummary = getOrderBatchSummary(order);
-  const itemSummary = getOrderItemSummary(order);
+  const itemSummary = getOrderPaymentSummary(order);
+  const activeSourceItems = getOrderSourceItems(order);
+  const resolvedSourceItems = getResolvedOrderSourceItems(order);
   const discountReason = getDiscountReason(order);
   const [adminComment, setAdminComment] = useState('');
   const [adminReceiptFile, setAdminReceiptFile] = useState(null);
@@ -236,6 +395,7 @@ function PaymentDetailsModal({
   const [resolutionComment, setResolutionComment] = useState('');
   const [notifyBuyer, setNotifyBuyer] = useState(false);
   const [resolvingPaymentReference, setResolvingPaymentReference] = useState('');
+  const [selectedSourceIndexes, setSelectedSourceIndexes] = useState([]);
 
   useEffect(() => {
     setAdminComment('');
@@ -246,7 +406,20 @@ function PaymentDetailsModal({
     setResolutionComment('');
     setNotifyBuyer(false);
     setResolvingPaymentReference('');
+    setSelectedSourceIndexes(activeSourceItems.map((item) => item.sourceIndex));
   }, [order?.orderReference]);
+
+  const selectedItems = activeSourceItems.filter((item) => selectedSourceIndexes.includes(item.sourceIndex));
+  const selectedQuantity = sumSourceItemQuantity(selectedItems);
+  const selectedLineTotal = sumSourceItemLineTotal(selectedItems);
+
+  function toggleSourceItem(sourceIndex) {
+    setSelectedSourceIndexes((current) => (
+      current.includes(sourceIndex)
+        ? current.filter((value) => value !== sourceIndex)
+        : [...current, sourceIndex]
+    ));
+  }
 
   function handleReceiptChange(event) {
     const file = event.target.files?.[0];
@@ -296,6 +469,11 @@ function PaymentDetailsModal({
   }
 
   async function handleResolvePaymentAction() {
+    if (!selectedItems.length) {
+      setModalError(`Select at least one item to ${resolutionAction === 'REFUNDED' ? 'refund' : 'cancel'}.`);
+      return;
+    }
+
     if (resolutionComment.trim().length <= 2) {
       setModalError('Enter a reason longer than 2 characters before saving this action.');
       return;
@@ -308,6 +486,7 @@ function PaymentDetailsModal({
         action: resolutionAction,
         comment: resolutionComment.trim(),
         notifyBuyer,
+        sourceIndexes: selectedItems.map((item) => item.sourceIndex),
       });
       onClose();
       return result;
@@ -376,6 +555,11 @@ function PaymentDetailsModal({
               {paymentResolution?.comment ? (
                 <p className="text-sm leading-6 text-slate-700 sm:col-span-2">
                   Resolution note: <span className="font-semibold text-slate-900">{paymentResolution.comment}</span>
+                </p>
+              ) : null}
+              {resolvedSourceItems.length ? (
+                <p className="text-sm leading-6 text-slate-700 sm:col-span-2">
+                  Resolved items: <span className="font-semibold text-slate-900">{summarizeSourceItems(resolvedSourceItems)}</span>
                 </p>
               ) : null}
               {isInterac ? (
@@ -453,6 +637,34 @@ function PaymentDetailsModal({
             {canResolvePayment ? (
               <div className={`${ui.section} space-y-3`}>
                 <h3 className="text-base font-semibold text-slate-900">Cancel or refund payment</h3>
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-slate-800">Select items</p>
+                  <div className="space-y-2">
+                    {activeSourceItems.map((item) => (
+                      <label
+                        key={`${item.sourceIndex}-${item.name}`}
+                        className="flex items-start gap-3 rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-700"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedSourceIndexes.includes(item.sourceIndex)}
+                          onChange={() => toggleSourceItem(item.sourceIndex)}
+                          className="mt-1"
+                        />
+                        <span className="min-w-0 flex-1">
+                          <span className="block font-semibold text-slate-900">{item.name}</span>
+                          <span className="block text-slate-500">
+                            Qty {item.quantity} · {formatCurrency(item.lineTotal)}{item.batchNumber ? ` · ${item.batchNumber}` : ''}
+                          </span>
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                  <p className="text-sm text-slate-600">
+                    Selected: <span className="font-semibold text-slate-900">{selectedQuantity}</span> item(s) ·{' '}
+                    <span className="font-semibold text-slate-900">{formatCurrency(selectedLineTotal)}</span>
+                  </p>
+                </div>
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className={ui.fieldWrap}>
                     <label className={ui.label}>Action</label>
@@ -836,6 +1048,7 @@ export default function AdminPaymentsPanel({
 
   const listStart = meta.total === 0 ? 0 : (meta.page - 1) * meta.limit + 1;
   const listEnd = meta.total === 0 ? 0 : Math.min(meta.page * meta.limit, meta.total);
+  const paymentDisplayRows = payments.flatMap((order) => buildPaymentDisplayRows(order, query.paymentStatus));
 
   return (
     <section className="space-y-5">
@@ -903,6 +1116,9 @@ export default function AdminPaymentsPanel({
                 <option value="PENDING_PAYMENT">Incomplete Order</option>
                 <option value="PENDING_REVIEW">Pending review</option>
                 <option value="PAID">Paid</option>
+                <option value="PARTIALLY_CANCELLED">Partially Cancelled</option>
+                <option value="PARTIALLY_REFUNDED">Partially Refunded</option>
+                <option value="PARTIALLY_RESOLVED">Partially Resolved</option>
                 <option value="CANCELLED">Cancelled</option>
                 <option value="REFUNDED">Refunded</option>
               </select>
@@ -935,21 +1151,17 @@ export default function AdminPaymentsPanel({
                 </tr>
               </thead>
               <tbody>
-                {payments.map((order) => {
-                  const displayPaymentStatus = getDisplayPaymentStatus(order);
-                  const canConfirmInterac = order.paymentMethod === 'INTERAC_E_TRANSFER' && order.paymentStatus === 'PENDING_REVIEW';
-                  const canResendConfirmation = order.paymentStatus === 'PAID' || order.status === 'CONFIRMED';
-                  const batchSummary = getOrderBatchSummary(order);
-                  const itemSummary = getOrderItemSummary(order);
+                {paymentDisplayRows.map((row) => {
+                  const { order } = row;
 
                   return (
-                    <tr key={order.id} className={ui.tableRow}>
+                    <tr key={row.id} className={ui.tableRow}>
                       <td className={ui.tableCell}>
                         <div className="max-w-[15rem] space-y-0.5">
                           <p className="font-semibold text-slate-900">
                             {order.displayOrderReference || formatOrderReferenceDisplay(order.orderReference, order.createdAt, order.user, { batchNumber: order.salesItem?.batchNumber, orderSequence: order.orderSequence })}
                           </p>
-                          <p className="truncate text-xs text-slate-500" title={itemSummary}>{itemSummary}</p>
+                          <p className="truncate text-xs text-slate-500" title={row.itemSummary}>{row.itemSummary}</p>
                         </div>
                       </td>
                       <td className={ui.tableCell}>{formatDate(order.createdAt)}</td>
@@ -961,20 +1173,20 @@ export default function AdminPaymentsPanel({
                       </td>
                       <td className={ui.tableCell}>
                         <div className="max-w-[9rem] space-y-0.5">
-                          <p className="truncate font-medium text-slate-900" title={batchSummary}>{batchSummary}</p>
+                          <p className="truncate font-medium text-slate-900" title={row.batchSummary}>{row.batchSummary}</p>
                         </div>
                       </td>
                       <td className={ui.tableCell}>{formatLabel(order.paymentMethod)}</td>
-                      <td className={`${ui.tableCell} font-semibold text-slate-900`}>{formatCurrency(order.totalAmount)}</td>
+                      <td className={`${ui.tableCell} font-semibold text-slate-900`}>{formatCurrency(row.amount)}</td>
                       <td className={ui.tableCell}>
-                        <AdminStatusBadge value={formatLabel(displayPaymentStatus)} tone={getStatusTone(displayPaymentStatus)} />
+                        <AdminStatusBadge value={formatLabel(row.status)} tone={getStatusTone(row.status)} />
                       </td>
                       <td className={`${ui.tableCell} whitespace-nowrap text-right`}>
                         <div className="flex justify-end gap-2">
                           <AdminIconButton label="View payment" onClick={() => handleView(order)}>
                             <EyeIcon />
                           </AdminIconButton>
-                          {canConfirmInterac ? (
+                          {row.canConfirmInterac ? (
                             <AdminIconButton
                               label="Confirm Interac payment"
                               onClick={() => handleConfirm(order.orderReference)}
@@ -986,7 +1198,7 @@ export default function AdminPaymentsPanel({
                           <AdminIconButton
                             label="Resend confirmation"
                             onClick={() => handleResend(order.orderReference)}
-                            disabled={resendingReference === order.orderReference || !canResendConfirmation}
+                            disabled={resendingReference === order.orderReference || !row.canResendConfirmation}
                           >
                             <MailIcon />
                           </AdminIconButton>
@@ -998,7 +1210,7 @@ export default function AdminPaymentsPanel({
               </tbody>
             </table>
 
-            {!loading && payments.length === 0 ? <AdminTableEmpty message="No payments found for the current filters." /> : null}
+            {!loading && paymentDisplayRows.length === 0 ? <AdminTableEmpty message="No payments found for the current filters." /> : null}
             <AdminPagination
               page={meta.page}
               totalPages={meta.totalPages}

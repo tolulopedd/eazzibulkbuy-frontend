@@ -10,7 +10,7 @@ import {
   PencilIcon,
 } from './AdminTablePrimitives';
 
-const SALES_ITEM_OPTIONS = ['Tomatoes', 'Red Habanero', 'Yellow Habanero', 'Chocolate Habanero', 'Green Bell Pepper', 'Crimson Pepper', 'Cayenne Pepper', 'Scorpion Pepper', 'Shepherd Pepper', 'Yam', 'Onion', 'Red Bell Pepper', 'Sweet potatoes', 'Ghost Pepper'];
+const SALES_ITEM_OPTIONS = ['Tomatoes', 'Red Habanero', 'Orange Habanero Pepper', 'Chocolate Habanero', 'Green Bell Pepper', 'Crimson Pepper', 'Cayenne Pepper', 'Scorpion Pepper', 'Shepherd Pepper', 'Yam', 'Onion', 'Red Bell Pepper', 'Sweet potatoes', 'Ghost Pepper'];
 const SALES_LOCATION_OPTIONS = [
   'Winnipeg Manitoba',
   'Brandon Manitoba',

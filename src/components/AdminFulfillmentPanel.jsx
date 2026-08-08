@@ -365,7 +365,7 @@ export default function AdminFulfillmentPanel({ onLoadOrders, onUpdateFulfillmen
   }
 
   async function loadAllFulfillmentRowsForExport() {
-    const exportLimit = 200;
+    const exportLimit = 100;
     const baseQuery = {
       ...query,
       startDate: toIsoBoundary(query.startDate),
