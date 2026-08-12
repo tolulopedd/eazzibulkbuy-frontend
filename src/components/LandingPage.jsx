@@ -56,7 +56,7 @@ const impactItems = [
     fallback: 'https://source.unsplash.com/1200x800/?green-bell-pepper,vegetable,box',
   },
   {
-    name: 'Green Pepper',
+    name: 'Green Habanero Pepper',
     image: '/images/products/green-pepper-box.jpg',
     fallback: 'https://source.unsplash.com/1200x800/?green-pepper,vegetable,box',
   },
@@ -104,6 +104,7 @@ const salesItemImageRules = [
   { terms: ['shepherd', 'sheperd'], image: '/images/products/shepherd-pepper.jpg' },
   { terms: ['red bell'], image: '/images/products/red-bell-pepper.jpg' },
   { terms: ['green bell'], image: '/images/products/green-bell-pepper.jpg' },
+  { terms: ['green habanero'], image: '/images/products/green-pepper-box.jpg' },
   { terms: ['green pepper'], image: '/images/products/green-pepper-box.jpg' },
   { terms: ['pepper'], image: '/images/products/red-bell-pepper.jpg' },
   { terms: ['tomato'], image: '/images/products/tomatoes-box.jpg' },
@@ -372,7 +373,7 @@ export default function LandingPage({ onGoShop }) {
     };
   }, []);
 
-  const highlightedItems = useMemo(() => activeItems.slice(0, 6), [activeItems]);
+  const highlightedItems = useMemo(() => activeItems, [activeItems]);
   const cartQuantity = useMemo(() => getCartQuantityByItem(cartItems), [cartItems]);
   const canProceedToCart = cartQuantity > 0;
   const selectedSalesCount = useMemo(
@@ -573,8 +574,8 @@ export default function LandingPage({ onGoShop }) {
 
             {hasLiveItems ? (
             <div className="space-y-4 lg:col-span-2">
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-2">
-                {highlightedItems.slice(0, 4).map((item) => {
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+                {highlightedItems.map((item) => {
                   const countdown = getCountdownParts(item.closingDate, nowMs);
                   const productImage = getSalesItemImage(item);
 
