@@ -26,6 +26,16 @@ const impactItems = [
     fallback: 'https://source.unsplash.com/1200x800/?scorpion-pepper,pepper,box',
   },
   {
+    name: 'Armageddon Pepper',
+    image: '/images/products/armageddon-pepper.jpg',
+    fallback: 'https://source.unsplash.com/1200x800/?armageddon-pepper,pepper,box',
+  },
+  {
+    name: 'Carolina Reaper Pepper',
+    image: '/images/products/carolina-reaper-pepper.jpg',
+    fallback: 'https://source.unsplash.com/1200x800/?carolina-reaper,pepper,box',
+  },
+  {
     name: 'Ghost Pepper',
     image: '/images/products/ghost-pepper.jpg',
     fallback: 'https://source.unsplash.com/1200x800/?ghost-pepper,pepper,box',
@@ -98,6 +108,8 @@ const salesItemImageRules = [
   { terms: ['orange habanero'], image: '/images/products/orange-habanero-pepper.jpg' },
   { terms: ['habanero'], image: '/images/products/habanero-box.jpg' },
   { terms: ['scorpion'], image: '/images/products/scorpion-pepper.jpg' },
+  { terms: ['armageddon'], image: '/images/products/armageddon-pepper.jpg' },
+  { terms: ['carolina reaper'], image: '/images/products/carolina-reaper-pepper.jpg' },
   { terms: ['ghost'], image: '/images/products/ghost-pepper.jpg' },
   { terms: ['cayenne'], image: '/images/products/cayenne-pepper.jpg' },
   { terms: ['crimson'], image: '/images/products/crimson-pepper.jpg' },
