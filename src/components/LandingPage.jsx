@@ -316,8 +316,10 @@ function getSalesItemSearchText(item) {
 }
 
 function getSalesItemImage(item) {
+  const nameText = String(item?.name || '').toLowerCase();
   const searchText = getSalesItemSearchText(item);
-  const match = salesItemImageRules.find((rule) => rule.terms.some((term) => searchText.includes(term)));
+  const match = salesItemImageRules.find((rule) => rule.terms.some((term) => nameText.includes(term)))
+    || salesItemImageRules.find((rule) => rule.terms.some((term) => searchText.includes(term)));
 
   return match?.image || '/images/products/summer-sales.jpg';
 }
