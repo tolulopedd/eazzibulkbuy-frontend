@@ -11,7 +11,7 @@ const impactItems = [
     fallback: 'https://source.unsplash.com/1200x800/?tomatoes,crate',
   },
   {
-    name: 'Habanero',
+    name: 'Red Habanero',
     image: '/images/products/habanero-box.jpg',
     fallback: 'https://source.unsplash.com/1200x800/?habanero,pepper,box',
   },
@@ -19,6 +19,11 @@ const impactItems = [
     name: 'Orange Habanero Pepper',
     image: '/images/products/orange-habanero-pepper.jpg',
     fallback: 'https://source.unsplash.com/1200x800/?orange-habanero,pepper,box',
+  },
+  {
+    name: 'Brown Habanero Pepper',
+    image: '/images/products/brown-habanero-pepper.jpg',
+    fallback: 'https://source.unsplash.com/1200x800/?brown-habanero,pepper,box',
   },
   {
     name: 'Scorpion Pepper',
@@ -90,12 +95,6 @@ const impactItems = [
     image: '/images/products/plantain.jpg',
     fallback: 'https://source.unsplash.com/1200x800/?plantain,box,produce',
   },
-  {
-    name: 'Summer Sales',
-    image: '/images/products/summer-sales.jpg',
-    fallback: 'https://source.unsplash.com/1200x800/?summer-sale,produce',
-    imageFit: 'contain',
-  },
 ];
 
 const valuePoints = [
@@ -105,18 +104,21 @@ const valuePoints = [
 ];
 
 const salesItemImageRules = [
+  { terms: ['chocolate habanero'], image: '/images/products/brown-habanero-pepper.jpg' },
+  { terms: ['brown habanero'], image: '/images/products/brown-habanero-pepper.jpg' },
+  { terms: ['yellow habanero'], image: '/images/products/orange-habanero-pepper.jpg' },
   { terms: ['orange habanero'], image: '/images/products/orange-habanero-pepper.jpg' },
+  { terms: ['green habanero'], image: '/images/products/green-pepper-box.jpg' },
   { terms: ['habanero'], image: '/images/products/habanero-box.jpg' },
   { terms: ['scorpion'], image: '/images/products/scorpion-pepper.jpg' },
   { terms: ['armageddon'], image: '/images/products/armageddon-pepper.jpg' },
   { terms: ['carolina reaper'], image: '/images/products/carolina-reaper-pepper.jpg' },
   { terms: ['ghost'], image: '/images/products/ghost-pepper.jpg' },
   { terms: ['cayenne'], image: '/images/products/cayenne-pepper.jpg' },
-  { terms: ['crimson'], image: '/images/products/crimson-pepper.jpg' },
+  { terms: ['crimson', 'crismson'], image: '/images/products/crimson-pepper.jpg' },
   { terms: ['shepherd', 'sheperd'], image: '/images/products/shepherd-pepper.jpg' },
   { terms: ['red bell'], image: '/images/products/red-bell-pepper.jpg' },
   { terms: ['green bell'], image: '/images/products/green-bell-pepper.jpg' },
-  { terms: ['green habanero'], image: '/images/products/green-pepper-box.jpg' },
   { terms: ['green pepper'], image: '/images/products/green-pepper-box.jpg' },
   { terms: ['pepper'], image: '/images/products/red-bell-pepper.jpg' },
   { terms: ['tomato'], image: '/images/products/tomatoes-box.jpg' },
@@ -171,6 +173,38 @@ function ImpactImage({ item }) {
       }}
     />
   );
+}
+
+function formatSalesItemDisplayName(name) {
+  if (name === 'Chocolate Habanero') {
+    return 'Brown Habanero Pepper';
+  }
+
+  if (name === 'Yellow Habanero') {
+    return 'Orange Habanero Pepper';
+  }
+
+  if (name === 'Habanero') {
+    return 'Red Habanero';
+  }
+
+  if (name === 'Green Pepper') {
+    return 'Green Habanero Pepper';
+  }
+
+  if (name === 'Onion') {
+    return 'Onions';
+  }
+
+  if (name === 'Sweet potatoes') {
+    return 'Sweet Potatoes';
+  }
+
+  if (name === 'Sheppard Pepper') {
+    return 'Shepherd Pepper';
+  }
+
+  return name;
 }
 
 function ClockIcon() {
@@ -590,6 +624,7 @@ export default function LandingPage({ onGoShop }) {
                 {highlightedItems.map((item) => {
                   const countdown = getCountdownParts(item.closingDate, nowMs);
                   const productImage = getSalesItemImage(item);
+                  const displayName = formatSalesItemDisplayName(item.name);
 
                   return (
                     <article
@@ -599,7 +634,7 @@ export default function LandingPage({ onGoShop }) {
                       <div className="flex flex-1 flex-col gap-2.5">
                         <div className="flex items-start gap-3">
                           <div className="min-w-0 flex-1 space-y-2">
-                            <h3 className="text-lg font-bold leading-tight text-emerald-950">{item.name}</h3>
+                            <h3 className="text-lg font-bold leading-tight text-emerald-950">{displayName}</h3>
                             <div className="flex flex-wrap gap-2">
                               <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
                                 {item.saleType === 'BUNDLE_DISCOUNTED_SALE' ? 'Bundle Discounted Sale' : 'Normal Sale'}
