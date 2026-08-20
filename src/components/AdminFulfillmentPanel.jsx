@@ -182,6 +182,7 @@ function buildFulfillmentRows(orders, query) {
             fulfillmentStatus: order.fulfillmentStatus,
             batchNumber: order.salesItem?.batchNumber || '',
             location: order.salesItem?.pickupInstructions || '',
+            preferredPickupLocation: order.preferredPickupLocation || '',
           },
         ];
 
@@ -208,6 +209,7 @@ function buildFulfillmentRows(orders, query) {
             item.batchNumber,
             item.name,
             item.bundleName,
+            item.preferredPickupLocation,
           ].some((value) => includesInsensitive(value, activeSearchQuery));
 
         return matchesBatch && matchesFulfillmentMethod && matchesFulfillmentStatus && matchesSearch;
@@ -422,6 +424,7 @@ export default function AdminFulfillmentPanel({ onLoadOrders, onUpdateFulfillmen
           'Order Status',
           'Fulfillment Method',
           'Fulfillment Status',
+          'Preferred Pickup Location',
           'Line Amount (CAD)',
           'Created At',
           'Paid At',
@@ -444,6 +447,7 @@ export default function AdminFulfillmentPanel({ onLoadOrders, onUpdateFulfillmen
           formatLabel(row.status),
           formatLabel(row.fulfillmentMethod),
           formatLabel(row.fulfillmentStatus),
+          row.preferredPickupLocation || '',
           ((row.isBundleComponent ? (row.bundleLineTotal ?? row.totalAmount ?? 0) : (row.lineTotal || 0)) / 100).toFixed(2),
           row.createdAt ? new Date(row.createdAt).toISOString() : '',
           row.paidAt ? new Date(row.paidAt).toISOString() : '',
@@ -658,7 +662,14 @@ export default function AdminFulfillmentPanel({ onLoadOrders, onUpdateFulfillmen
                     </td>
                     <td className={`${ui.tableCell} font-medium text-slate-900`}>{order.batchNumber || order.salesItem?.batchNumber || '—'}</td>
                     <td className={ui.tableCell}>
-                      <AdminStatusBadge value={formatLabel(order.fulfillmentMethod)} tone={order.fulfillmentMethod === 'DELIVERY' ? 'warning' : 'success'} />
+                      <div className="space-y-1">
+                        <AdminStatusBadge value={formatLabel(order.fulfillmentMethod)} tone={order.fulfillmentMethod === 'DELIVERY' ? 'warning' : 'success'} />
+                        {order.fulfillmentMethod === 'PICKUP' && order.preferredPickupLocation ? (
+                          <p className="max-w-[12rem] truncate text-xs text-slate-500" title={order.preferredPickupLocation}>
+                            {order.preferredPickupLocation}
+                          </p>
+                        ) : null}
+                      </div>
                     </td>
                     <td className={ui.tableCell}>
                       <AdminStatusBadge value={formatLabel(order.fulfillmentStatus)} tone={getStatusTone(order.fulfillmentStatus)} />

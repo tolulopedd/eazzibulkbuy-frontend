@@ -355,6 +355,7 @@ function getDiscountReason(order) {
 
 function PaymentDetailsModal({
   order,
+  pickupLocations = [],
   proofViewUrl,
   loadingProofReference,
   onClose,
@@ -363,6 +364,7 @@ function PaymentDetailsModal({
   onSubmitIncompleteReview,
   onDeleteIncompleteOrder,
   onResolvePayment,
+  onUpdatePreferredPickupLocation,
   confirmingReference,
   resendingReference,
   submittingIncompleteReference,
@@ -396,6 +398,13 @@ function PaymentDetailsModal({
   const [notifyBuyer, setNotifyBuyer] = useState(false);
   const [resolvingPaymentReference, setResolvingPaymentReference] = useState('');
   const [selectedSourceIndexes, setSelectedSourceIndexes] = useState([]);
+  const [preferredPickupLocation, setPreferredPickupLocation] = useState(order.preferredPickupLocation || '');
+  const [savingPickupLocation, setSavingPickupLocation] = useState(false);
+  const pickupLocationOptions = Array.from(
+    new Set(
+      [...pickupLocations.map((location) => location.name), order?.preferredPickupLocation || ''].filter(Boolean),
+    ),
+  );
 
   useEffect(() => {
     setAdminComment('');
@@ -407,6 +416,8 @@ function PaymentDetailsModal({
     setNotifyBuyer(false);
     setResolvingPaymentReference('');
     setSelectedSourceIndexes(activeSourceItems.map((item) => item.sourceIndex));
+    setPreferredPickupLocation(order.preferredPickupLocation || '');
+    setSavingPickupLocation(false);
   }, [order?.orderReference]);
 
   const selectedItems = activeSourceItems.filter((item) => selectedSourceIndexes.includes(item.sourceIndex));
@@ -498,6 +509,24 @@ function PaymentDetailsModal({
     }
   }
 
+  async function handleSavePreferredPickupLocation() {
+    if (!preferredPickupLocation) {
+      setModalError('Select a preferred pickup location before saving.');
+      return;
+    }
+
+    setModalError('');
+    setSavingPickupLocation(true);
+    try {
+      await onUpdatePreferredPickupLocation(order.orderReference, preferredPickupLocation);
+      onClose();
+    } catch (error) {
+      setModalError(error?.message || 'Unable to update the preferred pickup location.');
+    } finally {
+      setSavingPickupLocation(false);
+    }
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 py-6">
       <div className="absolute inset-0" onClick={onClose} aria-hidden="true" />
@@ -546,6 +575,31 @@ function PaymentDetailsModal({
               <p className="text-sm leading-6 text-slate-700">Paid at: <span className="font-semibold text-slate-900">{formatDateTime(order.paidAt)}</span></p>
               <p className="text-sm leading-6 text-slate-700">Quantity: <span className="font-semibold text-slate-900">{order.quantity}</span></p>
               <p className="text-sm leading-6 text-slate-700">Order status: <span className="font-semibold text-slate-900">{formatLabel(order.status)}</span></p>
+              {order.fulfillmentMethod === 'PICKUP' ? (
+                <div className="sm:col-span-2">
+                  <label className={`${ui.label} mb-1 block`}>Preferred Pick Up location</label>
+                  <div className="flex flex-wrap gap-2">
+                    <select
+                      className={`${ui.select} min-w-[280px] flex-1`}
+                      value={preferredPickupLocation}
+                      onChange={(event) => setPreferredPickupLocation(event.target.value)}
+                    >
+                      <option value="">Select preferred pickup location</option>
+                      {pickupLocationOptions.map((option) => (
+                        <option key={option} value={option}>{option}</option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      className={ui.buttonGhost}
+                      onClick={handleSavePreferredPickupLocation}
+                      disabled={savingPickupLocation || !preferredPickupLocation || preferredPickupLocation === (order.preferredPickupLocation || '')}
+                    >
+                      {savingPickupLocation ? 'Saving...' : 'Save location'}
+                    </button>
+                  </div>
+                </div>
+              ) : null}
               {discountReason ? (
                 <p className="text-sm leading-6 text-slate-700 sm:col-span-2">Reason for discount: <span className="font-semibold text-slate-900">{discountReason}</span></p>
               ) : null}
@@ -743,6 +797,8 @@ export default function AdminPaymentsPanel({
   onMarkIncompleteOrderPendingReview,
   onDeleteIncompleteOrder,
   onResolvePayment,
+  onUpdatePreferredPickupLocation,
+  pickupLocations = [],
   onRefreshReports,
 }) {
   const [payments, setPayments] = useState([]);
@@ -1225,6 +1281,7 @@ export default function AdminPaymentsPanel({
 
       <PaymentDetailsModal
         order={selectedOrder}
+        pickupLocations={pickupLocations}
         proofViewUrl={selectedOrder ? proofViewUrls[selectedOrder.orderReference] : ''}
         loadingProofReference={loadingProofReference}
         onClose={() => setSelectedOrder(null)}
@@ -1233,6 +1290,7 @@ export default function AdminPaymentsPanel({
         onSubmitIncompleteReview={handleSubmitIncompleteReview}
         onDeleteIncompleteOrder={handleDeleteIncomplete}
         onResolvePayment={handleResolvePayment}
+        onUpdatePreferredPickupLocation={onUpdatePreferredPickupLocation}
         confirmingReference={confirmingReference}
         resendingReference={resendingReference}
         submittingIncompleteReference={submittingIncompleteReference}

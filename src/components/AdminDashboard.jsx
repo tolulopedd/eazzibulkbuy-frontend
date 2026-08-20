@@ -4,6 +4,7 @@ import AdminSalesPanel from './AdminSalesPanel';
 import AdminReportsPanel from './AdminReportsPanel';
 import AdminPaymentsPanel from './AdminPaymentsPanel';
 import AdminPickupNoticesPanel from './AdminPickupNoticesPanel';
+import AdminPickupLocationsPanel from './AdminPickupLocationsPanel';
 import AdminCustomersPanel from './AdminCustomersPanel';
 import AdminFulfillmentPanel from './AdminFulfillmentPanel';
 import AdminDiscountOrdersPanel from './AdminDiscountOrdersPanel';
@@ -126,6 +127,15 @@ function NoticeIcon() {
   );
 }
 
+function PickupLocationIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+      <path d="M12 21s6-5.4 6-11a6 6 0 1 0-12 0c0 5.6 6 11 6 11Z" />
+      <circle cx="12" cy="10" r="2.5" />
+    </svg>
+  );
+}
+
 function DiscountIcon() {
   return (
     <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
@@ -225,7 +235,9 @@ export default function AdminDashboard({
   onDeclineCustomerUpdateRequest,
   onLoadOrders,
   onLoadPickupNotices,
+  onLoadPickupLocations,
   onSendPickupNotices,
+  onCreatePickupLocation,
   onConfirmInteracPayment,
   onLoadPaymentProofViewUrl,
   onCreateIncompleteOrderUploadUrl,
@@ -234,6 +246,9 @@ export default function AdminDashboard({
   onResendPaymentConfirmation,
   onResolvePayment,
   onUpdateFulfillmentStatus,
+  onUpdatePreferredPickupLocation,
+  onUpdatePickupLocation,
+  onDeletePickupLocation,
   onLogout,
 }) {
   const [reports, setReports] = useState(null);
@@ -262,6 +277,7 @@ export default function AdminDashboard({
   const [editingId, setEditingId] = useState('');
   const [editForm, setEditForm] = useState({ ...createDefaultSalesForm() });
   const [form, setForm] = useState(createDefaultSalesForm());
+  const [pickupLocations, setPickupLocations] = useState([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
 
@@ -273,6 +289,7 @@ export default function AdminDashboard({
         { id: 'discount-orders', label: 'Discount Orders', title: 'Discount Orders', icon: DiscountIcon },
         { id: 'payments', label: 'Payments', title: 'Payments', icon: PaymentIcon },
         { id: 'pickup-notices', label: 'Pickup Notices', title: 'Pickup Notices', icon: NoticeIcon },
+        { id: 'pickup-locations', label: 'Pickup Locations', title: 'Pickup Locations', icon: PickupLocationIcon },
         { id: 'fulfillment', label: 'Fulfilment', title: 'Fulfilment', icon: FulfillmentIcon },
         { id: 'reports', label: 'Reports', title: 'Reports', icon: ReportsIcon },
         { id: 'customers', label: 'Customer', title: 'Customer', icon: CustomerIcon },
@@ -363,11 +380,21 @@ export default function AdminDashboard({
     }
   }
 
+  async function loadPickupLocations() {
+    try {
+      const response = await onLoadPickupLocations();
+      setPickupLocations(response.items || []);
+    } catch {
+      setPickupLocations([]);
+    }
+  }
+
   useEffect(() => {
     if (!canManageSales) return;
     loadReports();
     loadSalesItems(DEFAULT_SALES_QUERY);
     loadActiveSalesSummary();
+    loadPickupLocations();
   }, []);
 
   async function handleCreate(event) {
@@ -570,6 +597,8 @@ export default function AdminDashboard({
           onDeleteIncompleteOrder={onDeleteIncompleteOrder}
           onResendPaymentConfirmation={onResendPaymentConfirmation}
           onResolvePayment={onResolvePayment}
+          onUpdatePreferredPickupLocation={onUpdatePreferredPickupLocation}
+          pickupLocations={pickupLocations}
           onRefreshReports={loadReports}
         />
       );
@@ -580,6 +609,29 @@ export default function AdminDashboard({
         <AdminPickupNoticesPanel
           onLoadPickupNotices={onLoadPickupNotices}
           onSendPickupNotices={onSendPickupNotices}
+        />
+      );
+    }
+
+    if (activeModule === 'pickup-locations') {
+      return (
+        <AdminPickupLocationsPanel
+          onLoadPickupLocations={onLoadPickupLocations}
+          onCreatePickupLocation={async (payload) => {
+            const result = await onCreatePickupLocation(payload);
+            await loadPickupLocations();
+            return result;
+          }}
+          onUpdatePickupLocation={async (pickupLocationId, payload) => {
+            const result = await onUpdatePickupLocation(pickupLocationId, payload);
+            await loadPickupLocations();
+            return result;
+          }}
+          onDeletePickupLocation={async (pickupLocationId) => {
+            const result = await onDeletePickupLocation(pickupLocationId);
+            await loadPickupLocations();
+            return result;
+          }}
         />
       );
     }
@@ -600,7 +652,14 @@ export default function AdminDashboard({
     }
 
     if (activeModule === 'fulfillment') {
-      return <AdminFulfillmentPanel onLoadOrders={onLoadOrders} onUpdateFulfillmentStatus={onUpdateFulfillmentStatus} onRefreshReports={loadReports} />;
+      return (
+        <AdminFulfillmentPanel
+          onLoadOrders={onLoadOrders}
+          onUpdateFulfillmentStatus={onUpdateFulfillmentStatus}
+          onUpdatePreferredPickupLocation={onUpdatePreferredPickupLocation}
+          onRefreshReports={loadReports}
+        />
+      );
     }
 
     if (activeModule === 'customers') {

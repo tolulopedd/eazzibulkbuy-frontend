@@ -6,14 +6,18 @@ import {
   createAdminCustomer,
   createAdminDiscountOrder,
   createAdminDiscountOrderUploadUrl,
+  createAdminPickupLocation,
   createSalesItem,
   fetchAdminReports,
+  fetchAdminPickupLocations,
   fetchAdminPickupNotices,
   fetchAdminDiscountOrders,
   fetchAdminSalesItems,
   fetchAdminCustomers,
   updateAdminCustomer,
+  updateAdminPickupLocation,
   exportAdminCustomers,
+  deleteAdminPickupLocation,
   approveAdminCustomerUpdateRequest,
   declineAdminCustomerUpdateRequest,
   fetchAdminOrders,
@@ -28,6 +32,7 @@ import {
   resolveAdminPayment,
   sendAdminPickupNotices,
   updateAdminFulfillmentStatus,
+  updateAdminOrderPreferredPickupLocation,
 } from '../api/admin';
 import AdminLogin from './AdminLogin';
 import AdminDashboard from './AdminDashboard';
@@ -157,6 +162,41 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
       return await fetchAdminPickupNotices(query);
     } catch (err) {
       rethrowWithSessionHandling(err, 'Unable to load pickup notices right now.');
+    }
+  }
+
+  async function handleLoadPickupLocations() {
+    try {
+      return await fetchAdminPickupLocations();
+    } catch (err) {
+      rethrowWithSessionHandling(err, 'Unable to load pickup locations right now.');
+    }
+  }
+
+  async function handleCreatePickupLocation(payload) {
+    setError('');
+    try {
+      return await createAdminPickupLocation(payload);
+    } catch (err) {
+      rethrowWithSessionHandling(err, 'Unable to create the pickup location right now.');
+    }
+  }
+
+  async function handleUpdatePickupLocation(pickupLocationId, payload) {
+    setError('');
+    try {
+      return await updateAdminPickupLocation(pickupLocationId, payload);
+    } catch (err) {
+      rethrowWithSessionHandling(err, 'Unable to update the pickup location right now.');
+    }
+  }
+
+  async function handleDeletePickupLocation(pickupLocationId) {
+    setError('');
+    try {
+      return await deleteAdminPickupLocation(pickupLocationId);
+    } catch (err) {
+      rethrowWithSessionHandling(err, 'Unable to delete the pickup location right now.');
     }
   }
 
@@ -336,6 +376,15 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
     }
   }
 
+  async function handleUpdatePreferredPickupLocation(orderReference, preferredPickupLocation) {
+    setError('');
+    try {
+      return await updateAdminOrderPreferredPickupLocation(orderReference, { preferredPickupLocation });
+    } catch (err) {
+      rethrowWithSessionHandling(err, 'Unable to update the preferred pickup location right now.');
+    }
+  }
+
   async function handleUpdateSalesItem(salesItemId, payload) {
     setError('');
     try {
@@ -401,12 +450,16 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
         onLoadReports={handleLoadReports}
         onLoadDiscountOrders={handleLoadDiscountOrders}
         onLoadPickupNotices={handleLoadPickupNotices}
+        onLoadPickupLocations={handleLoadPickupLocations}
         onCreateSalesItem={handleCreateSalesItem}
         onCreateDiscountOrder={handleCreateDiscountOrder}
+        onCreatePickupLocation={handleCreatePickupLocation}
         onCreateDiscountOrderUploadUrl={handleCreateDiscountOrderUploadUrl}
         onLoadSalesItems={handleLoadSalesItems}
         onUpdateSalesItem={handleUpdateSalesItem}
+        onUpdatePickupLocation={handleUpdatePickupLocation}
         onDeleteSalesItem={handleDeleteSalesItem}
+        onDeletePickupLocation={handleDeletePickupLocation}
         onLoadCustomers={handleLoadCustomers}
         onCreateCustomer={handleCreateCustomer}
         onUpdateCustomer={handleUpdateCustomer}
@@ -423,6 +476,7 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
         onResolvePayment={handleResolvePayment}
         onSendPickupNotices={handleSendPickupNotices}
         onUpdateFulfillmentStatus={handleUpdateFulfillmentStatus}
+        onUpdatePreferredPickupLocation={handleUpdatePreferredPickupLocation}
         onLogout={handleLogout}
       />
     </>

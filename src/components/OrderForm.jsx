@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { CardElement, useElements, useStripe } from '@stripe/react-stripe-js';
 import { fetchActiveSalesItems } from '../api/salesItems';
 import { createCustomerUpdateRequest, saveCustomerDetails } from '../api/customers';
+import { fetchPickupLocations } from '../api/pickupLocations';
 import CustomerSearch from './CustomerSearch';
 import { ui } from '../ui/classes';
 import { clearCartItems, readCartItems, setCartQuantity, writeCartItems } from '../utils/cart';
@@ -276,6 +277,7 @@ export default function OrderForm({
   const elements = useElements();
 
   const [activeItems, setActiveItems] = useState([]);
+  const [pickupLocations, setPickupLocations] = useState([]);
   const [cartItems, setCartItems] = useState(() => readCartItems());
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -290,6 +292,7 @@ export default function OrderForm({
   const [province, setProvince] = useState('');
   const [postalCode, setPostalCode] = useState('');
   const [fulfillmentMethod, setFulfillmentMethod] = useState('PICKUP');
+  const [preferredPickupLocation, setPreferredPickupLocation] = useState('');
   const [status, setStatus] = useState('');
   const [detailsStatus, setDetailsStatus] = useState('');
   const [savingDetails, setSavingDetails] = useState(false);
@@ -370,6 +373,9 @@ export default function OrderForm({
     [cartLines],
   );
   const cartSummary = useMemo(() => buildCartSummary(cartLines, fulfillmentMethod), [cartLines, fulfillmentMethod]);
+  const pickupLocationRequired = fulfillmentMethod === 'PICKUP' && cartLines.length > 0;
+  const pickupLocationOptions = pickupLocations.map((location) => location.name);
+  const hasPreferredPickupLocation = preferredPickupLocation.trim().length > 0;
   const cartItemSummary = useMemo(() => cartLines.map((line) => `${line.name} x${line.quantity}`).join(', '), [cartLines]);
   const manualTransferEmail = manualOrder?.manualPayment?.transferEmail || 'payments@eazzibulkbuy.ca';
   const manualConfirmationEtaHours = manualOrder?.manualPayment?.confirmationEtaHours || manualOrder?.manualConfirmationEtaHours || 12;
@@ -433,10 +439,60 @@ export default function OrderForm({
   }, [salesItemId]);
 
   useEffect(() => {
+    let mounted = true;
+
+    async function loadPickupLocations() {
+      try {
+        const response = await fetchPickupLocations();
+        if (!mounted) {
+          return;
+        }
+
+        setPickupLocations(response.items || []);
+      } catch {
+        if (mounted) {
+          setPickupLocations([]);
+        }
+      }
+    }
+
+    loadPickupLocations();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
     if (!cartAllowsDelivery && fulfillmentMethod === 'DELIVERY') {
       setFulfillmentMethod('PICKUP');
     }
   }, [cartAllowsDelivery, fulfillmentMethod]);
+
+  useEffect(() => {
+    if (fulfillmentMethod !== 'PICKUP') {
+      return;
+    }
+
+    const activePickupLocationNames = pickupLocations.map((location) => location.name);
+
+    if (!activePickupLocationNames.length) {
+      if (preferredPickupLocation) {
+        setPreferredPickupLocation('');
+      }
+      return;
+    }
+
+    if (!activePickupLocationNames.includes(preferredPickupLocation)) {
+      setPreferredPickupLocation(activePickupLocationNames[0]);
+    }
+  }, [fulfillmentMethod, pickupLocations, preferredPickupLocation]);
+
+  useEffect(() => {
+    if (fulfillmentMethod === 'DELIVERY' && preferredPickupLocation) {
+      setPreferredPickupLocation('');
+    }
+  }, [fulfillmentMethod, preferredPickupLocation]);
 
   useEffect(() => {
     if (!isMapboxConfigured) {
@@ -588,6 +644,7 @@ export default function OrderForm({
     setCartItems([]);
     clearBuyerFields();
     setFulfillmentMethod('PICKUP');
+    setPreferredPickupLocation('');
     setStatus('');
     setDetailsStatus('');
     setSelectedBuyer(null);
@@ -647,9 +704,15 @@ export default function OrderForm({
       return;
     }
 
+    if (pickupLocationRequired && !hasPreferredPickupLocation) {
+      setStatus('Select your preferred pickup location before creating your order.');
+      return;
+    }
+
     try {
       const created = await onCreateOrder({
         existingCustomerId: selectedBuyer.id,
+        preferredPickupLocation: fulfillmentMethod === 'PICKUP' ? preferredPickupLocation : undefined,
         items: cartLines.map((line) => ({
           salesItemId: line.id,
           quantity: line.quantity,
@@ -1479,6 +1542,27 @@ export default function OrderForm({
               </div>
             </div>
           ) : null}
+          {cartLines.length > 0 && fulfillmentMethod === 'PICKUP' ? (
+            <div className="space-y-2">
+              <label className={ui.label}>Preferred Pick Up location</label>
+              <select
+                className={ui.select}
+                value={preferredPickupLocation}
+                onChange={(event) => setPreferredPickupLocation(event.target.value)}
+                disabled={hasCreatedOrder || pickupLocationOptions.length === 0}
+              >
+                <option value="">{pickupLocationOptions.length ? 'Select preferred pickup location' : 'No pickup locations available'}</option>
+                {pickupLocationOptions.map((option) => (
+                  <option key={option} value={option}>{option}</option>
+                ))}
+              </select>
+              {pickupLocationOptions.length === 0 ? (
+                <p className="text-xs leading-5 text-slate-500">
+                  Pickup locations will appear here once admin activates at least one location.
+                </p>
+              ) : null}
+            </div>
+          ) : null}
           <div className="space-y-3">
             {cartLines.map((line) => {
               const lineTotal = line.quantity * line.pricePerUnit;
@@ -1541,7 +1625,7 @@ export default function OrderForm({
           <button
             type="submit"
             className={`${ui.buttonPrimary} w-fit min-w-[220px]`}
-            disabled={loading || cartLines.length === 0 || !hasSelectedBuyer}
+            disabled={loading || cartLines.length === 0 || !hasSelectedBuyer || (pickupLocationRequired && !hasPreferredPickupLocation)}
           >
             {cartLines.length === 0 ? 'Select items to continue' : !hasSelectedBuyer ? 'Input email to continue' : 'Create order'}
           </button>
@@ -1588,6 +1672,11 @@ export default function OrderForm({
               <p className="text-sm leading-6 text-slate-600">
                 Pickup Option: <span className="font-semibold text-slate-900">{fulfillmentMethod === 'DELIVERY' ? 'Delivery' : 'Pick up'}</span>
               </p>
+              {fulfillmentMethod === 'PICKUP' && preferredPickupLocation ? (
+                <p className="text-sm leading-6 text-slate-600">
+                  Preferred Pick Up location: <span className="font-semibold text-slate-900">{preferredPickupLocation}</span>
+                </p>
+              ) : null}
             </div>
             {cartSummary.deliveryGroups.length > 0 ? (
               <div className="rounded-2xl border border-emerald-100 bg-emerald-50/80 px-4 py-3">

@@ -139,6 +139,51 @@ export function fetchAdminPickupNotices(params = {}) {
   return request(`/api/admin/pickup-notices${suffix}`);
 }
 
+export function fetchAdminPickupLocations() {
+  return request('/api/admin/pickup-locations');
+}
+
+export function createAdminPickupLocation(payload) {
+  return request('/api/admin/pickup-locations', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateAdminPickupLocation(pickupLocationId, payload) {
+  return request(`/api/admin/pickup-locations/${pickupLocationId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteAdminPickupLocation(pickupLocationId) {
+  let response;
+  try {
+    response = await fetch(buildApiUrl(`/api/admin/pickup-locations/${pickupLocationId}`), {
+      method: 'DELETE',
+      credentials: 'include',
+      headers: withAdminSessionHeaders(),
+    });
+  } catch {
+    throw new Error('Unable to reach backend API. Check that the production API base URL is configured correctly.');
+  }
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    if (response.status === 401) {
+      writeAdminSessionToken('');
+    }
+    const error = new Error(errorData.message || 'Unable to delete pickup location. Please try again.');
+    error.status = response.status;
+    throw error;
+  }
+
+  return response.json().catch(() => ({}));
+}
+
 export function sendAdminPickupNotices(payload) {
   return request('/api/admin/pickup-notices/send', {
     method: 'POST',
@@ -431,6 +476,14 @@ export function fetchAdminOrders(params = {}) {
 
   const suffix = search.toString() ? `?${search.toString()}` : '';
   return request(`/api/admin/orders${suffix}`);
+}
+
+export function updateAdminOrderPreferredPickupLocation(orderReference, payload) {
+  return request(`/api/admin/orders/${orderReference}/preferred-pickup-location`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
 }
 
 export async function exportAdminOrders(params = {}) {

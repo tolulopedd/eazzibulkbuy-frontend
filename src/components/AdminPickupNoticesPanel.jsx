@@ -81,6 +81,10 @@ const DEFAULT_QUERY = {
   limit: 20,
 };
 
+const HOUR_OPTIONS = Array.from({ length: 12 }, (_, index) => String(index + 1));
+const MINUTE_OPTIONS = ['00', '05', '10', '15', '20', '25', '30', '35', '40', '45', '50', '55'];
+const PERIOD_OPTIONS = ['AM', 'PM'];
+
 function formatDate(value) {
   if (!value) return '—';
   return new Date(value).toLocaleDateString();
@@ -115,11 +119,99 @@ function formatChannelSummary(lastResults = {}) {
   return parts.join(' · ') || 'No notice sent yet';
 }
 
+function clampHourValue(value) {
+  const digits = String(value || '').replace(/\D/g, '').slice(0, 2);
+  if (!digits) {
+    return '';
+  }
+
+  const parsed = Number(digits);
+  if (!Number.isFinite(parsed)) {
+    return '';
+  }
+
+  return String(Math.min(12, Math.max(1, parsed)));
+}
+
+function clampMinuteValue(value) {
+  const digits = String(value || '').replace(/\D/g, '').slice(0, 2);
+  if (!digits) {
+    return '';
+  }
+
+  const parsed = Number(digits);
+  if (!Number.isFinite(parsed)) {
+    return '';
+  }
+
+  return String(Math.min(59, Math.max(0, parsed)));
+}
+
+function formatTimeParts({ hour, minute, period }) {
+  if (!hour || minute === '' || !period) {
+    return '';
+  }
+
+  return `${hour}:${String(minute || '').padStart(2, '0')} ${period}`;
+}
+
+function TimePartField({ label, value, onChange }) {
+  return (
+    <div className="space-y-1">
+      <label className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</label>
+      <div className="grid grid-cols-[72px_72px_78px] gap-2">
+        <input
+          className={`${ui.input} min-h-[42px]`}
+          inputMode="numeric"
+          placeholder="Hour"
+          value={value.hour}
+          onChange={(event) => onChange((current) => ({ ...current, hour: clampHourValue(event.target.value) }))}
+          list={`${label.replace(/\s+/g, '-').toLowerCase()}-hours`}
+        />
+        <input
+          className={`${ui.input} min-h-[42px]`}
+          inputMode="numeric"
+          placeholder="Min"
+          value={value.minute}
+          onChange={(event) => onChange((current) => ({ ...current, minute: clampMinuteValue(event.target.value) }))}
+          onBlur={() =>
+            onChange((current) => ({
+              ...current,
+              minute: current.minute === '' ? '' : String(current.minute).padStart(2, '0'),
+            }))
+          }
+          list={`${label.replace(/\s+/g, '-').toLowerCase()}-minutes`}
+        />
+        <select
+          className={`${ui.select} min-h-[42px] min-w-[78px]`}
+          value={value.period}
+          onChange={(event) => onChange((current) => ({ ...current, period: event.target.value }))}
+        >
+          {PERIOD_OPTIONS.map((option) => (
+            <option key={option} value={option}>{option}</option>
+          ))}
+        </select>
+      </div>
+      <datalist id={`${label.replace(/\s+/g, '-').toLowerCase()}-hours`}>
+        {HOUR_OPTIONS.map((option) => (
+          <option key={option} value={option} />
+        ))}
+      </datalist>
+      <datalist id={`${label.replace(/\s+/g, '-').toLowerCase()}-minutes`}>
+        {MINUTE_OPTIONS.map((option) => (
+          <option key={option} value={option} />
+        ))}
+      </datalist>
+    </div>
+  );
+}
+
 function NoticeModal({ rows, onClose, onSubmit, submitting }) {
   const [channels, setChannels] = useState({ EMAIL: true, WHATSAPP: true });
   const [address, setAddress] = useState(rows[0]?.location || 'Winnipeg Manitoba');
   const [readyDate, setReadyDate] = useState(TODAY_FILTER);
-  const [timeWindow, setTimeWindow] = useState('');
+  const [startTime, setStartTime] = useState({ hour: '2', minute: '00', period: 'PM' });
+  const [endTime, setEndTime] = useState({ hour: '5', minute: '00', period: 'PM' });
   const [contactName, setContactName] = useState('');
   const [contactPhone, setContactPhone] = useState('');
   const [note, setNote] = useState('');
@@ -132,6 +224,9 @@ function NoticeModal({ rows, onClose, onSubmit, submitting }) {
   const selectedCount = rows.length;
   const selectedOrders = [...new Set(rows.map((row) => row.displayOrderReference))];
   const channelValues = Object.entries(channels).filter(([, enabled]) => enabled).map(([key]) => key);
+  const formattedStartTime = formatTimeParts(startTime);
+  const formattedEndTime = formatTimeParts(endTime);
+  const timeWindow = formattedStartTime && formattedEndTime ? `${formattedStartTime} - ${formattedEndTime}` : '';
 
   async function handleSubmit() {
     if (!channelValues.length) {
@@ -149,8 +244,8 @@ function NoticeModal({ rows, onClose, onSubmit, submitting }) {
       return;
     }
 
-    if (timeWindow.trim().length < 3) {
-      setError('Enter the pickup time window.');
+    if (!formattedStartTime || !formattedEndTime) {
+      setError('Complete both start and end time.');
       return;
     }
 
@@ -215,9 +310,20 @@ function NoticeModal({ rows, onClose, onSubmit, submitting }) {
               <input className={ui.input} value={address} onChange={(event) => setAddress(event.target.value)} />
             </div>
             <DateFilterField label="Ready date" value={readyDate} onChange={(event) => setReadyDate(event.target.value)} />
-            <div className={ui.fieldWrap}>
+            <div className={`${ui.fieldWrap} md:col-span-2`}>
               <label className={ui.label}>Time window</label>
-              <input className={ui.input} value={timeWindow} onChange={(event) => setTimeWindow(event.target.value)} placeholder="2:00 PM - 5:00 PM" />
+              <div className={`${ui.section} px-4 py-4`}>
+                <div className="grid items-end gap-3 xl:grid-cols-[auto_auto_minmax(180px,1fr)]">
+                  <TimePartField label="Start time" value={startTime} onChange={setStartTime} />
+                  <TimePartField label="End time" value={endTime} onChange={setEndTime} />
+                  <div className="space-y-1">
+                    <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Preview</span>
+                    <div className="flex min-h-[42px] items-center rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700">
+                      {timeWindow || 'Select start and end time'}
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
             <div className={ui.fieldWrap}>
               <label className={ui.label}>Contact name</label>
@@ -242,6 +348,7 @@ function NoticeModal({ rows, onClose, onSubmit, submitting }) {
                   <span className="font-medium text-slate-900">{row.displayOrderReference}</span>
                   <span className="text-slate-600">{row.name} x{row.quantity}</span>
                   <span className="text-slate-500">{row.user?.name || 'Unknown buyer'}</span>
+                  {row.preferredPickupLocation ? <span className="text-slate-500">{row.preferredPickupLocation}</span> : null}
                 </div>
               ))}
             </div>
@@ -492,6 +599,9 @@ export default function AdminPickupNoticesPanel({ onLoadPickupNotices, onSendPic
                       <td className={ui.tableCell}>
                         <div className="max-w-[13rem] space-y-0.5">
                           <p className="truncate text-slate-900">{row.location || '—'}</p>
+                          {row.fulfillmentMethod === 'PICKUP' && row.preferredPickupLocation ? (
+                            <p className="truncate text-xs text-slate-500" title={row.preferredPickupLocation}>{row.preferredPickupLocation}</p>
+                          ) : null}
                           <p className="text-xs text-slate-500">{row.noticeSentAt ? `Last sent ${formatDateTime(row.noticeSentAt)}` : 'Not sent yet'}</p>
                         </div>
                       </td>
