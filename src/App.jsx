@@ -20,7 +20,6 @@ export default function App() {
     submitOrder,
     submitSetPaymentMethod,
     submitPaymentIntent,
-    submitManualTransferUploadUrl,
     submitManualTransferConfirmation,
     submitCardPaymentConfirmation,
   } = useOrderPlacement();
@@ -69,9 +68,9 @@ export default function App() {
               onCreateOrder={submitOrder}
               onSetOrderPaymentMethod={submitSetPaymentMethod}
               onCreatePaymentIntent={submitPaymentIntent}
-              onCreateManualTransferUploadUrl={submitManualTransferUploadUrl}
               onConfirmManualTransfer={submitManualTransferConfirmation}
               onConfirmCardPayment={submitCardPaymentConfirmation}
+              onGoHome={() => navigate('/')}
               stripeConfigured={Boolean(stripePublishableKey)}
             />
             {error ? <p className={ui.error}>{error}</p> : null}

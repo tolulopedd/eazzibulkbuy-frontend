@@ -255,7 +255,7 @@ function PaymentSuccessModal({ onClose, ...props }) {
         <PaymentSuccessPage {...props} />
         <div className="mt-4 flex justify-center">
           <button type="button" className={ui.buttonPrimary} onClick={onClose}>
-            Start a new order
+            Close
           </button>
         </div>
       </div>
@@ -268,9 +268,9 @@ export default function OrderForm({
   onCreateOrder,
   onSetOrderPaymentMethod,
   onCreatePaymentIntent,
-  onCreateManualTransferUploadUrl,
   onConfirmManualTransfer,
   onConfirmCardPayment,
+  onGoHome,
   stripeConfigured = false,
 }) {
   const stripe = useStripe();
@@ -308,8 +308,6 @@ export default function OrderForm({
   const [confirmingManualTransfer, setConfirmingManualTransfer] = useState(false);
   const [manualTransferFeedback, setManualTransferFeedback] = useState('');
   const [manualTransferError, setManualTransferError] = useState('');
-  const [manualTransferProofFile, setManualTransferProofFile] = useState(null);
-  const [manualTransferProofName, setManualTransferProofName] = useState('');
   const [manualTransferDeadlineMs, setManualTransferDeadlineMs] = useState(null);
   const [currentTimeMs, setCurrentTimeMs] = useState(Date.now());
   const [addressLookupStatus, setAddressLookupStatus] = useState('');
@@ -658,8 +656,6 @@ export default function OrderForm({
     setConfirmingManualTransfer(false);
     setManualTransferFeedback('');
     setManualTransferError('');
-    setManualTransferProofFile(null);
-    setManualTransferProofName('');
     setManualTransferDeadlineMs(null);
     setCurrentTimeMs(Date.now());
     setShowSuccessPage(false);
@@ -706,6 +702,12 @@ export default function OrderForm({
 
     if (pickupLocationRequired && !hasPreferredPickupLocation) {
       setStatus('Select your preferred pickup location before creating your order.');
+      return;
+    }
+
+    if (createdOrder) {
+      setStatus(createdOrder.paymentMethod ? 'Continue with the existing payment instructions for this order.' : 'Order already created. Choose your payment method below.');
+      setPaymentModalOpen(true);
       return;
     }
 
@@ -850,39 +852,13 @@ export default function OrderForm({
       return;
     }
 
-    if (!manualTransferProofFile || !manualTransferProofName) {
-      setManualTransferError('Upload your Interac transfer screenshot before confirming payment.');
-      return;
-    }
-
     try {
       setConfirmingManualTransfer(true);
       setManualTransferFeedback('');
       setManualTransferError('');
-      const uploadTarget = await onCreateManualTransferUploadUrl(manualOrder.orderReference, {
-        fileName: manualTransferProofFile.name,
-        contentType: manualTransferProofFile.type,
-        sizeBytes: manualTransferProofFile.size,
-      });
-      const uploadResponse = await fetch(uploadTarget.uploadUrl, {
-        method: 'PUT',
-        body: manualTransferProofFile,
-      });
-
-      if (!uploadResponse.ok) {
-        throw new Error('Unable to upload your receipt screenshot right now.');
-      }
-
-      const result = await onConfirmManualTransfer(manualOrder.orderReference, {
-        transferProof: {
-          fileName: manualTransferProofFile.name,
-          contentType: manualTransferProofFile.type,
-          sizeBytes: manualTransferProofFile.size,
-          objectKey: uploadTarget.objectKey,
-        },
-      });
+      const result = await onConfirmManualTransfer(manualOrder.orderReference, {});
       clearCartItems();
-      setManualTransferFeedback(result.message || 'Order submitted successfully. Transfer proof received for review.');
+      setManualTransferFeedback(result.message || 'Transfer confirmation received. We will confirm your payment within 6 hours.');
       setSuccessfulOrder({
         orderReference: result.orderReference || manualOrder.orderReference,
         displayOrderReference: result.displayOrderReference || manualOrder.displayOrderReference,
@@ -905,31 +881,6 @@ export default function OrderForm({
     } finally {
       setConfirmingManualTransfer(false);
     }
-  }
-
-  async function handleManualTransferProofChange(event) {
-    const file = event.target.files?.[0];
-    if (!file) {
-      setManualTransferProofFile(null);
-      setManualTransferProofName('');
-      return;
-    }
-
-    if (!file.type.startsWith('image/')) {
-      setManualTransferError('Upload an image screenshot for the Interac transfer proof.');
-      event.target.value = '';
-      return;
-    }
-
-    if (file.size > 5 * 1024 * 1024) {
-      setManualTransferError('Transfer proof image must be 5MB or smaller.');
-      event.target.value = '';
-      return;
-    }
-
-    setManualTransferError('');
-    setManualTransferProofFile(file);
-    setManualTransferProofName(file.name);
   }
 
   async function handleSaveDetails() {
@@ -1015,6 +966,9 @@ export default function OrderForm({
           onClose={() => {
             setShowSuccessPage(false);
             resetToFreshOrderForm();
+            if (typeof onGoHome === 'function') {
+              onGoHome();
+            }
           }}
           orderReference={successfulOrder.orderReference}
           createdAt={successfulOrder.createdAt}
@@ -1066,7 +1020,21 @@ export default function OrderForm({
                           className="mt-1 h-4 w-4 accent-emerald-700"
                           disabled={paymentProcessing}
                         />
-                        <div>
+                        <div className="relative flex-1 pr-0 sm:pr-32">
+                          {option.value === 'INTERAC_E_TRANSFER' ? (
+                            <img
+                              src="/images/payment/interac-logo.svg"
+                              alt="Interac"
+                              className="mb-2 h-12 w-12 rounded-md object-cover sm:absolute sm:right-0 sm:top-0 sm:mb-0"
+                            />
+                          ) : null}
+                          {option.value === 'STRIPE_CARD' ? (
+                            <img
+                              src="/images/payment/card-networks.webp"
+                              alt="Visa and Mastercard"
+                              className="mb-2 h-12 w-auto rounded-md object-contain sm:absolute sm:right-0 sm:top-0 sm:mb-0"
+                            />
+                          ) : null}
                           <p className="text-sm font-semibold text-emerald-950">{option.label}</p>
                           <p className="text-sm leading-6 text-slate-600">{renderPaymentOptionNote(option)}</p>
                           {option.value === 'INTERAC_E_TRANSFER' ? (
@@ -1109,40 +1077,53 @@ export default function OrderForm({
               </div>
             ) : (
               <div className="mt-5 space-y-4">
-                <div className="space-y-2">
-                  <h3 className="text-base font-semibold text-emerald-950">Payment</h3>
-                  <p className="text-sm leading-6 text-slate-700">Interac e-Transfer</p>
-                  <p className="text-sm leading-6 text-slate-700">
-                    Send Interac e-Transfer to: <span className="font-semibold text-slate-900">{manualTransferEmail}</span> and receive confirmation within 6 hours.
-                  </p>
-                  <p className="text-sm leading-6 text-slate-700">
-                    Use your Order ID <span className="font-semibold text-slate-900">{manualOrder.displayOrderReference || formatOrderReferenceDisplay(manualOrder.orderReference, manualOrder.createdAt, {}, { batchNumber: manualOrder.batchNumber, orderSequence: manualOrder.orderSequence })}</span> for this transfer as narration.
-                  </p>
+                <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4">
+                  <div className="flex items-center gap-4 border-b border-slate-200/70 pb-3">
+                    <img
+                      src="/images/payment/interac-logo.svg"
+                      alt="Interac"
+                      className="h-20 w-20 shrink-0 object-cover"
+                    />
+                    <div>
+                      <h3 className="text-lg font-bold text-emerald-950">Interac e-Transfer Payment</h3>
+                      <p className="text-sm leading-6 text-slate-600">Complete the transfer from your bank app, then confirm below.</p>
+                    </div>
+                  </div>
+                  <div className="mt-4 grid gap-3 text-sm text-slate-700">
+                    <div className="grid gap-1 sm:grid-cols-[155px_1fr] sm:items-start">
+                      <span className="font-semibold text-emerald-950">Send payment to</span>
+                      <span><span className="font-semibold text-slate-900">{manualTransferEmail}</span> and receive confirmation within 6 hours.</span>
+                    </div>
+                    <div className="grid gap-1 sm:grid-cols-[155px_1fr] sm:items-start">
+                      <span className="font-semibold text-emerald-950">Total amount</span>
+                      <span className="font-semibold text-slate-900">CAD {((manualOrder.totalAmount || 0) / 100).toFixed(2)}</span>
+                    </div>
+                    <div className="grid gap-1 sm:grid-cols-[155px_1fr] sm:items-start">
+                      <span className="font-semibold text-emerald-950">Transfer narration</span>
+                      <span>Use Order ID <span className="font-semibold text-slate-900">{manualOrder.displayOrderReference || formatOrderReferenceDisplay(manualOrder.orderReference, manualOrder.createdAt, {}, { batchNumber: manualOrder.batchNumber, orderSequence: manualOrder.orderSequence })}</span>.</span>
+                    </div>
+                  </div>
                 </div>
-                <div className={`rounded-xl border px-3 py-2 text-sm font-semibold ${isManualTransferCountdownExpired ? 'border-amber-200 bg-amber-50 text-amber-800' : manualTransferRemainingSeconds <= 120 ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-emerald-200 bg-emerald-50 text-emerald-800'}`}>
-                  {isManualTransferCountdownActive
-                    ? `Please complete your bank transfer and confirm within ${formatCountdown(manualTransferRemainingSeconds)}.`
-                    : 'The 10-minute prompt window has ended, but you can still confirm once your transfer is sent.'}
-                </div>
-                <div className={ui.fieldWrap}>
-                  <label className={ui.label}>Upload transfer screenshot</label>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className={ui.input}
-                    onChange={handleManualTransferProofChange}
-                  />
-                  {manualTransferProofName ? (
-                    <p className="pt-1 text-xs leading-5 text-slate-500">Selected proof: {manualTransferProofName}</p>
+                <div className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold ${isManualTransferCountdownExpired ? 'border-amber-200 bg-amber-50 text-amber-800' : manualTransferRemainingSeconds <= 120 ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-emerald-200 bg-emerald-50 text-emerald-800'}`}>
+                  {isManualTransferCountdownActive ? (
+                    <svg className="h-4 w-4 shrink-0 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <circle className="opacity-25" cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="3" />
+                      <path className="opacity-90" d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+                    </svg>
                   ) : null}
+                  <span>
+                    {isManualTransferCountdownActive
+                      ? `Please complete your bank transfer and confirm within ${formatCountdown(manualTransferRemainingSeconds)}.`
+                      : 'The 20-minute prompt window has ended, but you can still confirm once your transfer is sent.'}
+                  </span>
                 </div>
                 <button
                   type="button"
                   className={`${ui.buttonPrimary} w-fit min-w-[220px] ${confirmingManualTransfer ? 'cursor-not-allowed opacity-60' : ''}`}
                   onClick={handleConfirmManualTransfer}
-                  disabled={confirmingManualTransfer || !manualTransferProofFile}
+                  disabled={confirmingManualTransfer}
                 >
-                  {confirmingManualTransfer ? 'Uploading receipt...' : 'I have transferred the money'}
+                  {confirmingManualTransfer ? 'Confirming transfer...' : 'I have transferred the money'}
                 </button>
                 {manualTransferFeedback ? <p className={ui.note}>{manualTransferFeedback}</p> : null}
                 {manualTransferError ? <p className={ui.error}>{manualTransferError}</p> : null}
