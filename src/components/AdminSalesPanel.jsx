@@ -10,7 +10,7 @@ import {
   PencilIcon,
 } from './AdminTablePrimitives';
 
-const SALES_ITEM_OPTIONS = ['Tomatoes', 'Red Habanero', 'Orange Habanero Pepper', 'Brown Habanero Pepper', 'Green Habanero Pepper', 'Green Bell Pepper', 'Crimson Pepper', 'Cayenne Pepper', 'Scorpion Pepper', 'Armageddon Pepper', 'Carolina Reaper Pepper', 'Shepherd Pepper', 'Yam', 'Onions', 'Red Bell Pepper', 'Sweet Potatoes', 'Ghost Pepper', 'Plantain'];
+const SALES_ITEM_OPTIONS = ['Tomatoes', 'Red Habanero', 'Orange Habanero Pepper', 'Brown Habanero Pepper', 'Green Habanero Pepper', 'Green Bell Pepper', 'Crimson Pepper', 'Cayenne Pepper', 'Scorpion Pepper', 'Armageddon Pepper', 'Carolina Reaper Pepper', 'Shepherd Pepper', 'Yam', 'Red Onions', 'Yellow Onions', 'Red Bell Pepper', 'Sweet Potatoes', 'Ghost Pepper', 'Plantain'];
 const SALES_LOCATION_OPTIONS = [
   'Winnipeg Manitoba',
   'Brandon Manitoba',
@@ -27,7 +27,7 @@ function formatSaleTypeLabel(value) {
   return value === 'BUNDLE_DISCOUNTED_SALE' ? 'Bundle Discounted Sale' : 'Normal Sale';
 }
 
-function BundleItemsEditor({ bundleItems = [], onChange }) {
+function BundleItemsEditor({ bundleItems = [], onChange, itemOptions = SALES_ITEM_OPTIONS }) {
   function updateItem(index, field, value) {
     onChange(bundleItems.map((item, itemIndex) => (itemIndex === index ? { ...item, [field]: value } : item)));
   }
@@ -54,7 +54,7 @@ function BundleItemsEditor({ bundleItems = [], onChange }) {
           <div key={`bundle-${index}`} className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_120px_auto]">
             <select className={ui.select} value={item.name} onChange={(e) => updateItem(index, 'name', e.target.value)}>
               <option value="">Select bundled item</option>
-              {SALES_ITEM_OPTIONS.map((itemName) => (
+              {itemOptions.map((itemName) => (
                 <option key={`${itemName}-${index}`} value={itemName}>
                   {itemName}
                 </option>
@@ -143,12 +143,14 @@ function SalesDetailsModal({
   deleteLoadingId,
   onDeleteItem,
   formatStatusLabel,
+  itemOptions = SALES_ITEM_OPTIONS,
 }) {
   if (!item) {
     return null;
   }
 
   const editing = mode === 'edit' && isEditableSalesItem(item);
+  const resolvedItemOptions = itemOptions.length ? itemOptions : SALES_ITEM_OPTIONS;
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/45 px-4 py-6 sm:items-center">
@@ -202,7 +204,7 @@ function SalesDetailsModal({
                       ) : (
                         <select className={ui.select} value={editForm.name} onChange={(e) => onEditFormChange('name', e.target.value)}>
                           <option value="">Select an item</option>
-                          {SALES_ITEM_OPTIONS.map((itemName) => (
+                          {resolvedItemOptions.map((itemName) => (
                             <option key={itemName} value={itemName}>
                               {itemName}
                             </option>
@@ -253,7 +255,7 @@ function SalesDetailsModal({
 
               <div className="space-y-5">
                 {editForm.saleType === 'BUNDLE_DISCOUNTED_SALE' ? (
-                  <BundleItemsEditor bundleItems={editForm.bundleItems || []} onChange={(value) => onEditFormChange('bundleItems', value)} />
+                  <BundleItemsEditor bundleItems={editForm.bundleItems || []} itemOptions={resolvedItemOptions} onChange={(value) => onEditFormChange('bundleItems', value)} />
                 ) : null}
 
                 <div className={`${ui.section} space-y-4`}>
@@ -395,11 +397,13 @@ export default function AdminSalesPanel({
   onPrevPage,
   onNextPage,
   formatStatusLabel,
+  itemOptions = SALES_ITEM_OPTIONS,
 }) {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [selectedSalesItem, setSelectedSalesItem] = useState(null);
   const [selectedMode, setSelectedMode] = useState('view');
   const didInitFiltersRef = useRef(false);
+  const resolvedItemOptions = itemOptions.length ? itemOptions : SALES_ITEM_OPTIONS;
 
   const activeSalesItems = useMemo(
     () => salesItems.filter((item) => item.status === 'ACTIVE' && new Date(item.closingDate) > new Date()),
@@ -562,7 +566,7 @@ export default function AdminSalesPanel({
                 ) : (
                   <select className={ui.select} required value={form.name} onChange={(e) => onFormChange('name', e.target.value)}>
                     <option value="">Select an item</option>
-                    {SALES_ITEM_OPTIONS.map((itemName) => (
+                    {resolvedItemOptions.map((itemName) => (
                       <option key={itemName} value={itemName}>
                         {itemName}
                       </option>
@@ -591,7 +595,7 @@ export default function AdminSalesPanel({
               <textarea className={ui.textarea} rows={3} placeholder="Describe the item and include the size for each unit." value={form.description} onChange={(e) => onFormChange('description', e.target.value)} />
             </div>
             {form.saleType === 'BUNDLE_DISCOUNTED_SALE' ? (
-              <BundleItemsEditor bundleItems={form.bundleItems || []} onChange={(value) => onFormChange('bundleItems', value)} />
+              <BundleItemsEditor bundleItems={form.bundleItems || []} itemOptions={resolvedItemOptions} onChange={(value) => onFormChange('bundleItems', value)} />
             ) : null}
             <div className={ui.fieldWrap}>
               <label className={ui.label}>Location of sales</label>
@@ -713,6 +717,7 @@ export default function AdminSalesPanel({
         deleteLoadingId={deleteLoadingId}
         onDeleteItem={onDeleteItem}
         formatStatusLabel={formatStatusLabel}
+        itemOptions={resolvedItemOptions}
       />
     </section>
   );

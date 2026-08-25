@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { fetchActiveSalesItems } from '../api/salesItems';
+import { fetchProduceItems } from '../api/produceItems';
 import { ui } from '../ui/classes';
 import { getCartQuantityByItem, readCartItems, setCartQuantity } from '../utils/cart';
 import BrandLogo from './BrandLogo';
@@ -86,9 +87,14 @@ const impactItems = [
     fallback: 'https://source.unsplash.com/1200x800/?sweet-potatoes,box,produce',
   },
   {
-    name: 'Onions',
+    name: 'Red Onions',
     image: '/images/products/red-onions.jpg',
     fallback: 'https://source.unsplash.com/1200x800/?red-onions,produce,bag',
+  },
+  {
+    name: 'Yellow Onions',
+    image: '/images/products/yellow-onions.jpg',
+    fallback: 'https://source.unsplash.com/1200x800/?yellow-onions,produce,basket',
   },
   {
     name: 'Plantain',
@@ -124,7 +130,8 @@ const salesItemImageRules = [
   { terms: ['tomato'], image: '/images/products/tomatoes-box.jpg' },
   { terms: ['yam'], image: '/images/products/yam-box.jpg' },
   { terms: ['sweet potato', 'potatoes'], image: '/images/products/caribbean-sweet-potatoes.jpg' },
-  { terms: ['onion'], image: '/images/products/red-onions.jpg' },
+  { terms: ['yellow onion'], image: '/images/products/yellow-onions.jpg' },
+  { terms: ['red onion', 'onion'], image: '/images/products/red-onions.jpg' },
   { terms: ['plantain'], image: '/images/products/plantain.jpg' },
 ];
 
@@ -192,8 +199,8 @@ function formatSalesItemDisplayName(name) {
     return 'Green Habanero Pepper';
   }
 
-  if (name === 'Onion') {
-    return 'Onions';
+  if (name === 'Onion' || name === 'Onions') {
+    return 'Red Onions';
   }
 
   if (name === 'Sweet potatoes') {
@@ -315,9 +322,32 @@ function getSalesItemSearchText(item) {
   return [item.name, item.description, bundleText].filter(Boolean).join(' ').toLowerCase();
 }
 
-function getSalesItemImage(item) {
+function normalizeProductName(value) {
+  return String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+function getSalesItemImage(item, produceItems = impactItems) {
   const nameText = String(item?.name || '').toLowerCase();
   const searchText = getSalesItemSearchText(item);
+  const displayName = formatSalesItemDisplayName(item?.name || '');
+  const exactMatch = produceItems.find((produceItem) => (
+    normalizeProductName(produceItem.name) === normalizeProductName(displayName)
+    || normalizeProductName(produceItem.name) === normalizeProductName(item?.name)
+  ));
+
+  if (exactMatch?.image) {
+    return exactMatch.image;
+  }
+
+  const catalogueMatch = produceItems.find((produceItem) => {
+    const productName = normalizeProductName(produceItem.name);
+    return productName && (nameText.includes(productName) || searchText.includes(productName));
+  });
+
+  if (catalogueMatch?.image) {
+    return catalogueMatch.image;
+  }
+
   const match = salesItemImageRules.find((rule) => rule.terms.some((term) => nameText.includes(term)))
     || salesItemImageRules.find((rule) => rule.terms.some((term) => searchText.includes(term)));
 
@@ -372,6 +402,7 @@ function CountdownDisplay({ countdown, emptyLabel = 'No active countdown', empty
 export default function LandingPage({ onGoShop }) {
   const [activeItems, setActiveItems] = useState([]);
   const [cartItems, setCartItems] = useState(() => readCartItems());
+  const [produceItems, setProduceItems] = useState(impactItems);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [nowMs, setNowMs] = useState(Date.now());
@@ -381,6 +412,29 @@ export default function LandingPage({ onGoShop }) {
   useEffect(() => {
     const timer = setInterval(() => setNowMs(Date.now()), 1000);
     return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadProduceItems() {
+      try {
+        const response = await fetchProduceItems();
+        if (mounted && Array.isArray(response.items) && response.items.length) {
+          setProduceItems(response.items);
+        }
+      } catch {
+        if (mounted) {
+          setProduceItems(impactItems);
+        }
+      }
+    }
+
+    loadProduceItems();
+
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -625,7 +679,7 @@ export default function LandingPage({ onGoShop }) {
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
                 {highlightedItems.map((item) => {
                   const countdown = getCountdownParts(item.closingDate, nowMs);
-                  const productImage = getSalesItemImage(item);
+                  const productImage = getSalesItemImage(item, produceItems);
                   const displayName = formatSalesItemDisplayName(item.name);
 
                   return (
@@ -866,7 +920,7 @@ export default function LandingPage({ onGoShop }) {
           <p className="text-sm leading-6 text-slate-600">Fresh produce available through our community sales events.</p>
         </div>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {impactItems.map((item) => (
+          {produceItems.map((item) => (
             <article
               key={item.name}
               className="space-y-2.5 rounded-[24px] border border-slate-200 bg-white p-3 shadow-[0_16px_30px_rgba(15,23,42,0.05)]"

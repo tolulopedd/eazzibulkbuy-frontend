@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ui } from '../ui/classes';
 import { AdminPagination, AdminStatusBadge, AdminTableEmpty } from './AdminTablePrimitives';
 
-const SALES_ITEM_OPTIONS = ['Tomatoes', 'Red Habanero', 'Orange Habanero Pepper', 'Brown Habanero Pepper', 'Green Habanero Pepper', 'Green Bell Pepper', 'Crimson Pepper', 'Cayenne Pepper', 'Scorpion Pepper', 'Armageddon Pepper', 'Carolina Reaper Pepper', 'Shepherd Pepper', 'Yam', 'Onions', 'Red Bell Pepper', 'Sweet Potatoes', 'Ghost Pepper', 'Plantain'];
+const SALES_ITEM_OPTIONS = ['Tomatoes', 'Red Habanero', 'Orange Habanero Pepper', 'Brown Habanero Pepper', 'Green Habanero Pepper', 'Green Bell Pepper', 'Crimson Pepper', 'Cayenne Pepper', 'Scorpion Pepper', 'Armageddon Pepper', 'Carolina Reaper Pepper', 'Shepherd Pepper', 'Yam', 'Red Onions', 'Yellow Onions', 'Red Bell Pepper', 'Sweet Potatoes', 'Ghost Pepper', 'Plantain'];
 
 function formatCurrency(cents) {
   return `CAD ${((cents || 0) / 100).toFixed(2)}`;
@@ -154,7 +154,9 @@ export default function AdminDiscountOrdersPanel({
   onLoadDiscountOrders,
   onCreateDiscountOrder,
   onCreateDiscountOrderUploadUrl,
+  itemOptions = SALES_ITEM_OPTIONS,
 }) {
+  const resolvedItemOptions = itemOptions.length ? itemOptions : SALES_ITEM_OPTIONS;
   const [form, setForm] = useState({
     customerId: '',
     fulfillmentMethod: 'PICKUP',
@@ -741,7 +743,7 @@ export default function AdminDiscountOrdersPanel({
                               <label className={ui.label}>Item name</label>
                               <select className={ui.select} value={item.customName} onChange={(event) => updateLine(item.id, 'customName', event.target.value)}>
                                 <option value="">Select item name</option>
-                                {SALES_ITEM_OPTIONS.map((itemName) => (
+                                {resolvedItemOptions.map((itemName) => (
                                   <option key={`${item.id}-${itemName}`} value={itemName}>
                                     {itemName}
                                   </option>

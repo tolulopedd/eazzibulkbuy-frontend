@@ -7,17 +7,22 @@ import {
   createAdminDiscountOrder,
   createAdminDiscountOrderUploadUrl,
   createAdminPickupLocation,
+  createAdminProduceItem,
+  uploadAdminProduceImage,
   createSalesItem,
   fetchAdminReports,
   fetchAdminPickupLocations,
+  fetchAdminProduceItems,
   fetchAdminPickupNotices,
   fetchAdminDiscountOrders,
   fetchAdminSalesItems,
   fetchAdminCustomers,
   updateAdminCustomer,
   updateAdminPickupLocation,
+  updateAdminProduceItem,
   exportAdminCustomers,
   deleteAdminPickupLocation,
+  deleteAdminProduceItem,
   approveAdminCustomerUpdateRequest,
   declineAdminCustomerUpdateRequest,
   fetchAdminOrders,
@@ -173,12 +178,38 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
     }
   }
 
+  async function handleLoadProduceItems() {
+    try {
+      return await fetchAdminProduceItems();
+    } catch (err) {
+      rethrowWithSessionHandling(err, 'Unable to load produce items right now.');
+    }
+  }
+
   async function handleCreatePickupLocation(payload) {
     setError('');
     try {
       return await createAdminPickupLocation(payload);
     } catch (err) {
       rethrowWithSessionHandling(err, 'Unable to create the pickup location right now.');
+    }
+  }
+
+  async function handleCreateProduceItem(payload) {
+    setError('');
+    try {
+      return await createAdminProduceItem(payload);
+    } catch (err) {
+      rethrowWithSessionHandling(err, 'Unable to create the produce item right now.');
+    }
+  }
+
+  async function handleUploadProduceImage(file) {
+    setError('');
+    try {
+      return await uploadAdminProduceImage(file);
+    } catch (err) {
+      rethrowWithSessionHandling(err, 'Unable to upload the produce image right now.');
     }
   }
 
@@ -191,12 +222,30 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
     }
   }
 
+  async function handleUpdateProduceItem(produceItemId, payload) {
+    setError('');
+    try {
+      return await updateAdminProduceItem(produceItemId, payload);
+    } catch (err) {
+      rethrowWithSessionHandling(err, 'Unable to update the produce item right now.');
+    }
+  }
+
   async function handleDeletePickupLocation(pickupLocationId) {
     setError('');
     try {
       return await deleteAdminPickupLocation(pickupLocationId);
     } catch (err) {
       rethrowWithSessionHandling(err, 'Unable to delete the pickup location right now.');
+    }
+  }
+
+  async function handleDeleteProduceItem(produceItemId) {
+    setError('');
+    try {
+      return await deleteAdminProduceItem(produceItemId);
+    } catch (err) {
+      rethrowWithSessionHandling(err, 'Unable to delete the produce item right now.');
     }
   }
 
@@ -451,15 +500,20 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
         onLoadDiscountOrders={handleLoadDiscountOrders}
         onLoadPickupNotices={handleLoadPickupNotices}
         onLoadPickupLocations={handleLoadPickupLocations}
+        onLoadProduceItems={handleLoadProduceItems}
         onCreateSalesItem={handleCreateSalesItem}
         onCreateDiscountOrder={handleCreateDiscountOrder}
         onCreatePickupLocation={handleCreatePickupLocation}
+        onCreateProduceItem={handleCreateProduceItem}
+        onUploadProduceImage={handleUploadProduceImage}
         onCreateDiscountOrderUploadUrl={handleCreateDiscountOrderUploadUrl}
         onLoadSalesItems={handleLoadSalesItems}
         onUpdateSalesItem={handleUpdateSalesItem}
         onUpdatePickupLocation={handleUpdatePickupLocation}
+        onUpdateProduceItem={handleUpdateProduceItem}
         onDeleteSalesItem={handleDeleteSalesItem}
         onDeletePickupLocation={handleDeletePickupLocation}
+        onDeleteProduceItem={handleDeleteProduceItem}
         onLoadCustomers={handleLoadCustomers}
         onCreateCustomer={handleCreateCustomer}
         onUpdateCustomer={handleUpdateCustomer}

@@ -143,6 +143,10 @@ export function fetchAdminPickupLocations() {
   return request('/api/admin/pickup-locations');
 }
 
+export function fetchAdminProduceItems() {
+  return request('/api/admin/produce-items');
+}
+
 export function createAdminPickupLocation(payload) {
   return request('/api/admin/pickup-locations', {
     method: 'POST',
@@ -151,8 +155,61 @@ export function createAdminPickupLocation(payload) {
   });
 }
 
+export function createAdminProduceItem(payload) {
+  return request('/api/admin/produce-items', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function createAdminProduceImageUploadUrl(payload) {
+  return request('/api/admin/produce-items/upload-url', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function uploadAdminProduceImage(file) {
+  let response;
+  try {
+    response = await fetch(buildApiUrl('/api/admin/produce-items/upload'), {
+      method: 'POST',
+      credentials: 'include',
+      headers: withAdminSessionHeaders({
+        'Content-Type': file.type,
+        'X-File-Name': encodeURIComponent(file.name),
+      }),
+      body: file,
+    });
+  } catch {
+    throw new Error('Unable to reach backend API. Check that the production API base URL is configured correctly.');
+  }
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    if (response.status === 401) {
+      writeAdminSessionToken('');
+    }
+    const error = new Error(errorData.message || 'Unable to upload the produce image right now.');
+    error.status = response.status;
+    throw error;
+  }
+
+  return response.json();
+}
+
 export function updateAdminPickupLocation(pickupLocationId, payload) {
   return request(`/api/admin/pickup-locations/${pickupLocationId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateAdminProduceItem(produceItemId, payload) {
+  return request(`/api/admin/produce-items/${produceItemId}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -177,6 +234,31 @@ export async function deleteAdminPickupLocation(pickupLocationId) {
       writeAdminSessionToken('');
     }
     const error = new Error(errorData.message || 'Unable to delete pickup location. Please try again.');
+    error.status = response.status;
+    throw error;
+  }
+
+  return response.json().catch(() => ({}));
+}
+
+export async function deleteAdminProduceItem(produceItemId) {
+  let response;
+  try {
+    response = await fetch(buildApiUrl(`/api/admin/produce-items/${produceItemId}`), {
+      method: 'DELETE',
+      credentials: 'include',
+      headers: withAdminSessionHeaders(),
+    });
+  } catch {
+    throw new Error('Unable to reach backend API. Check that the production API base URL is configured correctly.');
+  }
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    if (response.status === 401) {
+      writeAdminSessionToken('');
+    }
+    const error = new Error(errorData.message || 'Unable to delete produce item. Please try again.');
     error.status = response.status;
     throw error;
   }

@@ -5,6 +5,7 @@ import AdminReportsPanel from './AdminReportsPanel';
 import AdminPaymentsPanel from './AdminPaymentsPanel';
 import AdminPickupNoticesPanel from './AdminPickupNoticesPanel';
 import AdminPickupLocationsPanel from './AdminPickupLocationsPanel';
+import AdminProduceItemsPanel from './AdminProduceItemsPanel';
 import AdminCustomersPanel from './AdminCustomersPanel';
 import AdminFulfillmentPanel from './AdminFulfillmentPanel';
 import AdminDiscountOrdersPanel from './AdminDiscountOrdersPanel';
@@ -136,6 +137,15 @@ function PickupLocationIcon() {
   );
 }
 
+function ProduceIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+      <path d="M12 20c4-2 7-5.5 7-10.5A5.5 5.5 0 0 0 13.5 4c-1.2 0-2.3.4-3.2 1.1A5.2 5.2 0 0 0 8 4.6C5 4.6 3 7 3 9.8 3 14.5 7.6 18 12 20Z" />
+      <path d="M12 8c1.2-2 3-3.2 5.5-3.4" />
+    </svg>
+  );
+}
+
 function DiscountIcon() {
   return (
     <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
@@ -238,6 +248,9 @@ export default function AdminDashboard({
   onLoadPickupLocations,
   onSendPickupNotices,
   onCreatePickupLocation,
+  onLoadProduceItems,
+  onCreateProduceItem,
+  onUploadProduceImage,
   onConfirmInteracPayment,
   onLoadPaymentProofViewUrl,
   onCreateIncompleteOrderUploadUrl,
@@ -248,7 +261,9 @@ export default function AdminDashboard({
   onUpdateFulfillmentStatus,
   onUpdatePreferredPickupLocation,
   onUpdatePickupLocation,
+  onUpdateProduceItem,
   onDeletePickupLocation,
+  onDeleteProduceItem,
   onLogout,
 }) {
   const [reports, setReports] = useState(null);
@@ -278,6 +293,7 @@ export default function AdminDashboard({
   const [editForm, setEditForm] = useState({ ...createDefaultSalesForm() });
   const [form, setForm] = useState(createDefaultSalesForm());
   const [pickupLocations, setPickupLocations] = useState([]);
+  const [produceItems, setProduceItems] = useState([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
 
@@ -286,6 +302,7 @@ export default function AdminDashboard({
       return [
         { id: 'overview', label: 'Dashboard', title: 'Dashboard', icon: DashboardIcon },
         { id: 'sales', label: 'Sales Events', title: 'Sales Events', icon: SalesIcon },
+        { id: 'produce-items', label: 'Our Produce', title: 'Our Produce', icon: ProduceIcon },
         { id: 'discount-orders', label: 'Discount Orders', title: 'Discount Orders', icon: DiscountIcon },
         { id: 'payments', label: 'Payments', title: 'Payments', icon: PaymentIcon },
         { id: 'pickup-notices', label: 'Pickup Notices', title: 'Pickup Notices', icon: NoticeIcon },
@@ -389,13 +406,28 @@ export default function AdminDashboard({
     }
   }
 
+  async function loadProduceItems() {
+    try {
+      const response = await onLoadProduceItems();
+      setProduceItems(response.items || []);
+    } catch {
+      setProduceItems([]);
+    }
+  }
+
   useEffect(() => {
     if (!canManageSales) return;
     loadReports();
     loadSalesItems(DEFAULT_SALES_QUERY);
     loadActiveSalesSummary();
     loadPickupLocations();
+    loadProduceItems();
   }, []);
+
+  const activeProduceOptions = useMemo(
+    () => produceItems.filter((item) => item.isActive).map((item) => item.name),
+    [produceItems],
+  );
 
   async function handleCreate(event) {
     event.preventDefault();
@@ -578,6 +610,7 @@ export default function AdminDashboard({
           onPrevPage={() => goToSalesPage(salesMeta.page - 1)}
           onNextPage={() => goToSalesPage(salesMeta.page + 1)}
           formatStatusLabel={formatStatusLabel}
+          itemOptions={activeProduceOptions}
         />
       );
     }
@@ -636,6 +669,30 @@ export default function AdminDashboard({
       );
     }
 
+    if (activeModule === 'produce-items') {
+      return (
+        <AdminProduceItemsPanel
+          onLoadProduceItems={onLoadProduceItems}
+          onCreateProduceItem={async (payload) => {
+            const result = await onCreateProduceItem(payload);
+            await loadProduceItems();
+            return result;
+          }}
+          onUploadProduceImage={onUploadProduceImage}
+          onUpdateProduceItem={async (produceItemId, payload) => {
+            const result = await onUpdateProduceItem(produceItemId, payload);
+            await loadProduceItems();
+            return result;
+          }}
+          onDeleteProduceItem={async (produceItemId) => {
+            const result = await onDeleteProduceItem(produceItemId);
+            await loadProduceItems();
+            return result;
+          }}
+        />
+      );
+    }
+
     if (activeModule === 'discount-orders') {
       return (
         <AdminDiscountOrdersPanel
@@ -647,6 +704,7 @@ export default function AdminDashboard({
           onCreateDiscountOrderUploadUrl={onCreateDiscountOrderUploadUrl}
           onCreateIncompleteOrderUploadUrl={onCreateIncompleteOrderUploadUrl}
           onMarkIncompleteOrderPendingReview={onMarkIncompleteOrderPendingReview}
+          itemOptions={activeProduceOptions}
         />
       );
     }
