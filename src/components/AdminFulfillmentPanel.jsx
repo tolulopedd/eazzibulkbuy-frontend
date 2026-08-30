@@ -221,7 +221,12 @@ function buildFulfillmentRows(orders, query) {
   });
 }
 
-export default function AdminFulfillmentPanel({ onLoadOrders, onUpdateFulfillmentStatus, onRefreshReports }) {
+export default function AdminFulfillmentPanel({
+  onLoadOrders,
+  onUpdateFulfillmentStatus,
+  onRefreshReports,
+  canUseCustomerSuggestions = true,
+}) {
   const [orders, setOrders] = useState([]);
   const [query, setQuery] = useState(DEFAULT_QUERY);
   const [meta, setMeta] = useState({
@@ -290,6 +295,12 @@ export default function AdminFulfillmentPanel({ onLoadOrders, onUpdateFulfillmen
   }, [query.startDate, query.endDate, query.q, query.batchNumber, query.fulfillmentMethod, query.fulfillmentStatus]);
 
   useEffect(() => {
+    if (!canUseCustomerSuggestions) {
+      setSearchSuggestions([]);
+      setLoadingSuggestions(false);
+      return undefined;
+    }
+
     const searchTerm = query.q.trim();
 
     if (searchTerm.length < 2) {
@@ -328,7 +339,7 @@ export default function AdminFulfillmentPanel({ onLoadOrders, onUpdateFulfillmen
       active = false;
       window.clearTimeout(timer);
     };
-  }, [query.q]);
+  }, [query.q, canUseCustomerSuggestions]);
 
   async function applyFilters() {
     const nextQuery = {

@@ -75,7 +75,7 @@ export default function AdminResetPassword({ onGoAdmin, onBackHome }) {
       <div className={`${ui.glass} ${ui.card} mx-auto w-full max-w-xl space-y-1.5 p-4 text-center sm:p-5`}>
         <BrandLogo align="center" compact imageClassName="w-40 sm:w-44" />
         <h1 className="text-2xl font-bold tracking-tight text-emerald-950">Reset your password</h1>
-        <p className="text-sm leading-6 text-slate-600">Set a new password for your admin or partner account.</p>
+        <p className="text-sm leading-6 text-slate-600">Set a new password for your admin or fulfilment staff account.</p>
       </div>
 
       <form className={`${ui.card} mx-auto w-full max-w-xl space-y-4 p-4 sm:p-5`} onSubmit={handleSubmit}>

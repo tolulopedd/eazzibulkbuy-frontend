@@ -38,14 +38,16 @@ import {
   sendAdminPickupNotices,
   updateAdminFulfillmentStatus,
   updateAdminOrderPreferredPickupLocation,
+  fetchAdminUsers,
+  createAdminUser,
 } from '../api/admin';
 import AdminLogin from './AdminLogin';
 import AdminDashboard from './AdminDashboard';
 import { ui } from '../ui/classes';
 
-const ADMIN_SESSION_TIMEOUT_MS = 5 * 60 * 1000;
+const ADMIN_SESSION_TIMEOUT_MS = 20 * 60 * 1000;
 const ADMIN_ACTIVITY_EVENTS = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart'];
-const ADMIN_INACTIVITY_MESSAGE = 'Your admin session ended after 5 minutes of inactivity. Please sign in again.';
+const ADMIN_INACTIVITY_MESSAGE = 'Your admin session ended after 20 minutes of inactivity. Please sign in again.';
 
 export default function AdminModule({ onBackHome, onGoForgotPassword }) {
   const [checking, setChecking] = useState(true);
@@ -300,6 +302,23 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
     }
   }
 
+  async function handleLoadUsers(query = {}) {
+    try {
+      return await fetchAdminUsers(query);
+    } catch (err) {
+      rethrowWithSessionHandling(err, 'Unable to load users right now.');
+    }
+  }
+
+  async function handleCreateUser(payload) {
+    setError('');
+    try {
+      return await createAdminUser(payload);
+    } catch (err) {
+      rethrowWithSessionHandling(err, 'Unable to create user. Please try again.');
+    }
+  }
+
   async function handleUpdateCustomer(customerId, payload) {
     setError('');
     try {
@@ -514,6 +533,8 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
         onDeleteSalesItem={handleDeleteSalesItem}
         onDeletePickupLocation={handleDeletePickupLocation}
         onDeleteProduceItem={handleDeleteProduceItem}
+        onLoadUsers={handleLoadUsers}
+        onCreateUser={handleCreateUser}
         onLoadCustomers={handleLoadCustomers}
         onCreateCustomer={handleCreateCustomer}
         onUpdateCustomer={handleUpdateCustomer}

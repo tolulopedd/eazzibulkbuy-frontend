@@ -21,15 +21,6 @@ const DEFAULT_CREATE_FORM = {
   isActive: true,
 };
 
-const DEFAULT_INVITE_FORM = {
-  name: '',
-  email: '',
-  role: 'PARTNER',
-  phone: '',
-  address: '',
-  sendEmail: true,
-};
-
 function formatDate(value) {
   if (!value) {
     return 'N/A';
@@ -38,7 +29,13 @@ function formatDate(value) {
   return new Date(value).toLocaleString();
 }
 
-export default function SuperadminUsersPanel({ onLoadUsers, onCreateUser, onInviteUser }) {
+function formatRoleLabel(role) {
+  if (role === 'PARTNER') return 'Fulfilment Staff';
+  if (role === 'ADMIN') return 'Admin';
+  return role || 'Unknown';
+}
+
+export default function SuperadminUsersPanel({ onLoadUsers, onCreateUser }) {
   const [users, setUsers] = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [usersError, setUsersError] = useState('');
@@ -50,11 +47,6 @@ export default function SuperadminUsersPanel({ onLoadUsers, onCreateUser, onInvi
   const [createLoading, setCreateLoading] = useState(false);
   const [createStatus, setCreateStatus] = useState('');
   const [createError, setCreateError] = useState('');
-
-  const [inviteForm, setInviteForm] = useState(DEFAULT_INVITE_FORM);
-  const [inviteLoading, setInviteLoading] = useState(false);
-  const [inviteStatus, setInviteStatus] = useState('');
-  const [inviteError, setInviteError] = useState('');
 
   async function loadUsers(nextQuery = usersQuery) {
     setLoadingUsers(true);
@@ -110,13 +102,18 @@ export default function SuperadminUsersPanel({ onLoadUsers, onCreateUser, onInvi
     setCreateLoading(true);
 
     try {
+      if (createForm.password.trim().length < 8) {
+        setCreateError('Password must be at least 8 characters for admin and fulfilment staff accounts.');
+        return;
+      }
+
       await onCreateUser({
-        name: createForm.name,
-        email: createForm.email,
+        name: createForm.name.trim(),
+        email: createForm.email.trim(),
         role: createForm.role,
-        password: createForm.password || undefined,
-        phone: createForm.phone || undefined,
-        address: createForm.address || undefined,
+        password: createForm.password.trim() || undefined,
+        phone: createForm.phone.trim() || undefined,
+        address: createForm.address.trim() || undefined,
         isActive: createForm.isActive,
       });
       setCreateStatus('User account created.');
@@ -129,31 +126,6 @@ export default function SuperadminUsersPanel({ onLoadUsers, onCreateUser, onInvi
     }
   }
 
-  async function handleInviteUser(event) {
-    event.preventDefault();
-    setInviteError('');
-    setInviteStatus('');
-    setInviteLoading(true);
-
-    try {
-      const result = await onInviteUser({
-        name: inviteForm.name,
-        email: inviteForm.email,
-        role: inviteForm.role,
-        phone: inviteForm.phone || undefined,
-        address: inviteForm.address || undefined,
-        sendEmail: inviteForm.sendEmail,
-      });
-      setInviteStatus(`Invite created for ${result.user.email}.`);
-      setInviteForm(DEFAULT_INVITE_FORM);
-      await loadUsers(usersQuery);
-    } catch (error) {
-      setInviteError(error.message || 'Unable to send invite. Please try again.');
-    } finally {
-      setInviteLoading(false);
-    }
-  }
-
   const listStart = usersMeta.total === 0 ? 0 : (usersMeta.page - 1) * usersMeta.limit + 1;
   const listEnd = usersMeta.total === 0 ? 0 : Math.min(usersMeta.page * usersMeta.limit, usersMeta.total);
 
@@ -162,7 +134,7 @@ export default function SuperadminUsersPanel({ onLoadUsers, onCreateUser, onInvi
       <section className={`${ui.card} space-y-5`}>
         <div className="space-y-2">
           <h1 className="text-2xl font-bold tracking-tight text-emerald-950">Users directory</h1>
-          <p className="leading-6 text-slate-600">View and filter admin, partner, and buyer accounts.</p>
+          <p className="leading-6 text-slate-600">View and filter admin and fulfilment staff accounts.</p>
         </div>
 
         <div className={`${ui.section} space-y-4`}>
@@ -181,8 +153,7 @@ export default function SuperadminUsersPanel({ onLoadUsers, onCreateUser, onInvi
               <select className={ui.select} value={usersQuery.role} onChange={(e) => setUsersQuery((prev) => ({ ...prev, role: e.target.value }))}>
                 <option value="">All roles</option>
                 <option value="ADMIN">Admin</option>
-                <option value="PARTNER">Partner</option>
-                <option value="USER">User</option>
+                <option value="PARTNER">Fulfilment Staff</option>
               </select>
             </div>
             <div className={ui.fieldWrap}>
@@ -228,7 +199,7 @@ export default function SuperadminUsersPanel({ onLoadUsers, onCreateUser, onInvi
             <article key={user.id} className={`${ui.section} space-y-2`}>
               <p className="text-lg font-semibold text-slate-900">{user.name}</p>
               <p className="text-sm leading-6 text-slate-700">Email: {user.email}</p>
-              <p className="text-sm leading-6 text-slate-700">Role: {user.role}</p>
+              <p className="text-sm leading-6 text-slate-700">Role: {formatRoleLabel(user.role)}</p>
               <p className="text-sm leading-6 text-slate-700">Status: {user.isActive ? 'Active' : 'Inactive'}</p>
               <p className="text-sm leading-6 text-slate-700">Last login: {formatDate(user.lastLoginAt)}</p>
               <p className="text-sm leading-6 text-slate-700">Created: {formatDate(user.createdAt)}</p>
@@ -262,7 +233,7 @@ export default function SuperadminUsersPanel({ onLoadUsers, onCreateUser, onInvi
       <form className={`${ui.card} space-y-5`} onSubmit={handleCreateUser}>
         <div className="space-y-2">
           <h1 className="text-2xl font-bold tracking-tight text-emerald-950">Create user</h1>
-          <p className="leading-6 text-slate-600">Create an account directly for admin, partner, or buyer users.</p>
+          <p className="leading-6 text-slate-600">Create an account directly for admin or fulfilment staff access.</p>
         </div>
 
         <div className={`${ui.section} space-y-4`}>
@@ -279,8 +250,7 @@ export default function SuperadminUsersPanel({ onLoadUsers, onCreateUser, onInvi
               <label className={ui.label}>Role</label>
               <select className={ui.select} value={createForm.role} onChange={(e) => setCreateForm((prev) => ({ ...prev, role: e.target.value }))}>
                 <option value="ADMIN">Admin</option>
-                <option value="PARTNER">Partner</option>
-                <option value="USER">User</option>
+                <option value="PARTNER">Fulfilment Staff</option>
               </select>
             </div>
             <div className={ui.fieldWrap}>
@@ -290,7 +260,7 @@ export default function SuperadminUsersPanel({ onLoadUsers, onCreateUser, onInvi
                 type="password"
                 value={createForm.password}
                 onChange={(e) => setCreateForm((prev) => ({ ...prev, password: e.target.value }))}
-                placeholder={createForm.role === 'USER' ? 'Optional for users' : 'Required for admin/partner'}
+                placeholder="Required for admin/fulfilment staff"
               />
             </div>
             <div className={ui.fieldWrap}>
@@ -323,61 +293,6 @@ export default function SuperadminUsersPanel({ onLoadUsers, onCreateUser, onInvi
         </div>
         {createStatus ? <p className={ui.success}>{createStatus}</p> : null}
         {createError ? <p className={ui.error}>{createError}</p> : null}
-      </form>
-
-      <form className={`${ui.card} space-y-5`} onSubmit={handleInviteUser}>
-        <div className="space-y-2">
-          <h1 className="text-2xl font-bold tracking-tight text-emerald-950">Invite user</h1>
-          <p className="leading-6 text-slate-600">Send an invite link so admins and partners can set their own password.</p>
-        </div>
-
-        <div className={`${ui.section} space-y-4`}>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className={ui.fieldWrap}>
-              <label className={ui.label}>Full name</label>
-              <input className={ui.input} required value={inviteForm.name} onChange={(e) => setInviteForm((prev) => ({ ...prev, name: e.target.value }))} />
-            </div>
-            <div className={ui.fieldWrap}>
-              <label className={ui.label}>Email</label>
-              <input className={ui.input} type="email" required value={inviteForm.email} onChange={(e) => setInviteForm((prev) => ({ ...prev, email: e.target.value }))} />
-            </div>
-            <div className={ui.fieldWrap}>
-              <label className={ui.label}>Role</label>
-              <select className={ui.select} value={inviteForm.role} onChange={(e) => setInviteForm((prev) => ({ ...prev, role: e.target.value }))}>
-                <option value="ADMIN">Admin</option>
-                <option value="PARTNER">Partner</option>
-                <option value="USER">User</option>
-              </select>
-            </div>
-            <div className={ui.fieldWrap}>
-              <label className={ui.label}>Send invite email</label>
-              <select
-                className={ui.select}
-                value={inviteForm.sendEmail ? 'true' : 'false'}
-                onChange={(e) => setInviteForm((prev) => ({ ...prev, sendEmail: e.target.value === 'true' }))}
-              >
-                <option value="true">Yes</option>
-                <option value="false">No (create link only)</option>
-              </select>
-            </div>
-            <div className={ui.fieldWrap}>
-              <label className={ui.label}>Phone</label>
-              <input className={ui.input} value={inviteForm.phone} onChange={(e) => setInviteForm((prev) => ({ ...prev, phone: e.target.value }))} />
-            </div>
-            <div className={ui.fieldWrap}>
-              <label className={ui.label}>Address</label>
-              <input className={ui.input} value={inviteForm.address} onChange={(e) => setInviteForm((prev) => ({ ...prev, address: e.target.value }))} />
-            </div>
-          </div>
-        </div>
-
-        <div className="flex justify-center pt-1">
-          <button type="submit" className={`${ui.buttonPrimary} min-w-32`} disabled={inviteLoading}>
-            {inviteLoading ? 'Sending invite...' : 'Create invite'}
-          </button>
-        </div>
-        {inviteStatus ? <p className={ui.success}>{inviteStatus}</p> : null}
-        {inviteError ? <p className={ui.error}>{inviteError}</p> : null}
       </form>
     </>
   );

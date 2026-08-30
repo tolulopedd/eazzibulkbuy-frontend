@@ -39,6 +39,20 @@ function withAdminSessionHeaders(headers = {}) {
   };
 }
 
+function formatValidationDetails(details) {
+  if (!Array.isArray(details) || details.length === 0) {
+    return '';
+  }
+
+  return details
+    .map((detail) => {
+      const field = Array.isArray(detail.path) && detail.path.length ? detail.path.join('.') : 'Request';
+      return `${field}: ${detail.message}`;
+    })
+    .filter(Boolean)
+    .join(' ');
+}
+
 async function request(path, options = {}) {
   let response;
   const headers = withAdminSessionHeaders(options.headers || {});
@@ -58,7 +72,10 @@ async function request(path, options = {}) {
       writeAdminSessionToken('');
     }
 
-    const error = new Error(errorData.message || 'Unable to complete this request. Please try again.');
+    const validationMessage = formatValidationDetails(errorData.details);
+    const error = new Error(
+      validationMessage || errorData.message || 'Unable to complete this request. Please try again.',
+    );
     error.status = response.status;
     throw error;
   }
@@ -674,7 +691,7 @@ export function fetchAdminUsers(params = {}) {
   if (params.role) {
     search.set('role', params.role);
   }
-  if (params.isActive !== undefined) {
+  if (params.isActive !== undefined && params.isActive !== '') {
     search.set('isActive', String(params.isActive));
   }
   if (params.sortBy) {

@@ -43,7 +43,7 @@ export default function AdminForgotPassword({ onGoAdmin, onBackHome }) {
       <div className={`${ui.glass} ${ui.card} mx-auto w-full max-w-xl space-y-1.5 p-4 text-center sm:p-5`}>
         <BrandLogo align="center" compact imageClassName="w-40 sm:w-44" />
         <h1 className="text-2xl font-bold tracking-tight text-emerald-950">Forgot password</h1>
-        <p className="text-sm leading-6 text-slate-600">Enter your admin or partner email to receive a reset link.</p>
+        <p className="text-sm leading-6 text-slate-600">Enter your admin or fulfilment staff email to receive a reset link.</p>
       </div>
 
       <form className={`${ui.card} mx-auto w-full max-w-xl space-y-4 p-4 sm:p-5`} onSubmit={handleSubmit}>

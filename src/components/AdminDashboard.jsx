@@ -9,6 +9,7 @@ import AdminProduceItemsPanel from './AdminProduceItemsPanel';
 import AdminCustomersPanel from './AdminCustomersPanel';
 import AdminFulfillmentPanel from './AdminFulfillmentPanel';
 import AdminDiscountOrdersPanel from './AdminDiscountOrdersPanel';
+import SuperadminUsersPanel from './SuperadminUsersPanel';
 import BrandLogo from './BrandLogo';
 import { ui } from '../ui/classes';
 
@@ -264,6 +265,8 @@ export default function AdminDashboard({
   onUpdateProduceItem,
   onDeletePickupLocation,
   onDeleteProduceItem,
+  onLoadUsers,
+  onCreateUser,
   onLogout,
 }) {
   const [reports, setReports] = useState(null);
@@ -299,7 +302,7 @@ export default function AdminDashboard({
 
   const modules = useMemo(() => {
     if (canManageSales) {
-      return [
+      const adminModules = [
         { id: 'overview', label: 'Dashboard', title: 'Dashboard', icon: DashboardIcon },
         { id: 'sales', label: 'Sales Events', title: 'Sales Events', icon: SalesIcon },
         { id: 'produce-items', label: 'Our Produce', title: 'Our Produce', icon: ProduceIcon },
@@ -312,14 +315,20 @@ export default function AdminDashboard({
         { id: 'customers', label: 'Customer', title: 'Customer', icon: CustomerIcon },
         { id: 'customer-updates', label: 'Customer Update', title: 'Customer Update', icon: CustomerUpdateIcon },
       ];
+
+      if (isSuperAdmin) {
+        adminModules.push({ id: 'users', label: 'User Management', title: 'User Management', icon: CustomerIcon });
+      }
+
+      return adminModules;
     }
 
     return [
-      { id: 'logistics', label: 'Logistics', title: 'Logistics', icon: LogisticsIcon },
+      { id: 'fulfillment', label: 'Fulfilment', title: 'Fulfilment', icon: FulfillmentIcon },
     ];
-  }, [canManageSales]);
+  }, [canManageSales, isSuperAdmin]);
 
-  const [activeModule, setActiveModule] = useState(() => (canManageSales ? 'overview' : 'logistics'));
+  const [activeModule, setActiveModule] = useState(() => (canManageSales ? 'overview' : 'fulfillment'));
 
   const activeModuleConfig = useMemo(
     () => modules.find((module) => module.id === activeModule) || modules[0],
@@ -715,7 +724,8 @@ export default function AdminDashboard({
           onLoadOrders={onLoadOrders}
           onUpdateFulfillmentStatus={onUpdateFulfillmentStatus}
           onUpdatePreferredPickupLocation={onUpdatePreferredPickupLocation}
-          onRefreshReports={loadReports}
+          onRefreshReports={canManageSales ? loadReports : undefined}
+          canUseCustomerSuggestions
         />
       );
     }
@@ -742,6 +752,15 @@ export default function AdminDashboard({
           onApproveCustomerUpdateRequest={onApproveCustomerUpdateRequest}
           onDeclineCustomerUpdateRequest={onDeclineCustomerUpdateRequest}
           mode="updates"
+        />
+      );
+    }
+
+    if (activeModule === 'users' && isSuperAdmin) {
+      return (
+        <SuperadminUsersPanel
+          onLoadUsers={onLoadUsers}
+          onCreateUser={onCreateUser}
         />
       );
     }
