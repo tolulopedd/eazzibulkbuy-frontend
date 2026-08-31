@@ -17,6 +17,7 @@ const DEFAULT_FILTERS = {
   endDate: '',
   salesItemId: '',
   batchNumber: '',
+  pickupLocation: '',
   fulfillmentMethod: '',
   fulfillmentStatus: '',
   reportType: 'orderReady',
@@ -26,6 +27,7 @@ const REPORT_OPTIONS = [
   { value: 'orderReady', label: 'Order Ready (Paid)' },
   { value: 'supplierOrders', label: 'Items to Order from Supplier (Paid)' },
   { value: 'salesDetails', label: 'Sales Details Report' },
+  { value: 'fulfilledOrders', label: 'Fulfilled Orders Report' },
 ];
 
 function toIsoBoundary(value, endOfDay = false) {
@@ -144,6 +146,7 @@ export default function AdminReportsPanel({ reports, reportError, loadingReports
         endDate: toIsoBoundary(filters.endDate, true),
         salesItemId: filters.salesItemId,
         batchNumber: filters.batchNumber,
+        pickupLocation: filters.pickupLocation,
         fulfillmentMethod: filters.fulfillmentMethod,
         fulfillmentStatus: filters.fulfillmentStatus,
         reportType: filters.reportType,
@@ -151,7 +154,7 @@ export default function AdminReportsPanel({ reports, reportError, loadingReports
     }, 250);
 
     return () => window.clearTimeout(timer);
-  }, [filters.startDate, filters.endDate, filters.salesItemId, filters.batchNumber, filters.fulfillmentMethod, filters.fulfillmentStatus, filters.reportType]);
+  }, [filters.startDate, filters.endDate, filters.salesItemId, filters.batchNumber, filters.pickupLocation, filters.fulfillmentMethod, filters.fulfillmentStatus, filters.reportType]);
 
   async function applyFilters(event) {
     event.preventDefault();
@@ -160,6 +163,7 @@ export default function AdminReportsPanel({ reports, reportError, loadingReports
       endDate: toIsoBoundary(filters.endDate, true),
       salesItemId: filters.salesItemId,
       batchNumber: filters.batchNumber,
+      pickupLocation: filters.pickupLocation,
       fulfillmentMethod: filters.fulfillmentMethod,
       fulfillmentStatus: filters.fulfillmentStatus,
       reportType: filters.reportType,
@@ -182,6 +186,7 @@ export default function AdminReportsPanel({ reports, reportError, loadingReports
         endDate: toIsoBoundary(filters.endDate, true),
         salesItemId: filters.salesItemId,
         batchNumber: filters.batchNumber,
+        pickupLocation: filters.pickupLocation,
         fulfillmentMethod: filters.fulfillmentMethod,
         fulfillmentStatus: filters.fulfillmentStatus,
         reportType: filters.reportType,
@@ -217,6 +222,12 @@ export default function AdminReportsPanel({ reports, reportError, loadingReports
           render: column.key === 'totalAmount' ? (row) => formatCad(row.totalAmount) : column.render,
         }));
         rows = reports?.salesDetailRows || [];
+      } else if (activeReportType === 'fulfilledOrders') {
+        columns = fulfilledOrdersColumns.map((column) => ({
+          ...column,
+          render: column.key === 'totalAmount' ? (row) => formatCad(row.totalAmount) : column.render,
+        }));
+        rows = reports?.fulfilledOrderRows || [];
       }
 
       openPdfExport({
@@ -234,6 +245,12 @@ export default function AdminReportsPanel({ reports, reportError, loadingReports
   }
 
   const salesItems = reports?.filterOptions?.salesItems || [];
+  const pickupLocationOptions = [
+    ...new Set([
+      ...(reports?.filterOptions?.pickupLocations || []),
+      ...(reports?.fulfilledOrderRows || []).map((row) => row.preferredPickupLocation),
+    ].filter(Boolean)),
+  ];
   const activeReportType = reports?.filters?.reportType || filters.reportType;
   const activeReportLabel = REPORT_OPTIONS.find((option) => option.value === activeReportType)?.label || 'Reports';
 
@@ -257,6 +274,21 @@ export default function AdminReportsPanel({ reports, reportError, loadingReports
     { key: 'totalAmount', label: 'Total Amount', render: (row) => formatCad(row.totalAmount) },
   ];
 
+  const fulfilledOrdersColumns = [
+    { key: 'displayOrderReference', label: 'Order No' },
+    { key: 'batchNumber', label: 'Batch No' },
+    { key: 'itemName', label: 'Item' },
+    { key: 'quantity', label: 'Qty' },
+    { key: 'buyerName', label: 'Buyer' },
+    { key: 'buyerPhone', label: 'Phone' },
+    { key: 'fulfillmentMethod', label: 'Method', render: (row) => row.fulfillmentMethod ? row.fulfillmentMethod.replace(/_/g, ' ') : '—' },
+    { key: 'fulfillmentStatusLabel', label: 'Status' },
+    { key: 'preferredPickupLocation', label: 'Pickup Location' },
+    { key: 'fulfilledAt', label: 'Fulfilled At', render: (row) => row.fulfilledAt ? new Date(row.fulfilledAt).toLocaleString() : '—' },
+    { key: 'fulfilledByEmail', label: 'Fulfilled By' },
+    { key: 'totalAmount', label: 'Amount', render: (row) => formatCad(row.totalAmount) },
+  ];
+
   function renderActiveReport() {
     if (!reports) {
       return <p className={ui.note}>{loadingReports ? 'Loading reports...' : 'No report data available yet.'}</p>;
@@ -268,6 +300,10 @@ export default function AdminReportsPanel({ reports, reportError, loadingReports
 
     if (activeReportType === 'salesDetails') {
       return <ReportTable columns={salesDetailsColumns} rows={reports.salesDetailRows || []} emptyMessage="No sales details found for the selected filters." />;
+    }
+
+    if (activeReportType === 'fulfilledOrders') {
+      return <ReportTable columns={fulfilledOrdersColumns} rows={reports.fulfilledOrderRows || []} emptyMessage="No fulfilled orders found for the selected filters." />;
     }
 
     return <ReportTable columns={orderReadyColumns} rows={reports.orderReadyRows || []} emptyMessage="No paid orders are ready for the selected filters." />;
@@ -368,6 +404,19 @@ export default function AdminReportsPanel({ reports, reportError, loadingReports
                   <option value="">All orders</option>
                   <option value="PICKUP">Pickup</option>
                   <option value="DELIVERY">Delivery</option>
+                </select>
+              </div>
+              <div className={ui.fieldWrap}>
+                <label className={ui.label}>Pickup location</label>
+                <select
+                  className={ui.select}
+                  value={filters.pickupLocation}
+                  onChange={(e) => setFilters((current) => ({ ...current, pickupLocation: e.target.value }))}
+                >
+                  <option value="">All pickup locations</option>
+                  {pickupLocationOptions.map((location) => (
+                    <option key={location} value={location}>{location}</option>
+                  ))}
                 </select>
               </div>
               <div className={ui.fieldWrap}>

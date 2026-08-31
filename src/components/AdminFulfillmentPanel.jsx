@@ -73,6 +73,7 @@ const DEFAULT_QUERY = {
   endDate: TODAY_FILTER,
   q: '',
   batchNumber: '',
+  pickupLocation: '',
   fulfillmentMethod: '',
   fulfillmentStatus: '',
   paidOnly: 'true',
@@ -176,6 +177,7 @@ function getFulfillmentRowNarration(item, order) {
 function buildFulfillmentRows(orders, query) {
   const activeBatchFilters = parseBatchFilters(query.batchNumber);
   const activeSearchQuery = query.q.trim();
+  const activePickupLocation = String(query.pickupLocation || '').trim();
 
   return orders.flatMap((order) => {
     const items = Array.isArray(order.fulfillmentItems) && order.fulfillmentItems.length
@@ -206,6 +208,9 @@ function buildFulfillmentRows(orders, query) {
         const matchesFulfillmentStatus =
           !query.fulfillmentStatus || item.fulfillmentStatus === query.fulfillmentStatus;
 
+        const matchesPickupLocation =
+          !activePickupLocation || includesInsensitive(item.preferredPickupLocation || order.preferredPickupLocation, activePickupLocation);
+
         const matchesSearch =
           !activeSearchQuery
           || [
@@ -220,7 +225,7 @@ function buildFulfillmentRows(orders, query) {
             item.preferredPickupLocation,
           ].some((value) => includesInsensitive(value, activeSearchQuery));
 
-        return matchesBatch && matchesFulfillmentMethod && matchesFulfillmentStatus && matchesSearch;
+        return matchesBatch && matchesFulfillmentMethod && matchesFulfillmentStatus && matchesPickupLocation && matchesSearch;
       })
       .map((item) => ({
         ...order,
@@ -235,6 +240,7 @@ export default function AdminFulfillmentPanel({
   onRefreshReports,
   canUseCustomerSuggestions = true,
   canRevertFulfillment = false,
+  pickupLocations = [],
 }) {
   const [orders, setOrders] = useState([]);
   const [query, setQuery] = useState(DEFAULT_QUERY);
@@ -270,11 +276,36 @@ export default function AdminFulfillmentPanel({
         total: response.total || 0,
         totalPages: response.totalPages || 1,
       });
+      return response;
     } catch (err) {
       setError(err.message || 'Unable to load pickup and delivery orders right now.');
+      return null;
     } finally {
       setLoading(false);
     }
+  }
+
+  function mergeUpdatedFulfillmentOrder(updatedOrder) {
+    if (!updatedOrder?.orderReference) {
+      return;
+    }
+
+    setOrders((currentOrders) =>
+      currentOrders.map((currentOrder) =>
+        currentOrder.orderReference === updatedOrder.orderReference
+          ? {
+              ...currentOrder,
+              ...updatedOrder,
+              user: updatedOrder.user || currentOrder.user,
+              salesItem: updatedOrder.salesItem || currentOrder.salesItem,
+              payment: updatedOrder.payment || currentOrder.payment,
+              fulfillmentItems: Array.isArray(updatedOrder.fulfillmentItems)
+                ? updatedOrder.fulfillmentItems
+                : currentOrder.fulfillmentItems,
+            }
+          : currentOrder,
+      ),
+    );
   }
 
   useEffect(() => {
@@ -301,7 +332,7 @@ export default function AdminFulfillmentPanel({
     }, 250);
 
     return () => window.clearTimeout(timer);
-  }, [query.startDate, query.endDate, query.q, query.batchNumber, query.fulfillmentMethod, query.fulfillmentStatus]);
+  }, [query.startDate, query.endDate, query.q, query.batchNumber, query.pickupLocation, query.fulfillmentMethod, query.fulfillmentStatus]);
 
   useEffect(() => {
     if (!canUseCustomerSuggestions) {
@@ -354,8 +385,9 @@ export default function AdminFulfillmentPanel({
     const nextQuery = {
       ...query,
       q: query.q.trim(),
-      batchNumber: query.batchNumber.trim(),
-      page: 1,
+        batchNumber: query.batchNumber.trim(),
+        pickupLocation: query.pickupLocation.trim(),
+        page: 1,
     };
     setQuery(nextQuery);
     await loadFulfillment(nextQuery);
@@ -376,6 +408,7 @@ export default function AdminFulfillmentPanel({
       const result = await onUpdateFulfillmentStatus(order.orderReference, getNextStatus(order), order.itemIndex);
       setStatus(result.message || 'Fulfilment confirmed successfully.');
       await loadFulfillment(query);
+      mergeUpdatedFulfillmentOrder(result.order);
       if (onRefreshReports) {
         await onRefreshReports();
       }
@@ -401,6 +434,7 @@ export default function AdminFulfillmentPanel({
       const result = await onUpdateFulfillmentStatus(order.orderReference, nextStatus, order.itemIndex);
       setStatus(result.message || 'Fulfilment status reverted successfully.');
       await loadFulfillment(query);
+      mergeUpdatedFulfillmentOrder(result.order);
       if (onRefreshReports) {
         await onRefreshReports();
       }
@@ -549,6 +583,15 @@ export default function AdminFulfillmentPanel({
   const listEnd = meta.total === 0 ? 0 : Math.min(meta.page * meta.limit, meta.total);
   const showSuggestions = query.q.trim().length >= 2 && (loadingSuggestions || searchSuggestions.length > 0);
   const fulfillmentRows = buildFulfillmentRows(orders, query);
+  const pickupLocationOptions = [
+    ...pickupLocations
+      .filter((location) => location.isActive !== false)
+      .map((location) => location.name),
+    ...orders.flatMap((order) =>
+      (Array.isArray(order.fulfillmentItems) ? order.fulfillmentItems : [])
+        .map((item) => item.preferredPickupLocation || order.preferredPickupLocation)
+    ),
+  ].filter((location, index, list) => location && list.indexOf(location) === index);
 
   return (
     <section className="space-y-5">
@@ -632,6 +675,19 @@ export default function AdminFulfillmentPanel({
               </select>
             </div>
             <div className={ui.fieldWrap}>
+              <label className={ui.label}>Pickup location</label>
+              <select
+                className={ui.select}
+                value={query.pickupLocation}
+                onChange={(event) => setQuery((current) => ({ ...current, pickupLocation: event.target.value }))}
+              >
+                <option value="">All pickup locations</option>
+                {pickupLocationOptions.map((location) => (
+                  <option key={location} value={location}>{location}</option>
+                ))}
+              </select>
+            </div>
+            <div className={ui.fieldWrap}>
               <label className={ui.label}>Fulfilment status</label>
               <select className={ui.select} value={query.fulfillmentStatus} onChange={(event) => setQuery((current) => ({ ...current, fulfillmentStatus: event.target.value }))}>
                 <option value="">All statuses</option>
@@ -641,7 +697,7 @@ export default function AdminFulfillmentPanel({
                 <option value="DELIVERED">Delivered</option>
               </select>
             </div>
-            <div className="xl:col-span-2 flex flex-wrap items-end gap-3">
+            <div className="xl:col-span-1 flex flex-wrap items-end gap-3">
               <button type="button" className={ui.buttonGhost} onClick={handleExportPaidDeliveryOrders} disabled={exporting}>
                 {exporting ? 'Exporting...' : 'Download to Excel'}
               </button>

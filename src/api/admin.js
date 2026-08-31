@@ -382,6 +382,9 @@ export function fetchAdminReports(params = {}) {
   if (params.batchNumber) {
     search.set('batchNumber', params.batchNumber);
   }
+  if (params.pickupLocation) {
+    search.set('pickupLocation', params.pickupLocation);
+  }
   if (params.fulfillmentMethod) {
     search.set('fulfillmentMethod', params.fulfillmentMethod);
   }
@@ -403,6 +406,7 @@ export async function exportAdminReports(params = {}) {
   if (params.endDate) search.set('endDate', params.endDate);
   if (params.salesItemId) search.set('salesItemId', params.salesItemId);
   if (params.batchNumber) search.set('batchNumber', params.batchNumber);
+  if (params.pickupLocation) search.set('pickupLocation', params.pickupLocation);
   if (params.fulfillmentMethod) search.set('fulfillmentMethod', params.fulfillmentMethod);
   if (params.fulfillmentStatus) search.set('fulfillmentStatus', params.fulfillmentStatus);
   if (params.reportType) search.set('reportType', params.reportType);
@@ -542,6 +546,9 @@ export function fetchAdminOrders(params = {}) {
   if (params.batchNumber) {
     search.set('batchNumber', params.batchNumber);
   }
+  if (params.pickupLocation) {
+    search.set('pickupLocation', params.pickupLocation);
+  }
   if (params.paidOnly !== undefined && params.paidOnly !== '') {
     search.set('paidOnly', String(params.paidOnly));
   }
@@ -592,6 +599,7 @@ export async function exportAdminOrders(params = {}) {
   if (params.endDate) search.set('endDate', params.endDate);
   if (params.q) search.set('q', params.q);
   if (params.batchNumber) search.set('batchNumber', params.batchNumber);
+  if (params.pickupLocation) search.set('pickupLocation', params.pickupLocation);
   if (params.paidOnly !== undefined && params.paidOnly !== '') search.set('paidOnly', String(params.paidOnly));
   if (params.status) search.set('status', params.status);
   if (params.paymentStatus) search.set('paymentStatus', params.paymentStatus);

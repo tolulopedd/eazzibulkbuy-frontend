@@ -728,6 +728,7 @@ export default function AdminDashboard({
           onRefreshReports={canManageSales ? loadReports : undefined}
           canUseCustomerSuggestions
           canRevertFulfillment={canManageSales}
+          pickupLocations={pickupLocations}
         />
       );
     }
