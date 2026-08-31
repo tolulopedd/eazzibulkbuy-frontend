@@ -146,11 +146,19 @@ function getNextStatus(item) {
   return item.fulfillmentMethod === 'DELIVERY' ? 'DELIVERED' : 'PICKED_UP';
 }
 
+function getPendingStatus(item) {
+  return item.fulfillmentMethod === 'DELIVERY' ? 'PENDING_DELIVERY' : 'PENDING_PICKUP';
+}
+
 function canConfirm(item) {
   if (item.fulfillmentMethod === 'DELIVERY') {
     return item.fulfillmentStatus !== 'DELIVERED';
   }
   return item.fulfillmentStatus !== 'PICKED_UP';
+}
+
+function isCompletedFulfillment(item) {
+  return item.fulfillmentStatus === 'PICKED_UP' || item.fulfillmentStatus === 'DELIVERED';
 }
 
 function getStatusTone(status) {
@@ -226,6 +234,7 @@ export default function AdminFulfillmentPanel({
   onUpdateFulfillmentStatus,
   onRefreshReports,
   canUseCustomerSuggestions = true,
+  canRevertFulfillment = false,
 }) {
   const [orders, setOrders] = useState([]);
   const [query, setQuery] = useState(DEFAULT_QUERY);
@@ -372,6 +381,31 @@ export default function AdminFulfillmentPanel({
       }
     } catch (err) {
       setError(err.message || 'Unable to confirm this pickup or delivery.');
+    } finally {
+      setUpdatingReference('');
+    }
+  }
+
+  async function handleRevert(order) {
+    const nextStatus = getPendingStatus(order);
+    const confirmationLabel = order.fulfillmentMethod === 'DELIVERY' ? 'pending delivery' : 'pending pickup';
+
+    if (!window.confirm(`Revert this item to ${confirmationLabel}?`)) {
+      return;
+    }
+
+    setUpdatingReference(`${order.orderReference}:${order.itemIndex}`);
+    setStatus('');
+    setError('');
+    try {
+      const result = await onUpdateFulfillmentStatus(order.orderReference, nextStatus, order.itemIndex);
+      setStatus(result.message || 'Fulfilment status reverted successfully.');
+      await loadFulfillment(query);
+      if (onRefreshReports) {
+        await onRefreshReports();
+      }
+    } catch (err) {
+      setError(err.message || 'Unable to revert this pickup or delivery.');
     } finally {
       setUpdatingReference('');
     }
@@ -701,6 +735,25 @@ export default function AdminFulfillmentPanel({
                         >
                           {updatingReference === `${order.orderReference}:${order.itemIndex}` ? 'Saving...' : getActionLabel(order)}
                         </button>
+                      ) : canRevertFulfillment && isCompletedFulfillment(order) ? (
+                        <div className="inline-flex items-center justify-end gap-2">
+                          <span className="text-sm font-medium text-slate-500">
+                            {updatingReference === `${order.orderReference}:${order.itemIndex}` ? 'Saving...' : 'Completed'}
+                          </span>
+                          <button
+                            type="button"
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                            onClick={() => handleRevert(order)}
+                            disabled={updatingReference === `${order.orderReference}:${order.itemIndex}`}
+                            title={`Change back to ${order.fulfillmentMethod === 'DELIVERY' ? 'confirm delivery' : 'confirm pickup'}`}
+                            aria-label={`Change back to ${order.fulfillmentMethod === 'DELIVERY' ? 'confirm delivery' : 'confirm pickup'}`}
+                          >
+                            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                              <path d="M9 14 4 9l5-5" />
+                              <path d="M4 9h10a6 6 0 1 1 0 12h-2" />
+                            </svg>
+                          </button>
+                        </div>
                       ) : (
                         <span className="text-sm font-medium text-slate-500">Completed</span>
                       )}

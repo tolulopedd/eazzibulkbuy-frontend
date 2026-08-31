@@ -108,6 +108,10 @@ function getNoticeTone(status) {
   return status === 'SENT' ? 'success' : 'warning';
 }
 
+function isCompletedFulfillment(row) {
+  return row?.fulfillmentStatus === 'PICKED_UP' || row?.fulfillmentStatus === 'DELIVERED';
+}
+
 function formatChannelSummary(lastResults = {}) {
   const parts = [];
   if (lastResults.email) {
@@ -206,14 +210,16 @@ function TimePartField({ label, value, onChange }) {
   );
 }
 
-function NoticeModal({ rows, onClose, onSubmit, submitting }) {
-  const [channels, setChannels] = useState({ EMAIL: true, WHATSAPP: true });
-  const [address, setAddress] = useState(rows[0]?.location || 'Winnipeg Manitoba');
+function NoticeModal({ rows, pickupLocations, onClose, onSubmit, submitting }) {
+  const pickupLocationOptions = pickupLocations
+    .filter((location) => location.isActive !== false)
+    .map((location) => location.name)
+    .filter(Boolean);
+  const defaultAddress = rows[0]?.preferredPickupLocation || pickupLocationOptions[0] || '';
+  const [address, setAddress] = useState(defaultAddress);
   const [readyDate, setReadyDate] = useState(TODAY_FILTER);
   const [startTime, setStartTime] = useState({ hour: '2', minute: '00', period: 'PM' });
   const [endTime, setEndTime] = useState({ hour: '5', minute: '00', period: 'PM' });
-  const [contactName, setContactName] = useState('');
-  const [contactPhone, setContactPhone] = useState('');
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
 
@@ -223,19 +229,13 @@ function NoticeModal({ rows, onClose, onSubmit, submitting }) {
 
   const selectedCount = rows.length;
   const selectedOrders = [...new Set(rows.map((row) => row.displayOrderReference))];
-  const channelValues = Object.entries(channels).filter(([, enabled]) => enabled).map(([key]) => key);
   const formattedStartTime = formatTimeParts(startTime);
   const formattedEndTime = formatTimeParts(endTime);
   const timeWindow = formattedStartTime && formattedEndTime ? `${formattedStartTime} - ${formattedEndTime}` : '';
 
   async function handleSubmit() {
-    if (!channelValues.length) {
-      setError('Select at least one delivery channel.');
-      return;
-    }
-
     if (address.trim().length < 3) {
-      setError('Enter the pickup address or location.');
+      setError('Select the pickup address or location.');
       return;
     }
 
@@ -255,12 +255,10 @@ function NoticeModal({ rows, onClose, onSubmit, submitting }) {
         orderReference: row.orderReference,
         itemIndex: row.itemIndex,
       })),
-      channels: channelValues,
+      channels: ['EMAIL'],
       address: address.trim(),
       readyDate,
       timeWindow: timeWindow.trim(),
-      contactName: contactName.trim(),
-      contactPhone: contactPhone.trim(),
       note: note.trim(),
     });
   }
@@ -282,32 +280,18 @@ function NoticeModal({ rows, onClose, onSubmit, submitting }) {
         </div>
 
         <div className="space-y-5">
-          <div className={`${ui.section} space-y-4`}>
-            <div className="grid gap-4 md:grid-cols-2">
-              <label className={`${ui.section} flex items-center gap-3 px-4 py-3 text-sm text-slate-700`}>
-                <input
-                  type="checkbox"
-                  checked={channels.EMAIL}
-                  onChange={(event) => setChannels((current) => ({ ...current, EMAIL: event.target.checked }))}
-                />
-                <span>Email</span>
-              </label>
-              <label className={`${ui.section} flex items-center gap-3 px-4 py-3 text-sm text-slate-700`}>
-                <input
-                  type="checkbox"
-                  checked={channels.WHATSAPP}
-                  onChange={(event) => setChannels((current) => ({ ...current, WHATSAPP: event.target.checked }))}
-                />
-                <span>WhatsApp</span>
-              </label>
-            </div>
-            <p className="text-xs text-slate-500">WhatsApp will begin sending live once Meta Business credentials are configured.</p>
-          </div>
-
           <div className="grid gap-4 md:grid-cols-2">
             <div className={ui.fieldWrap}>
               <label className={ui.label}>Pickup address / location</label>
-              <input className={ui.input} value={address} onChange={(event) => setAddress(event.target.value)} />
+              <select className={ui.select} value={address} onChange={(event) => setAddress(event.target.value)}>
+                <option value="">Select pickup location</option>
+                {pickupLocationOptions.map((location) => (
+                  <option key={location} value={location}>{location}</option>
+                ))}
+              </select>
+              {!pickupLocationOptions.length ? (
+                <p className="text-xs text-amber-700">No active pickup locations are available. Add one in Pickup Locations first.</p>
+              ) : null}
             </div>
             <DateFilterField label="Ready date" value={readyDate} onChange={(event) => setReadyDate(event.target.value)} />
             <div className={`${ui.fieldWrap} md:col-span-2`}>
@@ -324,14 +308,6 @@ function NoticeModal({ rows, onClose, onSubmit, submitting }) {
                   </div>
                 </div>
               </div>
-            </div>
-            <div className={ui.fieldWrap}>
-              <label className={ui.label}>Contact name</label>
-              <input className={ui.input} value={contactName} onChange={(event) => setContactName(event.target.value)} placeholder="Pickup contact" />
-            </div>
-            <div className={ui.fieldWrap}>
-              <label className={ui.label}>Contact phone</label>
-              <input className={ui.input} value={contactPhone} onChange={(event) => setContactPhone(event.target.value)} placeholder="4315571137" />
             </div>
           </div>
 
@@ -357,7 +333,7 @@ function NoticeModal({ rows, onClose, onSubmit, submitting }) {
           {error ? <p className={ui.error}>{error}</p> : null}
 
           <div className="flex flex-wrap gap-3">
-            <button type="button" className={ui.buttonPrimary} onClick={handleSubmit} disabled={submitting}>
+            <button type="button" className={ui.buttonPrimary} onClick={handleSubmit} disabled={submitting || !pickupLocationOptions.length}>
               {submitting ? 'Sending...' : 'Send notice'}
             </button>
             <button type="button" className={ui.buttonGhost} onClick={onClose}>
@@ -370,7 +346,7 @@ function NoticeModal({ rows, onClose, onSubmit, submitting }) {
   );
 }
 
-export default function AdminPickupNoticesPanel({ onLoadPickupNotices, onSendPickupNotices }) {
+export default function AdminPickupNoticesPanel({ onLoadPickupNotices, onSendPickupNotices, pickupLocations = [] }) {
   const [query, setQuery] = useState(DEFAULT_QUERY);
   const [rows, setRows] = useState([]);
   const [meta, setMeta] = useState({ page: 1, totalPages: 1, total: 0, limit: 20 });
@@ -433,11 +409,12 @@ export default function AdminPickupNoticesPanel({ onLoadPickupNotices, onSendPic
   }, [query.startDate, query.endDate, query.q, query.batchNumber, query.location, query.fulfillmentMethod, query.noticeStatus]);
 
   const selectedRows = useMemo(
-    () => rows.filter((row) => selectedKeys.includes(`${row.orderReference}:${row.itemIndex}`)),
+    () => rows.filter((row) => !isCompletedFulfillment(row) && selectedKeys.includes(`${row.orderReference}:${row.itemIndex}`)),
     [rows, selectedKeys],
   );
 
-  const allVisibleSelected = rows.length > 0 && rows.every((row) => selectedKeys.includes(`${row.orderReference}:${row.itemIndex}`));
+  const selectableRows = useMemo(() => rows.filter((row) => !isCompletedFulfillment(row)), [rows]);
+  const allVisibleSelected = selectableRows.length > 0 && selectableRows.every((row) => selectedKeys.includes(`${row.orderReference}:${row.itemIndex}`));
 
   function toggleSelectAll() {
     if (allVisibleSelected) {
@@ -445,10 +422,14 @@ export default function AdminPickupNoticesPanel({ onLoadPickupNotices, onSendPic
       return;
     }
 
-    setSelectedKeys(rows.map((row) => `${row.orderReference}:${row.itemIndex}`));
+    setSelectedKeys(selectableRows.map((row) => `${row.orderReference}:${row.itemIndex}`));
   }
 
   function toggleRow(row) {
+    if (isCompletedFulfillment(row)) {
+      return;
+    }
+
     const key = `${row.orderReference}:${row.itemIndex}`;
     setSelectedKeys((current) => (current.includes(key) ? current.filter((value) => value !== key) : [...current, key]));
   }
@@ -485,7 +466,7 @@ export default function AdminPickupNoticesPanel({ onLoadPickupNotices, onSendPic
         <div className="space-y-5">
           <div className="space-y-2">
             <h1 className="text-2xl font-bold tracking-tight text-emerald-950">Pickup Notices</h1>
-            <p className="leading-6 text-slate-600">Select paid items that are ready, then notify buyers by email and WhatsApp with the pickup or delivery details.</p>
+            <p className="leading-6 text-slate-600">Select paid items that are ready, then notify buyers by email with the pickup or delivery details.</p>
           </div>
 
           <div className={`${ui.filterPanel} grid gap-4 md:grid-cols-2 xl:grid-cols-4`}>
@@ -554,7 +535,7 @@ export default function AdminPickupNoticesPanel({ onLoadPickupNotices, onSendPic
               <thead>
                 <tr className={ui.tableHeadRow}>
                   <th className={ui.tableHeaderCell}>
-                    <input type="checkbox" checked={allVisibleSelected} onChange={toggleSelectAll} aria-label="Select all visible items" />
+                    <input type="checkbox" checked={allVisibleSelected} onChange={toggleSelectAll} aria-label="Select all visible items" disabled={!selectableRows.length} />
                   </th>
                   <th className={ui.tableHeaderCell}>Order</th>
                   <th className={ui.tableHeaderCell}>Item</th>
@@ -569,10 +550,18 @@ export default function AdminPickupNoticesPanel({ onLoadPickupNotices, onSendPic
               <tbody>
                 {rows.map((row) => {
                   const rowKey = `${row.orderReference}:${row.itemIndex}`;
+                  const noticeDisabled = isCompletedFulfillment(row);
                   return (
                     <tr key={rowKey} className={ui.tableRow}>
                       <td className={ui.tableCell}>
-                        <input type="checkbox" checked={selectedKeys.includes(rowKey)} onChange={() => toggleRow(row)} aria-label={`Select ${row.displayOrderReference}`} />
+                        <input
+                          type="checkbox"
+                          checked={!noticeDisabled && selectedKeys.includes(rowKey)}
+                          onChange={() => toggleRow(row)}
+                          aria-label={`Select ${row.displayOrderReference}`}
+                          disabled={noticeDisabled}
+                          title={noticeDisabled ? 'Fulfilment is already completed.' : undefined}
+                        />
                       </td>
                       <td className={ui.tableCell}>
                         <div className="max-w-[12rem] space-y-0.5">
@@ -608,12 +597,18 @@ export default function AdminPickupNoticesPanel({ onLoadPickupNotices, onSendPic
                       <td className={ui.tableCell}>
                         <div className="max-w-[14rem] space-y-1">
                           <AdminStatusBadge value={formatLabel(row.noticeStatus)} tone={getNoticeTone(row.noticeStatus)} />
+                          {noticeDisabled ? <AdminStatusBadge value="Fulfilment completed" tone="neutral" /> : null}
                           <p className="text-xs text-slate-500">{formatChannelSummary(row.noticeChannels)}</p>
                         </div>
                       </td>
                       <td className={`${ui.tableCell} whitespace-nowrap text-right`}>
                         <div className="flex justify-end gap-2">
-                          <AdminIconButton label={row.noticeStatus === 'SENT' ? 'Resend notice' : 'Send notice'} onClick={() => setModalRows([row])}>
+                          <AdminIconButton
+                            label={noticeDisabled ? 'Notice disabled because fulfilment is completed' : row.noticeStatus === 'SENT' ? 'Resend notice' : 'Send notice'}
+                            onClick={() => setModalRows([row])}
+                            disabled={noticeDisabled}
+                            title={noticeDisabled ? 'Fulfilment is already completed. Notice cannot be sent.' : undefined}
+                          >
                             <MailIcon />
                           </AdminIconButton>
                         </div>
@@ -638,7 +633,7 @@ export default function AdminPickupNoticesPanel({ onLoadPickupNotices, onSendPic
       </section>
 
       {modalRows.length ? (
-        <NoticeModal rows={modalRows} onClose={() => setModalRows([])} onSubmit={handleSend} submitting={submitting} />
+        <NoticeModal rows={modalRows} pickupLocations={pickupLocations} onClose={() => setModalRows([])} onSubmit={handleSend} submitting={submitting} />
       ) : null}
     </section>
   );

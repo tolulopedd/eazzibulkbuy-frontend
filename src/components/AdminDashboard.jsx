@@ -651,6 +651,7 @@ export default function AdminDashboard({
         <AdminPickupNoticesPanel
           onLoadPickupNotices={onLoadPickupNotices}
           onSendPickupNotices={onSendPickupNotices}
+          pickupLocations={pickupLocations}
         />
       );
     }
@@ -726,6 +727,7 @@ export default function AdminDashboard({
           onUpdatePreferredPickupLocation={onUpdatePreferredPickupLocation}
           onRefreshReports={canManageSales ? loadReports : undefined}
           canUseCustomerSuggestions
+          canRevertFulfillment={canManageSales}
         />
       );
     }
