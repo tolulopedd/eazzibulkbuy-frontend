@@ -2,26 +2,20 @@ import { useEffect, useRef, useState } from 'react';
 import { ui } from '../ui/classes';
 import { exportAdminReports } from '../api/admin';
 import { openPdfExport } from '../utils/pdfExport';
+import { formatDateInputValue, toIsoBoundary } from '../utils/centralTime';
 
-function formatDateInputValue(date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+function createDefaultFilters() {
+  return {
+    startDate: '',
+    endDate: '',
+    salesItemId: '',
+    batchNumber: '',
+    pickupLocation: '',
+    fulfillmentMethod: '',
+    fulfillmentStatus: '',
+    reportType: 'orderReady',
+  };
 }
-
-const TODAY_FILTER = formatDateInputValue(new Date());
-
-const DEFAULT_FILTERS = {
-  startDate: '',
-  endDate: '',
-  salesItemId: '',
-  batchNumber: '',
-  pickupLocation: '',
-  fulfillmentMethod: '',
-  fulfillmentStatus: '',
-  reportType: 'orderReady',
-};
 
 const REPORT_OPTIONS = [
   { value: 'orderReady', label: 'Order Ready (Paid)' },
@@ -29,12 +23,6 @@ const REPORT_OPTIONS = [
   { value: 'salesDetails', label: 'Sales Details Report' },
   { value: 'fulfilledOrders', label: 'Fulfilled Orders Report' },
 ];
-
-function toIsoBoundary(value, endOfDay = false) {
-  if (!value) return '';
-  const suffix = endOfDay ? 'T23:59:59.999' : 'T00:00:00.000';
-  return new Date(`${value}${suffix}`).toISOString();
-}
 
 function formatDisplayDate(value) {
   if (!value) {
@@ -67,7 +55,7 @@ function buildReportExportFileName(label) {
   return `${safeLabel || 'report'}-${dateStamp}`;
 }
 
-function DateFilterField({ label, value, onChange, max = TODAY_FILTER }) {
+function DateFilterField({ label, value, onChange, max = formatDateInputValue() }) {
   return (
     <div className={ui.fieldWrap}>
       <label className={ui.label}>{label}</label>
@@ -128,7 +116,7 @@ function ReportTable({ columns, rows, emptyMessage }) {
 }
 
 export default function AdminReportsPanel({ reports, reportError, loadingReports, onRefreshReports }) {
-  const [filters, setFilters] = useState(DEFAULT_FILTERS);
+  const [filters, setFilters] = useState(() => createDefaultFilters());
   const [exporting, setExporting] = useState(false);
   const [exportingPdf, setExportingPdf] = useState(false);
   const [exportError, setExportError] = useState('');
@@ -171,9 +159,10 @@ export default function AdminReportsPanel({ reports, reportError, loadingReports
   }
 
   async function clearFilters() {
-    setFilters(DEFAULT_FILTERS);
+    const defaultFilters = createDefaultFilters();
+    setFilters(defaultFilters);
     await onRefreshReports({
-      reportType: DEFAULT_FILTERS.reportType,
+      reportType: defaultFilters.reportType,
     });
   }
 

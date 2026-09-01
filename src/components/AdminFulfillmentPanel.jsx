@@ -8,19 +8,7 @@ import {
 } from './AdminTablePrimitives';
 import { fetchAdminCustomers } from '../api/admin';
 import { openPdfExport } from '../utils/pdfExport';
-
-function formatDateInputValue(date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
-function toIsoBoundary(value, endOfDay = false) {
-  if (!value) return '';
-  const suffix = endOfDay ? 'T23:59:59.999' : 'T00:00:00.000';
-  return new Date(`${value}${suffix}`).toISOString();
-}
+import { formatDateInputValue, toIsoBoundary } from '../utils/centralTime';
 
 function formatDisplayDate(value) {
   if (!value) {
@@ -39,7 +27,7 @@ function formatDisplayDate(value) {
   });
 }
 
-function DateFilterField({ label, value, onChange, max = TODAY_FILTER }) {
+function DateFilterField({ label, value, onChange, max = formatDateInputValue() }) {
   return (
     <div className={ui.fieldWrap}>
       <label className={ui.label}>{label}</label>
@@ -66,22 +54,25 @@ function DateFilterField({ label, value, onChange, max = TODAY_FILTER }) {
   );
 }
 
-const TODAY_FILTER = formatDateInputValue(new Date());
+const DEFAULT_QUERY_LIMIT = 20;
 
-const DEFAULT_QUERY = {
-  startDate: TODAY_FILTER,
-  endDate: TODAY_FILTER,
-  q: '',
-  batchNumber: '',
-  pickupLocation: '',
-  fulfillmentMethod: '',
-  fulfillmentStatus: '',
-  paidOnly: 'true',
-  sortBy: 'paidAt',
-  sortOrder: 'desc',
-  page: 1,
-  limit: 20,
-};
+function createDefaultQuery() {
+  const today = formatDateInputValue();
+  return {
+    startDate: today,
+    endDate: today,
+    q: '',
+    batchNumber: '',
+    pickupLocation: '',
+    fulfillmentMethod: '',
+    fulfillmentStatus: '',
+    paidOnly: 'true',
+    sortBy: 'paidAt',
+    sortOrder: 'desc',
+    page: 1,
+    limit: DEFAULT_QUERY_LIMIT,
+  };
+}
 
 function parseBatchFilters(value) {
   return String(value || '')
@@ -243,10 +234,10 @@ export default function AdminFulfillmentPanel({
   pickupLocations = [],
 }) {
   const [orders, setOrders] = useState([]);
-  const [query, setQuery] = useState(DEFAULT_QUERY);
+  const [query, setQuery] = useState(() => createDefaultQuery());
   const [meta, setMeta] = useState({
     page: 1,
-    limit: DEFAULT_QUERY.limit,
+    limit: DEFAULT_QUERY_LIMIT,
     total: 0,
     totalPages: 1,
   });
@@ -309,7 +300,7 @@ export default function AdminFulfillmentPanel({
   }
 
   useEffect(() => {
-    loadFulfillment(DEFAULT_QUERY);
+    loadFulfillment(createDefaultQuery());
   }, []);
 
   useEffect(() => {

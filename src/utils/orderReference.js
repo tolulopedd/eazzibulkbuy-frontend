@@ -1,10 +1,13 @@
+import { getCentralDateParts } from './centralTime';
+
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 export function formatOrderReferenceDisplay(orderReference, dateValue, buyer = {}, metadata = {}) {
   const parsedDate = dateValue ? new Date(dateValue) : new Date();
   const safeDate = Number.isNaN(parsedDate.getTime()) ? new Date() : parsedDate;
-  const day = String(safeDate.getDate()).padStart(2, '0');
-  const month = MONTHS[safeDate.getMonth()];
+  const centralDate = getCentralDateParts(safeDate);
+  const day = String(centralDate.day).padStart(2, '0');
+  const month = MONTHS[centralDate.month - 1];
   const batchNumber = String(metadata.batchNumber || buyer.batchNumber || buyer.salesItem?.batchNumber || '').trim().toUpperCase();
   const orderSequence = metadata.orderSequence ?? buyer.orderSequence ?? buyer.sequenceNo;
 

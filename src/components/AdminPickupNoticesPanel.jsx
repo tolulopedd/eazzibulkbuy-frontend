@@ -8,21 +8,7 @@ import {
   CloseIcon,
   MailIcon,
 } from './AdminTablePrimitives';
-
-function formatDateInputValue(date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
-const TODAY_FILTER = formatDateInputValue(new Date());
-
-function toIsoBoundary(value, endOfDay = false) {
-  if (!value) return '';
-  const suffix = endOfDay ? 'T23:59:59.999' : 'T00:00:00.000';
-  return new Date(`${value}${suffix}`).toISOString();
-}
+import { formatDateInputValue, toIsoBoundary } from '../utils/centralTime';
 
 function formatDisplayDate(value) {
   if (!value) {
@@ -217,7 +203,7 @@ function NoticeModal({ rows, pickupLocations, onClose, onSubmit, submitting }) {
     .filter(Boolean);
   const defaultAddress = rows[0]?.preferredPickupLocation || pickupLocationOptions[0] || '';
   const [address, setAddress] = useState(defaultAddress);
-  const [readyDate, setReadyDate] = useState(TODAY_FILTER);
+  const [readyDate, setReadyDate] = useState(() => formatDateInputValue());
   const [startTime, setStartTime] = useState({ hour: '2', minute: '00', period: 'PM' });
   const [endTime, setEndTime] = useState({ hour: '5', minute: '00', period: 'PM' });
   const [note, setNote] = useState('');
