@@ -160,12 +160,27 @@ export function fetchAdminPickupLocations() {
   return request('/api/admin/pickup-locations');
 }
 
+export function fetchAdminPickupNoticeTemplates(params = {}) {
+  const search = new URLSearchParams();
+  if (params.status) search.set('status', params.status);
+  const suffix = search.toString() ? `?${search.toString()}` : '';
+  return request(`/api/admin/pickup-notice-templates${suffix}`);
+}
+
 export function fetchAdminProduceItems() {
   return request('/api/admin/produce-items');
 }
 
 export function createAdminPickupLocation(payload) {
   return request('/api/admin/pickup-locations', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function createAdminPickupNoticeTemplate(payload) {
+  return request('/api/admin/pickup-notice-templates', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -225,6 +240,14 @@ export function updateAdminPickupLocation(pickupLocationId, payload) {
   });
 }
 
+export function updateAdminPickupNoticeTemplate(templateId, payload) {
+  return request(`/api/admin/pickup-notice-templates/${templateId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
 export function updateAdminProduceItem(produceItemId, payload) {
   return request(`/api/admin/produce-items/${produceItemId}`, {
     method: 'PATCH',
@@ -251,6 +274,31 @@ export async function deleteAdminPickupLocation(pickupLocationId) {
       writeAdminSessionToken('');
     }
     const error = new Error(errorData.message || 'Unable to delete pickup location. Please try again.');
+    error.status = response.status;
+    throw error;
+  }
+
+  return response.json().catch(() => ({}));
+}
+
+export async function deleteAdminPickupNoticeTemplate(templateId) {
+  let response;
+  try {
+    response = await fetch(buildApiUrl(`/api/admin/pickup-notice-templates/${templateId}`), {
+      method: 'DELETE',
+      credentials: 'include',
+      headers: withAdminSessionHeaders(),
+    });
+  } catch {
+    throw new Error('Unable to reach backend API. Check that the production API base URL is configured correctly.');
+  }
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    if (response.status === 401) {
+      writeAdminSessionToken('');
+    }
+    const error = new Error(errorData.message || 'Unable to delete pickup notice template. Please try again.');
     error.status = response.status;
     throw error;
   }

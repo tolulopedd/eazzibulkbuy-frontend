@@ -247,8 +247,10 @@ export default function AdminDashboard({
   onLoadOrders,
   onLoadPickupNotices,
   onLoadPickupLocations,
+  onLoadPickupNoticeTemplates,
   onSendPickupNotices,
   onCreatePickupLocation,
+  onCreatePickupNoticeTemplate,
   onLoadProduceItems,
   onCreateProduceItem,
   onUploadProduceImage,
@@ -262,8 +264,10 @@ export default function AdminDashboard({
   onUpdateFulfillmentStatus,
   onUpdatePreferredPickupLocation,
   onUpdatePickupLocation,
+  onUpdatePickupNoticeTemplate,
   onUpdateProduceItem,
   onDeletePickupLocation,
+  onDeletePickupNoticeTemplate,
   onDeleteProduceItem,
   onLoadUsers,
   onCreateUser,
@@ -650,6 +654,10 @@ export default function AdminDashboard({
       return (
         <AdminPickupNoticesPanel
           onLoadPickupNotices={onLoadPickupNotices}
+          onLoadPickupNoticeTemplates={onLoadPickupNoticeTemplates}
+          onCreatePickupNoticeTemplate={onCreatePickupNoticeTemplate}
+          onUpdatePickupNoticeTemplate={onUpdatePickupNoticeTemplate}
+          onDeletePickupNoticeTemplate={onDeletePickupNoticeTemplate}
           onSendPickupNotices={onSendPickupNotices}
           pickupLocations={pickupLocations}
         />

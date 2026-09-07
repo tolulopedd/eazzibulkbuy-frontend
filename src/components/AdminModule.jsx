@@ -7,11 +7,13 @@ import {
   createAdminDiscountOrder,
   createAdminDiscountOrderUploadUrl,
   createAdminPickupLocation,
+  createAdminPickupNoticeTemplate,
   createAdminProduceItem,
   uploadAdminProduceImage,
   createSalesItem,
   fetchAdminReports,
   fetchAdminPickupLocations,
+  fetchAdminPickupNoticeTemplates,
   fetchAdminProduceItems,
   fetchAdminPickupNotices,
   fetchAdminDiscountOrders,
@@ -19,9 +21,11 @@ import {
   fetchAdminCustomers,
   updateAdminCustomer,
   updateAdminPickupLocation,
+  updateAdminPickupNoticeTemplate,
   updateAdminProduceItem,
   exportAdminCustomers,
   deleteAdminPickupLocation,
+  deleteAdminPickupNoticeTemplate,
   deleteAdminProduceItem,
   approveAdminCustomerUpdateRequest,
   declineAdminCustomerUpdateRequest,
@@ -180,6 +184,14 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
     }
   }
 
+  async function handleLoadPickupNoticeTemplates(query = {}) {
+    try {
+      return await fetchAdminPickupNoticeTemplates(query);
+    } catch (err) {
+      rethrowWithSessionHandling(err, 'Unable to load pickup notice templates right now.');
+    }
+  }
+
   async function handleLoadProduceItems() {
     try {
       return await fetchAdminProduceItems();
@@ -194,6 +206,15 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
       return await createAdminPickupLocation(payload);
     } catch (err) {
       rethrowWithSessionHandling(err, 'Unable to create the pickup location right now.');
+    }
+  }
+
+  async function handleCreatePickupNoticeTemplate(payload) {
+    setError('');
+    try {
+      return await createAdminPickupNoticeTemplate(payload);
+    } catch (err) {
+      rethrowWithSessionHandling(err, 'Unable to create the pickup notice template right now.');
     }
   }
 
@@ -224,6 +245,15 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
     }
   }
 
+  async function handleUpdatePickupNoticeTemplate(templateId, payload) {
+    setError('');
+    try {
+      return await updateAdminPickupNoticeTemplate(templateId, payload);
+    } catch (err) {
+      rethrowWithSessionHandling(err, 'Unable to update the pickup notice template right now.');
+    }
+  }
+
   async function handleUpdateProduceItem(produceItemId, payload) {
     setError('');
     try {
@@ -239,6 +269,15 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
       return await deleteAdminPickupLocation(pickupLocationId);
     } catch (err) {
       rethrowWithSessionHandling(err, 'Unable to delete the pickup location right now.');
+    }
+  }
+
+  async function handleDeletePickupNoticeTemplate(templateId) {
+    setError('');
+    try {
+      return await deleteAdminPickupNoticeTemplate(templateId);
+    } catch (err) {
+      rethrowWithSessionHandling(err, 'Unable to delete the pickup notice template right now.');
     }
   }
 
@@ -519,19 +558,23 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
         onLoadDiscountOrders={handleLoadDiscountOrders}
         onLoadPickupNotices={handleLoadPickupNotices}
         onLoadPickupLocations={handleLoadPickupLocations}
+        onLoadPickupNoticeTemplates={handleLoadPickupNoticeTemplates}
         onLoadProduceItems={handleLoadProduceItems}
         onCreateSalesItem={handleCreateSalesItem}
         onCreateDiscountOrder={handleCreateDiscountOrder}
         onCreatePickupLocation={handleCreatePickupLocation}
+        onCreatePickupNoticeTemplate={handleCreatePickupNoticeTemplate}
         onCreateProduceItem={handleCreateProduceItem}
         onUploadProduceImage={handleUploadProduceImage}
         onCreateDiscountOrderUploadUrl={handleCreateDiscountOrderUploadUrl}
         onLoadSalesItems={handleLoadSalesItems}
         onUpdateSalesItem={handleUpdateSalesItem}
         onUpdatePickupLocation={handleUpdatePickupLocation}
+        onUpdatePickupNoticeTemplate={handleUpdatePickupNoticeTemplate}
         onUpdateProduceItem={handleUpdateProduceItem}
         onDeleteSalesItem={handleDeleteSalesItem}
         onDeletePickupLocation={handleDeletePickupLocation}
+        onDeletePickupNoticeTemplate={handleDeletePickupNoticeTemplate}
         onDeleteProduceItem={handleDeleteProduceItem}
         onLoadUsers={handleLoadUsers}
         onCreateUser={handleCreateUser}
