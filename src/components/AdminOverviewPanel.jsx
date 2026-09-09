@@ -145,6 +145,55 @@ function MiniBarRow({ label, value, total, tone = 'mint' }) {
   );
 }
 
+function FulfillmentLocationAnalytics({ rows }) {
+  const locations = rows || [];
+
+  if (!locations.length) {
+    return <p className={ui.note}>No data.</p>;
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <table className={`${ui.table} min-w-[900px]`}>
+        <thead>
+          <tr className={ui.tableHeadRow}>
+            <th className={ui.tableHeaderCell}>Location</th>
+            <th className={ui.tableHeaderCell}>To be fulfilled</th>
+            <th className={ui.tableHeaderCell}>Fulfilled</th>
+            <th className={ui.tableHeaderCell}>Total orders</th>
+            <th className={ui.tableHeaderCell}>Pending items</th>
+            <th className={ui.tableHeaderCell}>Fulfilled items</th>
+            <th className={ui.tableHeaderCell}>Total items</th>
+          </tr>
+        </thead>
+        <tbody>
+          {locations.map((row) => {
+            return (
+              <tr key={row.location} className={ui.tableRow}>
+                <td className={`${ui.tableCell} max-w-[18rem] font-semibold text-[#171a16]`}>
+                  <span className="block truncate" title={row.location}>{row.location}</span>
+                </td>
+                <td className={ui.tableCell}>
+                  <span className="font-bold text-amber-700">{row.pendingOrders || 0}</span>
+                </td>
+                <td className={ui.tableCell}>
+                  <span className="font-bold text-emerald-700">{row.fulfilledOrders || 0}</span>
+                </td>
+                <td className={ui.tableCell}>
+                  <span className="font-bold text-slate-900">{row.totalOrders || 0}</span>
+                </td>
+                <td className={ui.tableCell}>{row.pendingItems || 0}</td>
+                <td className={ui.tableCell}>{row.fulfilledItems || 0}</td>
+                <td className={ui.tableCell}>{row.totalItems || 0}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function TrendChart({ data }) {
   const chartWidth = 640;
   const chartHeight = 240;
@@ -286,7 +335,7 @@ export default function AdminOverviewPanel({ reports, reportError, loadingReport
       <section className="space-y-5">
         <section className={`${ui.card} space-y-4`}>
           <h1 className="text-[2rem] font-bold tracking-tight text-[#171a16]">Dashboard</h1>
-          <p className={ui.note}>{loadingReports ? 'Loading dashboard analytics...' : 'No dashboard analytics are available yet.'}</p>
+          <p className={ui.note}>{loadingReports ? 'Loading...' : 'No data.'}</p>
         </section>
       </section>
     );
@@ -308,7 +357,7 @@ export default function AdminOverviewPanel({ reports, reportError, loadingReport
     {
       label: 'Pending Payment',
       value: overview.pendingPaymentOrders,
-      sublabel: 'Orders waiting for payment confirmation',
+      sublabel: 'Awaiting payment',
       progress: overview.totalOrdersYtd > 0 ? (overview.pendingPaymentOrders / overview.totalOrdersYtd) * 100 : 0,
     },
     {
@@ -320,6 +369,7 @@ export default function AdminOverviewPanel({ reports, reportError, loadingReport
   ];
 
   const trendData = overview.paidBatchSalesComparison || [];
+  const fulfillmentByLocation = overview.fulfillmentByLocation || [];
 
   const newestCustomers = overview.recentCustomers || [];
 
@@ -330,6 +380,13 @@ export default function AdminOverviewPanel({ reports, reportError, loadingReport
           <MetricCard key={metric.label} {...metric} />
         ))}
       </div>
+
+      <SectionCard
+        title="Fulfilment by location"
+        aside={<span className="text-sm font-medium text-[#6c7268]">Paid orders</span>}
+      >
+        <FulfillmentLocationAnalytics rows={fulfillmentByLocation} />
+      </SectionCard>
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.55fr)_420px]">
         <SectionCard title={<SalesSectionTitle />}>

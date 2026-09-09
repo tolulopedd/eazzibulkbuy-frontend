@@ -16,6 +16,8 @@ import {
   fetchAdminPickupNoticeTemplates,
   fetchAdminProduceItems,
   fetchAdminPickupNotices,
+  fetchAdminPickupAllocationPendingSummary,
+  previewAdminPickupAllocation,
   fetchAdminDiscountOrders,
   fetchAdminSalesItems,
   fetchAdminCustomers,
@@ -173,6 +175,23 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
       return await fetchAdminPickupNotices(query);
     } catch (err) {
       rethrowWithSessionHandling(err, 'Unable to load pickup notices right now.');
+    }
+  }
+
+  async function handlePreviewPickupAllocation(payload) {
+    setError('');
+    try {
+      return await previewAdminPickupAllocation(payload);
+    } catch (err) {
+      rethrowWithSessionHandling(err, 'Unable to preview pickup allocation right now.');
+    }
+  }
+
+  async function handleLoadPickupAllocationPendingSummary(query = {}) {
+    try {
+      return await fetchAdminPickupAllocationPendingSummary(query);
+    } catch (err) {
+      rethrowWithSessionHandling(err, 'Unable to load pickup allocation pending quantity right now.');
     }
   }
 
@@ -557,6 +576,8 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
         onLoadReports={handleLoadReports}
         onLoadDiscountOrders={handleLoadDiscountOrders}
         onLoadPickupNotices={handleLoadPickupNotices}
+        onLoadPickupAllocationPendingSummary={handleLoadPickupAllocationPendingSummary}
+        onPreviewPickupAllocation={handlePreviewPickupAllocation}
         onLoadPickupLocations={handleLoadPickupLocations}
         onLoadPickupNoticeTemplates={handleLoadPickupNoticeTemplates}
         onLoadProduceItems={handleLoadProduceItems}

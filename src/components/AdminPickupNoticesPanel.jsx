@@ -60,12 +60,40 @@ const DEFAULT_QUERY = {
   batchNumber: '',
   location: '',
   fulfillmentMethod: 'PICKUP',
+  fulfillmentStatus: '',
   noticeStatus: '',
   sortBy: 'paidAt',
   sortOrder: 'desc',
   page: 1,
   limit: 20,
 };
+
+const DEFAULT_REMINDER_QUERY = {
+  ...DEFAULT_QUERY,
+  fulfillmentMethod: 'PICKUP',
+  fulfillmentStatus: 'PENDING_PICKUP',
+  noticeStatus: 'SENT',
+};
+
+const DEFAULT_ALLOCATION_FILTERS = {
+  startDate: '',
+  endDate: '',
+  q: '',
+  batchNumber: '',
+  location: '',
+  noticeStatus: 'NOT_SENT',
+};
+
+const createAllocationStockRow = () => ({
+  id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+  name: '',
+  batchNumber: '',
+  quantity: '',
+});
+
+function normalizeAllocationValue(value) {
+  return String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
 
 const DEFAULT_PICKUP_EMAIL_BODY = `Hello {{name}},
 
@@ -94,8 +122,31 @@ Please arrive within the stated time window to receive your order.
 Regards,
 EazziBulkBuy.`;
 
+const DEFAULT_REMINDER_EMAIL_BODY = `Hello {{name}},
+
+
+We noticed that your order has not been picked up. We sincerely apologise if you came yesterday and we were unable to fulfill the items/order due to mix up in logistics beyond our control.
+
+You can please pickup your item(s) from 4:00 PM today at the same location.
+
+Order reference: {{orderReference}}
+Items: {{items}}
+
+Preferred pickup location: {{preferredPickupLocation}}
+
+Pickup Address: {{pickupAddress}}
+Date: {{readyDate}}
+Time: {{timeWindow}}
+
+We appreciate your understanding.
+
+Thank you
+Titilayo
+EazziBulkBuy.`;
+
 const DEFAULT_TEMPLATE_FORM = {
   name: '',
+  templateType: 'PICKUP_NOTICE',
   address: '',
   readyDate: formatDateInputValue(),
   timeWindow: '2:00 PM - 5:00 PM',
@@ -105,6 +156,22 @@ const DEFAULT_TEMPLATE_FORM = {
   sortOrder: '0',
   isActive: true,
 };
+
+function getTemplateDefaults(templateType) {
+  if (templateType === 'PICKUP_REMINDER') {
+    return {
+      timeWindow: '4:00 PM - 6:00 PM or 7:00 PM - 10:00 PM',
+      emailSubject: 'Pickup reminder for order {{orderReference}}',
+      emailBody: DEFAULT_REMINDER_EMAIL_BODY,
+    };
+  }
+
+  return {
+    timeWindow: '2:00 PM - 5:00 PM',
+    emailSubject: 'Your order is ready for pickup',
+    emailBody: DEFAULT_PICKUP_EMAIL_BODY,
+  };
+}
 
 const HOUR_OPTIONS = Array.from({ length: 12 }, (_, index) => String(index + 1));
 const MINUTE_OPTIONS = ['00', '05', '10', '15', '20', '25', '30', '35', '40', '45', '50', '55'];
@@ -260,6 +327,7 @@ function PickupNoticeTemplateManager({
   function buildPayload(source) {
     return {
       name: source.name.trim(),
+      templateType: source.templateType,
       address: source.address.trim(),
       readyDate: source.readyDate,
       timeWindow: source.timeWindow.trim(),
@@ -287,11 +355,12 @@ function PickupNoticeTemplateManager({
     setEditingId(template.id);
     setEditForm({
       name: template.name || '',
+      templateType: template.templateType || 'PICKUP_NOTICE',
       address: template.address || '',
       readyDate: template.readyDate || formatDateInputValue(),
       timeWindow: template.timeWindow || '',
-      emailSubject: template.emailSubject || 'Your order is ready for pickup',
-      emailBody: template.emailBody || DEFAULT_PICKUP_EMAIL_BODY,
+      emailSubject: template.emailSubject || getTemplateDefaults(template.templateType).emailSubject,
+      emailBody: template.emailBody || getTemplateDefaults(template.templateType).emailBody,
       instructions: template.instructions || '',
       sortOrder: String(template.sortOrder || 0),
       isActive: template.isActive !== false,
@@ -341,10 +410,28 @@ function PickupNoticeTemplateManager({
         {loading ? <AdminStatusBadge value="Loading templates" tone="neutral" /> : null}
       </div>
 
-      <form className="grid gap-3 rounded-[24px] border border-[#e5e7de] bg-white p-4 xl:grid-cols-[1fr_1fr_150px_170px_90px_120px]" onSubmit={handleCreate}>
+      <form className="grid gap-3 rounded-[24px] border border-[#e5e7de] bg-white p-4 xl:grid-cols-[170px_1fr_1fr_150px_170px_90px_120px]" onSubmit={handleCreate}>
+        <div className={ui.fieldWrap}>
+          <label className={ui.label}>Template type</label>
+          <select
+            className={ui.select}
+            value={form.templateType}
+            onChange={(event) => {
+              const templateType = event.target.value;
+              setForm((current) => ({
+                ...current,
+                templateType,
+                ...getTemplateDefaults(templateType),
+              }));
+            }}
+          >
+            <option value="PICKUP_NOTICE">Pickup notice</option>
+            <option value="PICKUP_REMINDER">Pickup reminder</option>
+          </select>
+        </div>
         <div className={ui.fieldWrap}>
           <label className={ui.label}>Template name</label>
-          <input className={ui.input} value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} placeholder="Sage Creek Aug 29 afternoon" />
+          <input className={ui.input} value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} placeholder={form.templateType === 'PICKUP_REMINDER' ? 'Sage Creek reminder' : 'Sage Creek Aug 29 afternoon'} />
         </div>
         <div className={ui.fieldWrap}>
           <label className={ui.label}>Pickup address / location</label>
@@ -377,15 +464,15 @@ function PickupNoticeTemplateManager({
             <option value="INACTIVE">Inactive</option>
           </select>
         </div>
-        <div className="xl:col-span-6">
+        <div className="xl:col-span-7">
           <label className={ui.label}>Subject</label>
           <input className={ui.input} value={form.emailSubject} onChange={(event) => setForm((current) => ({ ...current, emailSubject: event.target.value }))} placeholder="Your order is ready for pickup" />
         </div>
-        <div className="xl:col-span-6">
+        <div className="xl:col-span-7">
           <label className={ui.label}>Email details</label>
           <textarea className={ui.textarea} rows={10} value={form.emailBody} onChange={(event) => setForm((current) => ({ ...current, emailBody: event.target.value }))} />
         </div>
-        <div className="xl:col-span-5">
+        <div className="xl:col-span-6">
           <label className={ui.label}>Instructions</label>
           <textarea className={ui.textarea} rows={3} value={form.instructions} onChange={(event) => setForm((current) => ({ ...current, instructions: event.target.value }))} placeholder="Optional additional pickup instructions" />
         </div>
@@ -402,6 +489,7 @@ function PickupNoticeTemplateManager({
         <table className={`${ui.table} min-w-[1480px]`}>
           <thead>
             <tr className={ui.tableHeadRow}>
+              <th className={ui.tableHeaderCell}>Type</th>
               <th className={ui.tableHeaderCell}>Template</th>
               <th className={ui.tableHeaderCell}>Pickup address / location</th>
               <th className={ui.tableHeaderCell}>Ready date</th>
@@ -418,6 +506,9 @@ function PickupNoticeTemplateManager({
               const isEditing = false;
               return (
                 <tr key={template.id} className={ui.tableRow}>
+                  <td className={ui.tableCell}>
+                    <AdminStatusBadge value={template.templateType === 'PICKUP_REMINDER' ? 'Pickup reminder' : 'Pickup notice'} tone={template.templateType === 'PICKUP_REMINDER' ? 'warning' : 'success'} />
+                  </td>
                   <td className={ui.tableCell}>
                     {isEditing ? (
                       <input className={ui.input} value={editForm.name} onChange={(event) => setEditForm((current) => ({ ...current, name: event.target.value }))} />
@@ -450,14 +541,18 @@ function PickupNoticeTemplateManager({
                     {isEditing ? (
                       <input className={ui.input} value={editForm.emailSubject} onChange={(event) => setEditForm((current) => ({ ...current, emailSubject: event.target.value }))} />
                     ) : (
-                      <span className="block max-w-[16rem] truncate" title={template.emailSubject || 'Your order is ready for pickup'}>{template.emailSubject || 'Your order is ready for pickup'}</span>
+                      <span className="block max-w-[16rem] truncate" title={template.emailSubject || getTemplateDefaults(template.templateType).emailSubject}>
+                        {template.emailSubject || getTemplateDefaults(template.templateType).emailSubject}
+                      </span>
                     )}
                   </td>
                   <td className={ui.tableCell}>
                     {isEditing ? (
                       <textarea className={ui.textarea} rows={8} value={editForm.emailBody} onChange={(event) => setEditForm((current) => ({ ...current, emailBody: event.target.value }))} />
                     ) : (
-                      <span className="block max-h-[4.5rem] max-w-[20rem] overflow-hidden whitespace-pre-wrap text-xs leading-5 text-slate-600">{template.emailBody || DEFAULT_PICKUP_EMAIL_BODY}</span>
+                      <span className="block max-h-[4.5rem] max-w-[20rem] overflow-hidden whitespace-pre-wrap text-xs leading-5 text-slate-600">
+                        {template.emailBody || getTemplateDefaults(template.templateType).emailBody}
+                      </span>
                     )}
                   </td>
                   <td className={ui.tableCell}>
@@ -518,6 +613,24 @@ function PickupNoticeTemplateManager({
 
             <div className="grid gap-4 md:grid-cols-2">
               <div className={ui.fieldWrap}>
+                <label className={ui.label}>Template type</label>
+                <select
+                  className={ui.select}
+                  value={editForm.templateType}
+                  onChange={(event) => {
+                    const templateType = event.target.value;
+                    setEditForm((current) => ({
+                      ...current,
+                      templateType,
+                      ...getTemplateDefaults(templateType),
+                    }));
+                  }}
+                >
+                  <option value="PICKUP_NOTICE">Pickup notice</option>
+                  <option value="PICKUP_REMINDER">Pickup reminder</option>
+                </select>
+              </div>
+              <div className={ui.fieldWrap}>
                 <label className={ui.label}>Template name</label>
                 <input className={ui.input} value={editForm.name} onChange={(event) => setEditForm((current) => ({ ...current, name: event.target.value }))} />
               </div>
@@ -570,8 +683,17 @@ function PickupNoticeTemplateManager({
   );
 }
 
-function NoticeModal({ rows, templates, onClose, onSubmit, submitting }) {
-  const activeTemplates = templates.filter((template) => template.isActive !== false);
+function NoticeModal({
+  rows,
+  templates,
+  onClose,
+  onSubmit,
+  submitting,
+  title = 'Send pickup notice',
+  submitLabel = 'Send notice',
+  templateType = 'PICKUP_NOTICE',
+}) {
+  const activeTemplates = templates.filter((template) => template.isActive !== false && (template.templateType || 'PICKUP_NOTICE') === templateType);
   const [selectedTemplateId, setSelectedTemplateId] = useState(activeTemplates[0]?.id || '');
   const [error, setError] = useState('');
 
@@ -612,7 +734,7 @@ function NoticeModal({ rows, templates, onClose, onSubmit, submitting }) {
       <div className="relative z-10 max-h-[88vh] w-full max-w-3xl overflow-y-auto rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_30px_120px_rgba(15,23,42,0.24)] sm:p-6">
         <div className="mb-5 flex items-start justify-between gap-4">
           <div className="space-y-1">
-            <h2 className="text-2xl font-bold tracking-tight text-emerald-950">Send pickup notice</h2>
+            <h2 className="text-2xl font-bold tracking-tight text-emerald-950">{title}</h2>
             <p className="text-sm text-slate-600">
               {selectedCount} item{selectedCount === 1 ? '' : 's'} across {selectedOrders.length} order{selectedOrders.length === 1 ? '' : 's'} selected
             </p>
@@ -627,38 +749,15 @@ function NoticeModal({ rows, templates, onClose, onSubmit, submitting }) {
             <div className={ui.fieldWrap}>
               <label className={ui.label}>Message template</label>
               <select className={ui.select} value={selectedTemplateId} onChange={(event) => setSelectedTemplateId(event.target.value)}>
-                <option value="">Select pickup notice template</option>
+                <option value="">Select {templateType === 'PICKUP_REMINDER' ? 'pickup reminder' : 'pickup notice'} template</option>
                 {activeTemplates.map((template) => (
                   <option key={template.id} value={template.id}>{template.name}</option>
                 ))}
               </select>
               {!activeTemplates.length ? (
-                <p className="text-xs text-amber-700">No active pickup notice templates are available. Add one in Pickup notice templates first.</p>
+                <p className="text-xs text-amber-700">No active templates.</p>
               ) : null}
             </div>
-            {selectedTemplate ? (
-              <div className={`${ui.section} space-y-3 bg-emerald-50/60`}>
-                <p className="text-sm font-semibold text-emerald-950">Template preview</p>
-                <div className="grid gap-3 text-sm leading-6 text-slate-700 md:grid-cols-3">
-                  <p><span className="font-semibold text-slate-900">Pickup address / location:</span><br />{selectedTemplate.address}</p>
-                  <p><span className="font-semibold text-slate-900">Ready date:</span><br />{formatDisplayDate(selectedTemplate.readyDate)}</p>
-                  <p><span className="font-semibold text-slate-900">Time window:</span><br />{selectedTemplate.timeWindow}</p>
-                </div>
-                <p className="text-sm leading-6 text-slate-700">
-                  <span className="font-semibold text-slate-900">Subject:</span><br />
-                  {selectedTemplate.emailSubject || 'Your order is ready for pickup'}
-                </p>
-                <p className="max-h-48 overflow-y-auto whitespace-pre-wrap rounded-2xl border border-emerald-100 bg-white px-4 py-3 text-sm leading-6 text-slate-700">
-                  {selectedTemplate.emailBody || DEFAULT_PICKUP_EMAIL_BODY}
-                </p>
-                {selectedTemplate.instructions ? (
-                  <p className="whitespace-pre-wrap text-sm leading-6 text-slate-700">
-                    <span className="font-semibold text-slate-900">Instructions:</span><br />
-                    {selectedTemplate.instructions}
-                  </p>
-                ) : null}
-              </div>
-            ) : null}
           </div>
 
           <div className={`${ui.section} space-y-3`}>
@@ -679,7 +778,7 @@ function NoticeModal({ rows, templates, onClose, onSubmit, submitting }) {
 
           <div className="flex flex-wrap gap-3">
             <button type="button" className={ui.buttonPrimary} onClick={handleSubmit} disabled={submitting || !activeTemplates.length}>
-              {submitting ? 'Sending...' : 'Send notice'}
+              {submitting ? 'Sending...' : submitLabel}
             </button>
             <button type="button" className={ui.buttonGhost} onClick={onClose}>
               Cancel
@@ -691,14 +790,454 @@ function NoticeModal({ rows, templates, onClose, onSubmit, submitting }) {
   );
 }
 
+function PickupAllocationPanel({
+  templates,
+  pickupLocations,
+  produceOptions,
+  salesEventOptions,
+  onLoadPendingSummary,
+  onPreview,
+  onSend,
+}) {
+  const [filters, setFilters] = useState(DEFAULT_ALLOCATION_FILTERS);
+  const [stockRows, setStockRows] = useState([createAllocationStockRow()]);
+  const [preview, setPreview] = useState(null);
+  const [selectedOrders, setSelectedOrders] = useState([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [loadingPendingSummary, setLoadingPendingSummary] = useState(false);
+  const [pendingSummaryItems, setPendingSummaryItems] = useState([]);
+  const [sending, setSending] = useState(false);
+  const [status, setStatus] = useState('');
+  const [error, setError] = useState('');
+  const activeTemplates = templates.filter((template) => template.isActive !== false && (template.templateType || 'PICKUP_NOTICE') === 'PICKUP_NOTICE');
+  const pickupLocationOptions = pickupLocations
+    .filter((location) => location.isActive !== false)
+    .map((location) => location.name)
+    .filter(Boolean);
+  const productOptions = useMemo(
+    () => [...new Set((produceOptions || []).filter(Boolean))].sort((a, b) => a.localeCompare(b)),
+    [produceOptions],
+  );
+  const batchOptionsByProduce = useMemo(() => {
+    const options = new Map();
+
+    (salesEventOptions || []).forEach((item) => {
+      const produceName = String(item.name || '').trim();
+      const batchNumber = String(item.batchNumber || '').trim();
+      if (!produceName || !batchNumber) return;
+
+      const key = produceName.toLowerCase();
+      const current = options.get(key) || [];
+      if (!current.some((entry) => entry.batchNumber === batchNumber)) {
+        current.push({
+          batchNumber,
+          label: batchNumber,
+        });
+      }
+      options.set(key, current);
+    });
+
+    options.forEach((entries) => entries.sort((a, b) => a.batchNumber.localeCompare(b.batchNumber)));
+    return options;
+  }, [salesEventOptions]);
+  const selectedSuggestions = (preview?.suggestions || []).filter((suggestion) => selectedOrders.includes(suggestion.orderReference));
+  const allSuggestionsSelected = (preview?.suggestions || []).length > 0 && (preview?.suggestions || []).every((suggestion) => selectedOrders.includes(suggestion.orderReference));
+  const pendingSummaryByProduct = useMemo(() => {
+    const summary = new Map();
+
+    pendingSummaryItems.forEach((item) => {
+      const productKey = normalizeAllocationValue(item.name);
+      const batchKey = normalizeAllocationValue(item.batchNumber);
+      const exactKey = `${productKey}::${batchKey}`;
+      const productEntry = summary.get(productKey) || { pendingQuantity: 0, pendingOrders: 0, batches: new Map() };
+      const exactEntry = productEntry.batches.get(exactKey) || { pendingQuantity: 0, pendingOrders: 0 };
+
+      productEntry.pendingQuantity += Number(item.pendingQuantity) || 0;
+      productEntry.pendingOrders += Number(item.pendingOrders) || 0;
+      exactEntry.pendingQuantity += Number(item.pendingQuantity) || 0;
+      exactEntry.pendingOrders += Number(item.pendingOrders) || 0;
+      productEntry.batches.set(exactKey, exactEntry);
+      summary.set(productKey, productEntry);
+    });
+
+    return summary;
+  }, [pendingSummaryItems]);
+
+  useEffect(() => {
+    if (!selectedTemplateId && activeTemplates[0]?.id) {
+      setSelectedTemplateId(activeTemplates[0].id);
+    }
+  }, [activeTemplates, selectedTemplateId]);
+
+  useEffect(() => {
+    let mounted = true;
+    const timer = window.setTimeout(async () => {
+      if (!onLoadPendingSummary) {
+        return;
+      }
+
+      setLoadingPendingSummary(true);
+      try {
+        const response = await onLoadPendingSummary({
+          startDate: toIsoBoundary(filters.startDate),
+          endDate: toIsoBoundary(filters.endDate, true),
+          q: filters.q.trim(),
+          batchNumber: filters.batchNumber.trim(),
+          location: filters.location,
+          noticeStatus: filters.noticeStatus,
+        });
+        if (mounted) {
+          setPendingSummaryItems(response.items || []);
+        }
+      } catch {
+        if (mounted) {
+          setPendingSummaryItems([]);
+        }
+      } finally {
+        if (mounted) {
+          setLoadingPendingSummary(false);
+        }
+      }
+    }, 250);
+
+    return () => {
+      mounted = false;
+      window.clearTimeout(timer);
+    };
+  }, [filters.startDate, filters.endDate, filters.q, filters.batchNumber, filters.location, filters.noticeStatus, onLoadPendingSummary]);
+
+  function updateStockRow(rowId, patch) {
+    setStockRows((current) => current.map((row) => (row.id === rowId ? { ...row, ...patch } : row)));
+    setPreview(null);
+    setSelectedOrders([]);
+  }
+
+  function removeStockRow(rowId) {
+    setStockRows((current) => (current.length === 1 ? current : current.filter((row) => row.id !== rowId)));
+    setPreview(null);
+    setSelectedOrders([]);
+  }
+
+  async function handlePreview(event) {
+    event.preventDefault();
+    setStatus('');
+    setError('');
+    const availableItems = stockRows
+      .map((row) => ({
+        name: row.name.trim(),
+        batchNumber: row.batchNumber.trim(),
+        quantity: Number(row.quantity),
+      }))
+      .filter((row) => row.name && Number.isInteger(row.quantity) && row.quantity > 0);
+
+    if (!availableItems.length) {
+      setError('Enter available items.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const result = await onPreview({
+        availableItems,
+        filters: {
+          startDate: toIsoBoundary(filters.startDate),
+          endDate: toIsoBoundary(filters.endDate, true),
+          q: filters.q.trim(),
+          batchNumber: filters.batchNumber.trim(),
+          location: filters.location,
+          noticeStatus: filters.noticeStatus,
+        },
+      });
+      setPreview(result);
+      setSelectedOrders((result.suggestions || []).map((suggestion) => suggestion.orderReference));
+      setStatus(`${result.suggestedOrders || 0} suggested`);
+    } catch (err) {
+      setError(err.message || 'Unable to preview allocation.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleSendSelected() {
+    setStatus('');
+    setError('');
+    if (!selectedTemplateId) {
+      setError('Select template.');
+      return;
+    }
+
+    const items = selectedSuggestions.flatMap((suggestion) =>
+      suggestion.items.map((item) => ({
+        orderReference: item.orderReference,
+        itemIndex: item.itemIndex,
+      }))
+    );
+
+    if (!items.length) {
+      setError('Select allocation.');
+      return;
+    }
+
+    setSending(true);
+    try {
+      const result = await onSend({
+        items,
+        channels: ['EMAIL'],
+        templateId: selectedTemplateId,
+      });
+      setStatus(result.message || 'Pickup notices sent successfully.');
+      setPreview(null);
+      setSelectedOrders([]);
+    } catch (err) {
+      setError(err.message || 'Unable to send pickup notices.');
+    } finally {
+      setSending(false);
+    }
+  }
+
+  function toggleSuggestion(orderReference) {
+    setSelectedOrders((current) => (
+      current.includes(orderReference)
+        ? current.filter((value) => value !== orderReference)
+        : [...current, orderReference]
+    ));
+  }
+
+  function toggleAllSuggestions() {
+    if (allSuggestionsSelected) {
+      setSelectedOrders([]);
+      return;
+    }
+    setSelectedOrders((preview?.suggestions || []).map((suggestion) => suggestion.orderReference));
+  }
+
+  function getBatchOptionsForRow(row) {
+    return batchOptionsByProduce.get(String(row.name || '').trim().toLowerCase()) || [];
+  }
+
+  function getPendingSummaryForRow(row) {
+    const productKey = normalizeAllocationValue(row.name);
+    if (!productKey) return null;
+
+    const productSummary = pendingSummaryByProduct.get(productKey);
+    if (!productSummary) {
+      return { pendingQuantity: 0, pendingOrders: 0 };
+    }
+
+    const batchKey = normalizeAllocationValue(row.batchNumber);
+    if (!batchKey) {
+      return productSummary;
+    }
+
+    return productSummary.batches.get(`${productKey}::${batchKey}`) || { pendingQuantity: 0, pendingOrders: 0 };
+  }
+
+  return (
+    <section className={ui.card}>
+      <div className="space-y-5">
+        <div className="space-y-2">
+          <h1 className="text-2xl font-bold tracking-tight text-emerald-950">Pickup Allocation</h1>
+        </div>
+
+        {status ? <p className={ui.success}>{status}</p> : null}
+        {error ? <p className={ui.error}>{error}</p> : null}
+
+        <form className={`${ui.filterPanel} space-y-4`} onSubmit={handlePreview}>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <DateFilterField label="Start date" value={filters.startDate} onChange={(event) => setFilters((current) => ({ ...current, startDate: event.target.value }))} />
+            <DateFilterField label="End date" value={filters.endDate} onChange={(event) => setFilters((current) => ({ ...current, endDate: event.target.value }))} />
+            <div className={ui.fieldWrap}>
+              <label className={ui.label}>Search</label>
+              <input className={ui.input} value={filters.q} onChange={(event) => setFilters((current) => ({ ...current, q: event.target.value }))} placeholder="Name, order number, email" />
+            </div>
+            <div className={ui.fieldWrap}>
+              <label className={ui.label}>Batch number</label>
+              <input
+                className={ui.input}
+                value={filters.batchNumber}
+                onChange={(event) => setFilters((current) => ({ ...current, batchNumber: event.target.value.toUpperCase().replace(/[^A-Z0-9,\s]/g, '') }))}
+                placeholder="RH4, TM1"
+              />
+            </div>
+            <div className={ui.fieldWrap}>
+              <label className={ui.label}>Pickup location</label>
+              <select className={ui.select} value={filters.location} onChange={(event) => setFilters((current) => ({ ...current, location: event.target.value }))}>
+                <option value="">All locations</option>
+                {pickupLocationOptions.map((location) => (
+                  <option key={location} value={location}>{location}</option>
+                ))}
+              </select>
+            </div>
+            <div className={ui.fieldWrap}>
+              <label className={ui.label}>Notice status</label>
+              <select className={ui.select} value={filters.noticeStatus} onChange={(event) => setFilters((current) => ({ ...current, noticeStatus: event.target.value }))}>
+                <option value="">All statuses</option>
+                <option value="NOT_SENT">Not sent</option>
+                <option value="SENT">Sent</option>
+              </select>
+            </div>
+            <div className={`${ui.fieldWrap} md:col-span-2`}>
+              <label className={ui.label}>Template</label>
+              <select className={ui.select} value={selectedTemplateId} onChange={(event) => setSelectedTemplateId(event.target.value)}>
+                <option value="">Select template</option>
+                {activeTemplates.map((template) => (
+                  <option key={template.id} value={template.id}>{template.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <p className={ui.label}>Available items</p>
+	            {stockRows.map((row) => {
+	              const rowPendingSummary = getPendingSummaryForRow(row);
+	              return (
+	              <div key={row.id} className="grid gap-3 md:grid-cols-[minmax(0,1fr)_120px_120px_140px_auto]">
+		                <select
+		                  className={ui.select}
+		                  value={row.name}
+	                  onChange={(event) => updateStockRow(row.id, { name: event.target.value, batchNumber: '' })}
+	                >
+	                  <option value="">Select produce</option>
+	                  {productOptions.map((name) => (
+	                    <option key={name} value={name}>{name}</option>
+	                  ))}
+	                </select>
+	                <select
+	                  className={ui.select}
+	                  value={row.batchNumber}
+	                  onChange={(event) => updateStockRow(row.id, { batchNumber: event.target.value })}
+	                  disabled={!row.name}
+	                >
+	                  <option value="">All batches</option>
+	                  {getBatchOptionsForRow(row).map((item) => (
+	                    <option key={item.batchNumber} value={item.batchNumber}>{item.label}</option>
+	                  ))}
+	                </select>
+	                <input
+                  className={ui.input}
+                  inputMode="numeric"
+                  value={row.quantity}
+	                  onChange={(event) => updateStockRow(row.id, { quantity: event.target.value.replace(/\D/g, '') })}
+	                  placeholder="Qty"
+	                />
+	                <div className="flex min-h-[46px] items-center rounded-2xl border border-[#e4e6dc] bg-white px-4 text-sm font-semibold text-emerald-950">
+	                  {loadingPendingSummary ? 'Pending: ...' : rowPendingSummary ? `Pending: ${rowPendingSummary.pendingQuantity}` : 'Pending: -'}
+	                </div>
+	                <button type="button" className={ui.buttonGhost} onClick={() => removeStockRow(row.id)} disabled={stockRows.length === 1}>
+	                  Remove
+	                </button>
+	              </div>
+	              );
+	            })}
+            <div className="flex flex-wrap gap-3">
+              <button type="button" className={ui.buttonGhost} onClick={() => setStockRows((current) => [...current, createAllocationStockRow()])}>
+                Add item
+              </button>
+              <button type="submit" className={ui.buttonPrimary} disabled={loading}>
+                {loading ? 'Checking...' : 'Preview allocation'}
+              </button>
+              <button type="button" className={ui.buttonPrimary} onClick={handleSendSelected} disabled={sending || !selectedSuggestions.length || !selectedTemplateId}>
+                {sending ? 'Sending...' : selectedSuggestions.length ? `Send selected (${selectedSuggestions.length})` : 'Select allocation'}
+              </button>
+            </div>
+          </div>
+        </form>
+
+        {preview ? (
+          <div className="space-y-5">
+            <div className={ui.tableWrap}>
+              <table className={`${ui.table} min-w-[1180px]`}>
+                <thead>
+                  <tr className={ui.tableHeadRow}>
+                    <th className={ui.tableHeaderCell}>
+                      <input type="checkbox" checked={allSuggestionsSelected} onChange={toggleAllSuggestions} aria-label="Select all suggested allocations" />
+                    </th>
+                    <th className={ui.tableHeaderCell}>Order</th>
+                    <th className={ui.tableHeaderCell}>Buyer</th>
+                    <th className={ui.tableHeaderCell}>Paid</th>
+                    <th className={ui.tableHeaderCell}>Location</th>
+                    <th className={ui.tableHeaderCell}>Items</th>
+                    <th className={ui.tableHeaderCell}>Qty</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(preview.suggestions || []).map((suggestion) => (
+                    <tr key={suggestion.orderReference} className={ui.tableRow}>
+                      <td className={ui.tableCell}>
+                        <input
+                          type="checkbox"
+                          checked={selectedOrders.includes(suggestion.orderReference)}
+                          onChange={() => toggleSuggestion(suggestion.orderReference)}
+                          aria-label={`Select ${suggestion.displayOrderReference}`}
+                        />
+                      </td>
+                      <td className={`${ui.tableCell} font-semibold text-slate-900`}>{suggestion.displayOrderReference}</td>
+                      <td className={ui.tableCell}>
+                        <div className="max-w-[14rem]">
+                          <p className="truncate font-medium text-slate-900">{suggestion.buyerName}</p>
+                          <p className="truncate text-xs text-slate-500">{suggestion.buyerEmail || suggestion.buyerPhone || '-'}</p>
+                        </div>
+                      </td>
+                      <td className={ui.tableCell}>{formatDate(suggestion.paidAt)}</td>
+                      <td className={ui.tableCell}>
+                        <span className="block max-w-[16rem] truncate" title={suggestion.pickupLocation}>{suggestion.pickupLocation || '-'}</span>
+                      </td>
+                      <td className={ui.tableCell}>
+                        <span className="block max-w-[24rem] whitespace-normal">
+                          {suggestion.items.map((item) => `${item.name}${item.batchNumber ? ` ${item.batchNumber}` : ''} x${item.quantity}`).join(', ')}
+                        </span>
+                      </td>
+                      <td className={ui.tableCell}>{suggestion.totalQuantity}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {!preview.suggestions?.length ? <AdminTableEmpty message="No rows." /> : null}
+            </div>
+
+            <div className={ui.tableWrap}>
+              <table className={`${ui.table} min-w-[640px]`}>
+                <thead>
+                  <tr className={ui.tableHeadRow}>
+                    <th className={ui.tableHeaderCell}>Product</th>
+                    <th className={ui.tableHeaderCell}>Batch</th>
+                    <th className={ui.tableHeaderCell}>Input qty</th>
+                    <th className={ui.tableHeaderCell}>Remaining qty</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(preview.remainingItems || []).map((item, index) => (
+                    <tr key={`${item.name}:${item.batchNumber}:${index}`} className={ui.tableRow}>
+                      <td className={ui.tableCell}>{item.name}</td>
+                      <td className={ui.tableCell}>{item.batchNumber || '-'}</td>
+                      <td className={ui.tableCell}>{item.inputQuantity}</td>
+                      <td className={ui.tableCell}>{item.remainingQuantity}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
 export default function AdminPickupNoticesPanel({
   onLoadPickupNotices,
+  onLoadPickupAllocationPendingSummary,
+  onPreviewPickupAllocation,
   onLoadPickupNoticeTemplates,
   onCreatePickupNoticeTemplate,
   onUpdatePickupNoticeTemplate,
   onDeletePickupNoticeTemplate,
   onSendPickupNotices,
   pickupLocations = [],
+  produceOptions = [],
+  salesEventOptions = [],
 }) {
   const [query, setQuery] = useState(DEFAULT_QUERY);
   const [rows, setRows] = useState([]);
@@ -715,6 +1254,7 @@ export default function AdminPickupNoticesPanel({
   const [templateSaving, setTemplateSaving] = useState(false);
   const [activeTab, setActiveTab] = useState('notices');
   const didInitFiltersRef = useRef(false);
+  const isReminderTab = activeTab === 'reminders';
 
   async function loadNotices(nextQuery = query) {
     setLoading(true);
@@ -777,7 +1317,7 @@ export default function AdminPickupNoticesPanel({
     }, 250);
 
     return () => window.clearTimeout(timer);
-  }, [query.startDate, query.endDate, query.q, query.batchNumber, query.location, query.fulfillmentMethod, query.noticeStatus]);
+  }, [query.startDate, query.endDate, query.q, query.batchNumber, query.location, query.fulfillmentMethod, query.fulfillmentStatus, query.noticeStatus]);
 
   const selectedRows = useMemo(
     () => rows.filter((row) => !isCompletedFulfillment(row) && selectedKeys.includes(`${row.orderReference}:${row.itemIndex}`)),
@@ -812,13 +1352,35 @@ export default function AdminPickupNoticesPanel({
     await loadNotices(nextQuery);
   }
 
+	  async function switchTab(tab) {
+	    setActiveTab(tab);
+	    setStatus('');
+	    setError('');
+	    setModalRows([]);
+    if (tab === 'notices') {
+      setQuery(DEFAULT_QUERY);
+      await loadNotices(DEFAULT_QUERY);
+    }
+	    if (tab === 'reminders') {
+	      setQuery(DEFAULT_REMINDER_QUERY);
+	      await loadNotices(DEFAULT_REMINDER_QUERY);
+	    }
+	  }
+
   async function handleSend(payload) {
     setSubmitting(true);
     setError('');
     setStatus('');
     try {
       const result = await onSendPickupNotices(payload);
-      setStatus(result.message || 'Pickup notices sent successfully.');
+      if (isReminderTab) {
+        const sentCount = Array.isArray(result.results)
+          ? result.results.filter((entry) => entry.sentSuccessfully).length
+          : 0;
+        setStatus(sentCount ? `Pickup reminder sent for ${sentCount} order${sentCount === 1 ? '' : 's'}.` : result.message || 'Pickup reminder processed.');
+      } else {
+        setStatus(result.message || 'Pickup notices sent successfully.');
+      }
       setModalRows([]);
       await loadNotices(query);
     } catch (err) {
@@ -875,6 +1437,11 @@ export default function AdminPickupNoticesPanel({
 
   const listStart = meta.total === 0 ? 0 : (meta.page - 1) * meta.limit + 1;
   const listEnd = meta.total === 0 ? 0 : Math.min(meta.page * meta.limit, meta.total);
+  const viewTitle = isReminderTab ? 'Pickup Reminder' : 'Pickup Notices';
+  const actionVerb = isReminderTab ? 'remind' : 'notify';
+  const selectedActionLabel = selectedRows.length
+    ? `${isReminderTab ? 'Remind' : 'Notify'} selected (${selectedRows.length})`
+    : `Select items to ${actionVerb}`;
   const tabButtonClass = (tab) => (
     `rounded-full px-5 py-2.5 text-sm font-semibold transition ${
       activeTab === tab
@@ -886,12 +1453,18 @@ export default function AdminPickupNoticesPanel({
   return (
     <section className="space-y-5">
       <div className="flex flex-wrap gap-3 rounded-full border border-[#e4e6dc] bg-[#fbfbf8] p-2">
-        <button type="button" className={tabButtonClass('notices')} onClick={() => setActiveTab('notices')}>
+        <button type="button" className={tabButtonClass('notices')} onClick={() => switchTab('notices')}>
           Pickup Notices
         </button>
-        <button type="button" className={tabButtonClass('templates')} onClick={() => setActiveTab('templates')}>
-          Templates
-        </button>
+	        <button type="button" className={tabButtonClass('reminders')} onClick={() => switchTab('reminders')}>
+	          Pickup Reminder
+	        </button>
+	        <button type="button" className={tabButtonClass('allocation')} onClick={() => switchTab('allocation')}>
+	          Pickup Allocation
+	        </button>
+	        <button type="button" className={tabButtonClass('templates')} onClick={() => switchTab('templates')}>
+	          Templates
+	        </button>
       </div>
 
       {status ? <p className={ui.success}>{status}</p> : null}
@@ -904,14 +1477,24 @@ export default function AdminPickupNoticesPanel({
           loading={loadingTemplates}
           saving={templateSaving}
           onCreate={handleCreateTemplate}
-          onUpdate={handleUpdateTemplate}
-          onDelete={handleDeleteTemplate}
-        />
-      ) : (
+	          onUpdate={handleUpdateTemplate}
+	          onDelete={handleDeleteTemplate}
+	        />
+	      ) : activeTab === 'allocation' ? (
+	        <PickupAllocationPanel
+	          templates={templates}
+	          pickupLocations={pickupLocations}
+	          produceOptions={produceOptions}
+	          salesEventOptions={salesEventOptions}
+	          onLoadPendingSummary={onLoadPickupAllocationPendingSummary}
+	          onPreview={onPreviewPickupAllocation}
+	          onSend={onSendPickupNotices}
+	        />
+	      ) : (
       <section className={ui.card}>
         <div className="space-y-5">
           <div className="space-y-2">
-            <h1 className="text-2xl font-bold tracking-tight text-emerald-950">Pickup Notices</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-emerald-950">{viewTitle}</h1>
           </div>
 
           <div className={`${ui.filterPanel} grid gap-4 md:grid-cols-2 xl:grid-cols-4`}>
@@ -960,6 +1543,16 @@ export default function AdminPickupNoticesPanel({
                 <option value="SENT">Sent</option>
               </select>
             </div>
+            <div className={ui.fieldWrap}>
+              <label className={ui.label}>Fulfilment status</label>
+              <select className={ui.select} value={query.fulfillmentStatus} onChange={(event) => setQuery((current) => ({ ...current, fulfillmentStatus: event.target.value }))}>
+                <option value="">All statuses</option>
+                <option value="PENDING_PICKUP">Pending pickup</option>
+                <option value="PICKED_UP">Picked up</option>
+                <option value="PENDING_DELIVERY">Pending delivery</option>
+                <option value="DELIVERED">Delivered</option>
+              </select>
+            </div>
             <div className="xl:col-span-1 flex items-end">
               <button
                 type="button"
@@ -967,7 +1560,7 @@ export default function AdminPickupNoticesPanel({
                 onClick={() => setModalRows(selectedRows)}
                 disabled={!selectedRows.length}
               >
-                {selectedRows.length ? `Notify selected (${selectedRows.length})` : 'Select items to notify'}
+                {selectedActionLabel}
               </button>
             </div>
           </div>
@@ -1045,12 +1638,12 @@ export default function AdminPickupNoticesPanel({
                       </td>
                       <td className={`${ui.tableCell} whitespace-nowrap text-right`}>
                         <div className="flex justify-end gap-2">
-                          <AdminIconButton
-                            label={noticeDisabled ? 'Notice disabled because fulfilment is completed' : row.noticeStatus === 'SENT' ? 'Resend notice' : 'Send notice'}
-                            onClick={() => setModalRows([row])}
-                            disabled={noticeDisabled}
-                            title={noticeDisabled ? 'Fulfilment is already completed. Notice cannot be sent.' : undefined}
-                          >
+	                          <AdminIconButton
+	                            label={noticeDisabled ? 'Notice disabled' : row.noticeStatus === 'SENT' ? 'Resend notice' : 'Send notice'}
+	                            onClick={() => setModalRows([row])}
+	                            disabled={noticeDisabled}
+	                            title={noticeDisabled ? 'Fulfilment completed.' : undefined}
+	                          >
                             <MailIcon />
                           </AdminIconButton>
                         </div>
@@ -1061,7 +1654,11 @@ export default function AdminPickupNoticesPanel({
               </tbody>
             </table>
 
-            {!loading && rows.length === 0 ? <AdminTableEmpty message="No paid items are waiting for pickup notice in the current view." /> : null}
+            {!loading && rows.length === 0 ? (
+              <AdminTableEmpty
+                message="No rows."
+              />
+            ) : null}
             <AdminPagination
               page={meta.page}
               totalPages={meta.totalPages}
@@ -1076,7 +1673,16 @@ export default function AdminPickupNoticesPanel({
       )}
 
       {modalRows.length ? (
-        <NoticeModal rows={modalRows} templates={templates} onClose={() => setModalRows([])} onSubmit={handleSend} submitting={submitting} />
+        <NoticeModal
+          rows={modalRows}
+          templates={templates}
+          onClose={() => setModalRows([])}
+          onSubmit={handleSend}
+          submitting={submitting}
+          title={isReminderTab ? 'Send pickup reminder' : 'Send pickup notice'}
+          submitLabel={isReminderTab ? 'Send reminder' : 'Send notice'}
+          templateType={isReminderTab ? 'PICKUP_REMINDER' : 'PICKUP_NOTICE'}
+        />
       ) : null}
     </section>
   );

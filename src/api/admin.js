@@ -146,6 +146,7 @@ export function fetchAdminPickupNotices(params = {}) {
   if (params.batchNumber) search.set('batchNumber', params.batchNumber);
   if (params.location) search.set('location', params.location);
   if (params.fulfillmentMethod) search.set('fulfillmentMethod', params.fulfillmentMethod);
+  if (params.fulfillmentStatus) search.set('fulfillmentStatus', params.fulfillmentStatus);
   if (params.noticeStatus) search.set('noticeStatus', params.noticeStatus);
   if (params.sortBy) search.set('sortBy', params.sortBy);
   if (params.sortOrder) search.set('sortOrder', params.sortOrder);
@@ -156,6 +157,27 @@ export function fetchAdminPickupNotices(params = {}) {
   return request(`/api/admin/pickup-notices${suffix}`);
 }
 
+export function previewAdminPickupAllocation(payload) {
+  return request('/api/admin/pickup-notices/allocation-preview', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function fetchAdminPickupAllocationPendingSummary(params = {}) {
+  const search = new URLSearchParams();
+  if (params.startDate) search.set('startDate', params.startDate);
+  if (params.endDate) search.set('endDate', params.endDate);
+  if (params.q) search.set('q', params.q);
+  if (params.batchNumber) search.set('batchNumber', params.batchNumber);
+  if (params.location) search.set('location', params.location);
+  if (params.noticeStatus) search.set('noticeStatus', params.noticeStatus);
+
+  const suffix = search.toString() ? `?${search.toString()}` : '';
+  return request(`/api/admin/pickup-notices/allocation-pending-summary${suffix}`);
+}
+
 export function fetchAdminPickupLocations() {
   return request('/api/admin/pickup-locations');
 }
@@ -163,6 +185,7 @@ export function fetchAdminPickupLocations() {
 export function fetchAdminPickupNoticeTemplates(params = {}) {
   const search = new URLSearchParams();
   if (params.status) search.set('status', params.status);
+  if (params.templateType) search.set('templateType', params.templateType);
   const suffix = search.toString() ? `?${search.toString()}` : '';
   return request(`/api/admin/pickup-notice-templates${suffix}`);
 }

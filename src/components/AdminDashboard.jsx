@@ -246,6 +246,8 @@ export default function AdminDashboard({
   onDeclineCustomerUpdateRequest,
   onLoadOrders,
   onLoadPickupNotices,
+  onLoadPickupAllocationPendingSummary,
+  onPreviewPickupAllocation,
   onLoadPickupLocations,
   onLoadPickupNoticeTemplates,
   onSendPickupNotices,
@@ -275,6 +277,7 @@ export default function AdminDashboard({
 }) {
   const [reports, setReports] = useState(null);
   const [salesItems, setSalesItems] = useState([]);
+  const [allocationSalesItems, setAllocationSalesItems] = useState([]);
   const [loadingReports, setLoadingReports] = useState(false);
   const [loadingSalesItems, setLoadingSalesItems] = useState(false);
   const [reportError, setReportError] = useState('');
@@ -410,6 +413,20 @@ export default function AdminDashboard({
     }
   }
 
+  async function loadAllocationSalesItems() {
+    try {
+      const response = await onLoadSalesItems({
+        sortBy: 'createdAt',
+        sortOrder: 'desc',
+        page: 1,
+        limit: 500,
+      });
+      setAllocationSalesItems(Array.isArray(response) ? response : response.items || []);
+    } catch {
+      setAllocationSalesItems([]);
+    }
+  }
+
   async function loadPickupLocations() {
     try {
       const response = await onLoadPickupLocations();
@@ -433,6 +450,7 @@ export default function AdminDashboard({
     loadReports();
     loadSalesItems(DEFAULT_SALES_QUERY);
     loadActiveSalesSummary();
+    loadAllocationSalesItems();
     loadPickupLocations();
     loadProduceItems();
   }, []);
@@ -654,13 +672,17 @@ export default function AdminDashboard({
       return (
         <AdminPickupNoticesPanel
           onLoadPickupNotices={onLoadPickupNotices}
+          onLoadPickupAllocationPendingSummary={onLoadPickupAllocationPendingSummary}
+          onPreviewPickupAllocation={onPreviewPickupAllocation}
           onLoadPickupNoticeTemplates={onLoadPickupNoticeTemplates}
           onCreatePickupNoticeTemplate={onCreatePickupNoticeTemplate}
           onUpdatePickupNoticeTemplate={onUpdatePickupNoticeTemplate}
-          onDeletePickupNoticeTemplate={onDeletePickupNoticeTemplate}
-          onSendPickupNotices={onSendPickupNotices}
-          pickupLocations={pickupLocations}
-        />
+	          onDeletePickupNoticeTemplate={onDeletePickupNoticeTemplate}
+	          onSendPickupNotices={onSendPickupNotices}
+	          pickupLocations={pickupLocations}
+	          produceOptions={activeProduceOptions}
+	          salesEventOptions={allocationSalesItems}
+	        />
       );
     }
 

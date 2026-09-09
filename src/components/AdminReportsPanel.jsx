@@ -22,6 +22,8 @@ const REPORT_OPTIONS = [
   { value: 'supplierOrders', label: 'Items to Order from Supplier (Paid)' },
   { value: 'salesDetails', label: 'Sales Details Report' },
   { value: 'fulfilledOrders', label: 'Fulfilled Orders Report' },
+  { value: 'fulfillmentByProduct', label: 'Fulfilment by Product' },
+  { value: 'allocatedPendingFulfillment', label: 'Allocated Pending Fulfilment' },
 ];
 
 function formatDisplayDate(value) {
@@ -217,11 +219,17 @@ export default function AdminReportsPanel({ reports, reportError, loadingReports
           render: column.key === 'totalAmount' ? (row) => formatCad(row.totalAmount) : column.render,
         }));
         rows = reports?.fulfilledOrderRows || [];
+      } else if (activeReportType === 'allocatedPendingFulfillment') {
+        columns = allocatedPendingFulfillmentColumns;
+        rows = reports?.allocatedPendingFulfillmentRows || [];
+      } else if (activeReportType === 'fulfillmentByProduct') {
+        columns = fulfillmentByProductColumns;
+        rows = reports?.fulfillmentByProductRows || [];
       }
 
       openPdfExport({
         title: activeReportLabel,
-        subtitle: 'Current report view',
+        subtitle: '',
         fileName: buildReportExportFileName(activeReportLabel),
         columns,
         rows,
@@ -278,24 +286,61 @@ export default function AdminReportsPanel({ reports, reportError, loadingReports
     { key: 'totalAmount', label: 'Amount', render: (row) => formatCad(row.totalAmount) },
   ];
 
+  const fulfillmentByProductColumns = [
+    { key: 'itemName', label: 'Product' },
+    { key: 'batchNumber', label: 'Batch No' },
+    { key: 'location', label: 'Location' },
+    { key: 'fulfillmentMethod', label: 'Method', render: (row) => row.fulfillmentMethod ? row.fulfillmentMethod.replace(/_/g, ' ') : '—' },
+    { key: 'pendingOrders', label: 'To be Fulfilled Orders' },
+    { key: 'fulfilledOrders', label: 'Fulfilled Orders' },
+    { key: 'totalOrders', label: 'Total Orders' },
+    { key: 'pendingQuantity', label: 'Pending Qty' },
+    { key: 'fulfilledQuantity', label: 'Fulfilled Qty' },
+    { key: 'totalQuantity', label: 'Total Qty' },
+  ];
+
+  const allocatedPendingFulfillmentColumns = [
+    { key: 'displayOrderReference', label: 'Order No' },
+    { key: 'batchNumber', label: 'Batch No' },
+    { key: 'itemName', label: 'Item' },
+    { key: 'quantity', label: 'Qty' },
+    { key: 'buyerName', label: 'Buyer' },
+    { key: 'buyerPhone', label: 'Phone' },
+    { key: 'fulfillmentMethod', label: 'Method', render: (row) => row.fulfillmentMethod ? row.fulfillmentMethod.replace(/_/g, ' ') : '—' },
+    { key: 'fulfillmentStatusLabel', label: 'Status' },
+    { key: 'preferredPickupLocation', label: 'Pickup Location' },
+    { key: 'pickupAddress', label: 'Pickup Address' },
+    { key: 'readyDate', label: 'Ready Date' },
+    { key: 'timeWindow', label: 'Time Window' },
+    { key: 'noticeSentAt', label: 'Notice Sent At', render: (row) => row.noticeSentAt ? new Date(row.noticeSentAt).toLocaleString() : '—' },
+  ];
+
   function renderActiveReport() {
     if (!reports) {
-      return <p className={ui.note}>{loadingReports ? 'Loading reports...' : 'No report data available yet.'}</p>;
+      return <p className={ui.note}>{loadingReports ? 'Loading...' : 'No data.'}</p>;
     }
 
     if (activeReportType === 'supplierOrders') {
-      return <ReportTable columns={supplierColumns} rows={reports.supplierOrderRows || []} emptyMessage="No supplier order rows found for the selected filters." />;
+      return <ReportTable columns={supplierColumns} rows={reports.supplierOrderRows || []} emptyMessage="No rows." />;
     }
 
     if (activeReportType === 'salesDetails') {
-      return <ReportTable columns={salesDetailsColumns} rows={reports.salesDetailRows || []} emptyMessage="No sales details found for the selected filters." />;
+      return <ReportTable columns={salesDetailsColumns} rows={reports.salesDetailRows || []} emptyMessage="No rows." />;
     }
 
     if (activeReportType === 'fulfilledOrders') {
-      return <ReportTable columns={fulfilledOrdersColumns} rows={reports.fulfilledOrderRows || []} emptyMessage="No fulfilled orders found for the selected filters." />;
+      return <ReportTable columns={fulfilledOrdersColumns} rows={reports.fulfilledOrderRows || []} emptyMessage="No rows." />;
     }
 
-    return <ReportTable columns={orderReadyColumns} rows={reports.orderReadyRows || []} emptyMessage="No paid orders are ready for the selected filters." />;
+    if (activeReportType === 'allocatedPendingFulfillment') {
+      return <ReportTable columns={allocatedPendingFulfillmentColumns} rows={reports.allocatedPendingFulfillmentRows || []} emptyMessage="No rows." />;
+    }
+
+    if (activeReportType === 'fulfillmentByProduct') {
+      return <ReportTable columns={fulfillmentByProductColumns} rows={reports.fulfillmentByProductRows || []} emptyMessage="No rows." />;
+    }
+
+    return <ReportTable columns={orderReadyColumns} rows={reports.orderReadyRows || []} emptyMessage="No rows." />;
   }
 
   return (
@@ -303,7 +348,6 @@ export default function AdminReportsPanel({ reports, reportError, loadingReports
       <section className={`${ui.card} space-y-5`}>
         <div className="space-y-2">
           <h1 className="text-2xl font-bold tracking-tight text-emerald-950">{activeReportLabel}</h1>
-          <p className="leading-6 text-slate-600">Select the report you want, then refine it with batch, date, fulfilment, and sales event filters.</p>
         </div>
 
         <form className={`${ui.filterPanel} space-y-4`} onSubmit={applyFilters}>
