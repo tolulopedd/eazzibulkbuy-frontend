@@ -152,18 +152,28 @@ function FulfillmentLocationAnalytics({ rows }) {
     return <p className={ui.note}>No data.</p>;
   }
 
+  function getPercentageBadgeClass(value) {
+    const percentage = Number(value) || 0;
+    if (percentage >= 70) {
+      return 'border-emerald-200 bg-emerald-50 text-emerald-700';
+    }
+    if (percentage >= 40) {
+      return 'border-orange-200 bg-orange-50 text-orange-700';
+    }
+    return 'border-red-200 bg-red-50 text-red-700';
+  }
+
   return (
     <div className="overflow-x-auto">
-      <table className={`${ui.table} min-w-[900px]`}>
+      <table className={`${ui.table} min-w-[820px]`}>
         <thead>
           <tr className={ui.tableHeadRow}>
             <th className={ui.tableHeaderCell}>Location</th>
-            <th className={ui.tableHeaderCell}>To be fulfilled</th>
-            <th className={ui.tableHeaderCell}>Fulfilled</th>
             <th className={ui.tableHeaderCell}>Total orders</th>
             <th className={ui.tableHeaderCell}>Pending items</th>
             <th className={ui.tableHeaderCell}>Fulfilled items</th>
             <th className={ui.tableHeaderCell}>Total items</th>
+            <th className={ui.tableHeaderCell}>Percentage fulfilled</th>
           </tr>
         </thead>
         <tbody>
@@ -174,17 +184,16 @@ function FulfillmentLocationAnalytics({ rows }) {
                   <span className="block truncate" title={row.location}>{row.location}</span>
                 </td>
                 <td className={ui.tableCell}>
-                  <span className="font-bold text-amber-700">{row.pendingOrders || 0}</span>
-                </td>
-                <td className={ui.tableCell}>
-                  <span className="font-bold text-emerald-700">{row.fulfilledOrders || 0}</span>
-                </td>
-                <td className={ui.tableCell}>
                   <span className="font-bold text-slate-900">{row.totalOrders || 0}</span>
                 </td>
                 <td className={ui.tableCell}>{row.pendingItems || 0}</td>
                 <td className={ui.tableCell}>{row.fulfilledItems || 0}</td>
                 <td className={ui.tableCell}>{row.totalItems || 0}</td>
+                <td className={ui.tableCell}>
+                  <span className={`inline-flex rounded-full border px-3 py-1 text-sm font-bold ${getPercentageBadgeClass(row.percentageFulfilled)}`}>
+                    {Number(row.percentageFulfilled || 0).toFixed(1)}%
+                  </span>
+                </td>
               </tr>
             );
           })}
