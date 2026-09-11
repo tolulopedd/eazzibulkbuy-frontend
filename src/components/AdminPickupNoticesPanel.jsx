@@ -1159,7 +1159,7 @@ function PickupAllocationPanel({
                     <th className={ui.tableHeaderCell}>Paid</th>
                     <th className={ui.tableHeaderCell}>Location</th>
                     <th className={ui.tableHeaderCell}>Items</th>
-                    <th className={ui.tableHeaderCell}>Qty</th>
+	                    <th className={ui.tableHeaderCell}>Allocated Qty</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1189,7 +1189,7 @@ function PickupAllocationPanel({
                           {suggestion.items.map((item) => `${item.name}${item.batchNumber ? ` ${item.batchNumber}` : ''} x${item.quantity}`).join(', ')}
                         </span>
                       </td>
-                      <td className={ui.tableCell}>{suggestion.totalQuantity}</td>
+	                      <td className={ui.tableCell}>{suggestion.totalQuantity}</td>
                     </tr>
                   ))}
                 </tbody>
