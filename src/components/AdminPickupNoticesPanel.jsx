@@ -84,6 +84,8 @@ const DEFAULT_ALLOCATION_FILTERS = {
   noticeStatus: 'NOT_SENT',
 };
 
+const LOCATION_NOT_SET_FILTER = '__LOCATION_NOT_SET__';
+
 const createAllocationStockRow = () => ({
   id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
   name: '',
@@ -1063,7 +1065,8 @@ function PickupAllocationPanel({
             <div className={ui.fieldWrap}>
               <label className={ui.label}>Pickup location</label>
               <select className={ui.select} value={filters.location} onChange={(event) => setFilters((current) => ({ ...current, location: event.target.value }))}>
-                <option value="">All locations</option>
+                <option value="">All Location</option>
+                <option value={LOCATION_NOT_SET_FILTER}>Location Not Set</option>
                 {pickupLocationOptions.map((location) => (
                   <option key={location} value={location}>{location}</option>
                 ))}
