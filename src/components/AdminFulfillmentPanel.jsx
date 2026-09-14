@@ -402,7 +402,7 @@ export default function AdminFulfillmentPanel({
 
   async function handleConfirm(order) {
     if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-      onForceRelogin?.('Network connection was lost. Please sign in again.');
+      onForceRelogin?.('Please sign in again.');
       return;
     }
 
@@ -414,7 +414,7 @@ export default function AdminFulfillmentPanel({
       const result = await onUpdateFulfillmentStatus(order.orderReference, nextStatus, order.itemIndex);
       const updatedItem = findFulfillmentItem(result.order, order.itemIndex);
       if (updatedItem?.fulfillmentStatus !== nextStatus) {
-        onForceRelogin?.('Completion was not confirmed. Please sign in again.');
+        onForceRelogin?.('Please sign in again.');
         return;
       }
 
