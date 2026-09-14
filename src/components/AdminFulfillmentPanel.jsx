@@ -236,6 +236,7 @@ function buildFulfillmentRows(orders, query) {
 export default function AdminFulfillmentPanel({
   onLoadOrders,
   onUpdateFulfillmentStatus,
+  onForceRelogin,
   onRefreshReports,
   canUseCustomerSuggestions = true,
   canRevertFulfillment = false,
@@ -401,7 +402,7 @@ export default function AdminFulfillmentPanel({
 
   async function handleConfirm(order) {
     if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-      setError('No network connection. Try again when you are online.');
+      onForceRelogin?.('Network connection was lost. Please sign in again.');
       return;
     }
 
@@ -413,7 +414,8 @@ export default function AdminFulfillmentPanel({
       const result = await onUpdateFulfillmentStatus(order.orderReference, nextStatus, order.itemIndex);
       const updatedItem = findFulfillmentItem(result.order, order.itemIndex);
       if (updatedItem?.fulfillmentStatus !== nextStatus) {
-        throw new Error('Completion was not confirmed by the server. Refresh and try again.');
+        onForceRelogin?.('Completion was not confirmed. Please sign in again.');
+        return;
       }
 
       setStatus(result.message || 'Fulfilment confirmed successfully.');

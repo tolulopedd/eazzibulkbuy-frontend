@@ -68,6 +68,11 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
     setError(message);
   }
 
+  function handleForceRelogin(message = 'Please sign in again to continue.') {
+    adminLogout().catch(() => {});
+    handleUnauthorizedSession(message);
+  }
+
   function rethrowWithSessionHandling(err, fallbackMessage) {
     if (err?.status === 401) {
       handleUnauthorizedSession();
@@ -616,6 +621,7 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
         onSendPickupNotices={handleSendPickupNotices}
         onUpdateFulfillmentStatus={handleUpdateFulfillmentStatus}
         onUpdatePreferredPickupLocation={handleUpdatePreferredPickupLocation}
+        onForceRelogin={handleForceRelogin}
         onLogout={handleLogout}
       />
     </>

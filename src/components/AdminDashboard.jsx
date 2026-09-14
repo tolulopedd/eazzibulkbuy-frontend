@@ -265,6 +265,7 @@ export default function AdminDashboard({
   onResolvePayment,
   onUpdateFulfillmentStatus,
   onUpdatePreferredPickupLocation,
+  onForceRelogin,
   onUpdatePickupLocation,
   onUpdatePickupNoticeTemplate,
   onUpdateProduceItem,
@@ -755,6 +756,7 @@ export default function AdminDashboard({
           onLoadOrders={onLoadOrders}
           onUpdateFulfillmentStatus={onUpdateFulfillmentStatus}
           onUpdatePreferredPickupLocation={onUpdatePreferredPickupLocation}
+          onForceRelogin={onForceRelogin}
           onRefreshReports={canManageSales ? loadReports : undefined}
           canUseCustomerSuggestions
           canRevertFulfillment={canManageSales}
