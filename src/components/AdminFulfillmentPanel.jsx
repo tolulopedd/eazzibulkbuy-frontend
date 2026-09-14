@@ -153,6 +153,14 @@ function isCompletedFulfillment(item) {
   return item.fulfillmentStatus === 'PICKED_UP' || item.fulfillmentStatus === 'DELIVERED';
 }
 
+function findFulfillmentItem(order, itemIndex) {
+  if (!order || !Array.isArray(order.fulfillmentItems)) {
+    return null;
+  }
+
+  return order.fulfillmentItems.find((item) => item.itemIndex === itemIndex) || null;
+}
+
 function getStatusTone(status) {
   if (status === 'PICKED_UP' || status === 'DELIVERED') return 'success';
   return 'warning';
@@ -392,11 +400,22 @@ export default function AdminFulfillmentPanel({
   }
 
   async function handleConfirm(order) {
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      setError('No network connection. Try again when you are online.');
+      return;
+    }
+
+    const nextStatus = getNextStatus(order);
     setUpdatingReference(`${order.orderReference}:${order.itemIndex}`);
     setStatus('');
     setError('');
     try {
-      const result = await onUpdateFulfillmentStatus(order.orderReference, getNextStatus(order), order.itemIndex);
+      const result = await onUpdateFulfillmentStatus(order.orderReference, nextStatus, order.itemIndex);
+      const updatedItem = findFulfillmentItem(result.order, order.itemIndex);
+      if (updatedItem?.fulfillmentStatus !== nextStatus) {
+        throw new Error('Completion was not confirmed by the server. Refresh and try again.');
+      }
+
       setStatus(result.message || 'Fulfilment confirmed successfully.');
       await loadFulfillment(query);
       mergeUpdatedFulfillmentOrder(result.order);
