@@ -761,6 +761,14 @@ export function updateAdminFulfillmentStatus(orderReference, fulfillmentStatus, 
   });
 }
 
+export function updateAdminPartialFulfillment(orderReference, payload) {
+  return request(`/api/admin/orders/${orderReference}/partial-fulfillment`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
 export function fetchAdminUsers(params = {}) {
   const search = new URLSearchParams();
 

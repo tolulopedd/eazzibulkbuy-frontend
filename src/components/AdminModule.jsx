@@ -43,6 +43,7 @@ import {
   resolveAdminPayment,
   sendAdminPickupNotices,
   updateAdminFulfillmentStatus,
+  updateAdminPartialFulfillment,
   updateAdminOrderPreferredPickupLocation,
   fetchAdminUsers,
   createAdminUser,
@@ -507,6 +508,15 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
     }
   }
 
+  async function handleUpdatePartialFulfillment(orderReference, payload) {
+    setError('');
+    try {
+      return await updateAdminPartialFulfillment(orderReference, payload);
+    } catch (err) {
+      rethrowWithSessionHandling(err, 'Unable to update partial fulfilment. Please try again.');
+    }
+  }
+
   async function handleUpdatePreferredPickupLocation(orderReference, preferredPickupLocation) {
     setError('');
     try {
@@ -620,6 +630,7 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
         onResolvePayment={handleResolvePayment}
         onSendPickupNotices={handleSendPickupNotices}
         onUpdateFulfillmentStatus={handleUpdateFulfillmentStatus}
+        onUpdatePartialFulfillment={handleUpdatePartialFulfillment}
         onUpdatePreferredPickupLocation={handleUpdatePreferredPickupLocation}
         onForceRelogin={handleForceRelogin}
         onLogout={handleLogout}

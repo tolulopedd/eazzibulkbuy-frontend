@@ -155,11 +155,13 @@ export default function AdminDiscountOrdersPanel({
   onCreateDiscountOrder,
   onCreateDiscountOrderUploadUrl,
   itemOptions = SALES_ITEM_OPTIONS,
+  pickupLocations = [],
 }) {
   const resolvedItemOptions = itemOptions.length ? itemOptions : SALES_ITEM_OPTIONS;
   const [form, setForm] = useState({
     customerId: '',
     fulfillmentMethod: 'PICKUP',
+    preferredPickupLocation: '',
     discountReason: '',
     items: [createSalesEventLine()],
   });
@@ -195,6 +197,10 @@ export default function AdminDiscountOrdersPanel({
     () => customerResults.find((customer) => customer.id === form.customerId) || null,
     [customerResults, form.customerId],
   );
+  const pickupLocationOptions = useMemo(() => pickupLocations
+    .filter((location) => location && location.isActive !== false)
+    .map((location) => (typeof location === 'string' ? location : location.name))
+    .filter(Boolean), [pickupLocations]);
   const salesItemsById = useMemo(
     () => new Map(salesItems.map((item) => [item.id, item])),
     [salesItems],
@@ -243,6 +249,7 @@ export default function AdminDiscountOrdersPanel({
     normalizedItems.every((item) => item.valid) &&
     receiptFile &&
     form.discountReason.trim().length >= 3 &&
+    (form.fulfillmentMethod !== 'PICKUP' || form.preferredPickupLocation.trim()) &&
     (form.fulfillmentMethod === 'PICKUP' || !hasCustomItems)
   );
 
@@ -357,6 +364,7 @@ export default function AdminDiscountOrdersPanel({
     setForm({
       customerId: '',
       fulfillmentMethod: 'PICKUP',
+      preferredPickupLocation: '',
       discountReason: '',
       items: [createSalesEventLine()],
     });
@@ -510,6 +518,7 @@ export default function AdminDiscountOrdersPanel({
       const created = await onCreateDiscountOrder({
         customerId: form.customerId,
         fulfillmentMethod: form.fulfillmentMethod,
+        preferredPickupLocation: form.fulfillmentMethod === 'PICKUP' ? form.preferredPickupLocation.trim() : undefined,
         discountReason: form.discountReason.trim(),
         transferProof,
         items: normalizedItems.map((item) => ({
@@ -808,6 +817,24 @@ export default function AdminDiscountOrdersPanel({
                 </select>
                 {hasCustomItems ? <p className={ui.note}>Custom items currently support pickup only.</p> : null}
               </div>
+
+              {form.fulfillmentMethod === 'PICKUP' ? (
+                <div className={ui.fieldWrap}>
+                  <label className={ui.label}>Preferred Pick Up location</label>
+                  <select
+                    className={ui.select}
+                    value={form.preferredPickupLocation}
+                    onChange={(event) => setForm((current) => ({ ...current, preferredPickupLocation: event.target.value }))}
+                  >
+                    <option value="">Select pickup location</option>
+                    {pickupLocationOptions.map((location) => (
+                      <option key={location} value={location}>
+                        {location}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : null}
 
               <div className={ui.fieldWrap}>
                 <label className={ui.label}>Reason for discount</label>

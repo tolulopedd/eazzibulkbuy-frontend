@@ -264,6 +264,7 @@ export default function AdminDashboard({
   onResendPaymentConfirmation,
   onResolvePayment,
   onUpdateFulfillmentStatus,
+  onUpdatePartialFulfillment,
   onUpdatePreferredPickupLocation,
   onForceRelogin,
   onUpdatePickupLocation,
@@ -746,6 +747,7 @@ export default function AdminDashboard({
           onCreateIncompleteOrderUploadUrl={onCreateIncompleteOrderUploadUrl}
           onMarkIncompleteOrderPendingReview={onMarkIncompleteOrderPendingReview}
           itemOptions={activeProduceOptions}
+          pickupLocations={pickupLocations}
         />
       );
     }
@@ -755,6 +757,7 @@ export default function AdminDashboard({
         <AdminFulfillmentPanel
           onLoadOrders={onLoadOrders}
           onUpdateFulfillmentStatus={onUpdateFulfillmentStatus}
+          onUpdatePartialFulfillment={onUpdatePartialFulfillment}
           onUpdatePreferredPickupLocation={onUpdatePreferredPickupLocation}
           onForceRelogin={onForceRelogin}
           onRefreshReports={canManageSales ? loadReports : undefined}

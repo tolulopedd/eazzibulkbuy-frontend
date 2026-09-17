@@ -143,6 +143,10 @@ function getPendingStatus(item) {
 }
 
 function canConfirm(item) {
+  if (item.isPartialFulfillment) {
+    return false;
+  }
+
   if (item.fulfillmentMethod === 'DELIVERY') {
     return item.fulfillmentStatus !== 'DELIVERED';
   }
@@ -236,6 +240,7 @@ function buildFulfillmentRows(orders, query) {
 export default function AdminFulfillmentPanel({
   onLoadOrders,
   onUpdateFulfillmentStatus,
+  onUpdatePartialFulfillment,
   onForceRelogin,
   onRefreshReports,
   canUseCustomerSuggestions = true,
@@ -258,6 +263,8 @@ export default function AdminFulfillmentPanel({
   const [exportingPdf, setExportingPdf] = useState(false);
   const [searchSuggestions, setSearchSuggestions] = useState([]);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  const [activeTab, setActiveTab] = useState('fulfillment');
+  const [partialQuantities, setPartialQuantities] = useState({});
   const didInitFiltersRef = useRef(false);
 
   async function loadFulfillment(nextQuery = query) {
@@ -457,6 +464,47 @@ export default function AdminFulfillmentPanel({
     }
   }
 
+  async function handlePartialFulfillment(order) {
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      onForceRelogin?.('Please sign in again.');
+      return;
+    }
+
+    const rowKey = `${order.orderReference}:${order.itemIndex}`;
+    const quantity = Number(partialQuantities[rowKey]) || 0;
+    const maxQuantity = Math.max(0, Number(order.quantity) || 0);
+
+    if (!quantity || quantity < 1 || quantity >= maxQuantity) {
+      setError(`Enter a quantity from 1 to ${Math.max(1, maxQuantity - 1)}.`);
+      return;
+    }
+
+    setUpdatingReference(`partial:${rowKey}`);
+    setStatus('');
+    setError('');
+    try {
+      const result = await onUpdatePartialFulfillment(order.orderReference, {
+        itemIndex: order.itemIndex,
+        quantity,
+      });
+      setStatus(result.message || 'Partial fulfilment saved successfully.');
+      setPartialQuantities((current) => {
+        const next = { ...current };
+        delete next[rowKey];
+        return next;
+      });
+      await loadFulfillment(query);
+      mergeUpdatedFulfillmentOrder(result.order);
+      if (onRefreshReports) {
+        await onRefreshReports();
+      }
+    } catch (err) {
+      setError(err.message || 'Unable to update partial fulfilment.');
+    } finally {
+      setUpdatingReference('');
+    }
+  }
+
   async function loadAllFulfillmentRowsForExport() {
     const exportLimit = 100;
     const baseQuery = {
@@ -595,6 +643,12 @@ export default function AdminFulfillmentPanel({
   const listEnd = meta.total === 0 ? 0 : Math.min(meta.page * meta.limit, meta.total);
   const showSuggestions = query.q.trim().length >= 2 && (loadingSuggestions || searchSuggestions.length > 0);
   const fulfillmentRows = buildFulfillmentRows(orders, query);
+  const partialFulfillmentRows = fulfillmentRows.filter((row) =>
+    !isCompletedFulfillment(row) &&
+    !row.isBundleComponent &&
+    !row.isPartialFulfillment &&
+    Number(row.quantity) > 1
+  );
   const pickupLocationOptions = [
     ...pickupLocations
       .filter((location) => location.isActive !== false)
@@ -612,6 +666,23 @@ export default function AdminFulfillmentPanel({
           <div className="space-y-2">
             <h1 className="text-2xl font-bold tracking-tight text-emerald-950">Fulfilment</h1>
             <p className="leading-6 text-slate-600">Confirm pickup or delivery for paid orders and download the current delivery view to Excel.</p>
+          </div>
+
+          <div className="flex flex-wrap gap-3 rounded-[1.75rem] border border-[#dfe3dc] bg-white p-2">
+            <button
+              type="button"
+              className={`rounded-full px-5 py-2 text-sm font-semibold transition ${activeTab === 'fulfillment' ? 'bg-[#45d0bb] text-slate-950 shadow-sm' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
+              onClick={() => setActiveTab('fulfillment')}
+            >
+              Fulfilment
+            </button>
+            <button
+              type="button"
+              className={`rounded-full px-5 py-2 text-sm font-semibold transition ${activeTab === 'partial' ? 'bg-[#45d0bb] text-slate-950 shadow-sm' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
+              onClick={() => setActiveTab('partial')}
+            >
+              Partial Fulfilment
+            </button>
           </div>
 
           <div className={`${ui.filterPanel} grid gap-4 md:grid-cols-2 xl:grid-cols-4`}>
@@ -722,6 +793,99 @@ export default function AdminFulfillmentPanel({
           {status ? <p className={ui.success}>{status}</p> : null}
           {error ? <p className={ui.error}>{error}</p> : null}
 
+          {activeTab === 'partial' ? (
+            <div className={ui.tableWrap}>
+              <table className={`${ui.table} min-w-[1120px]`}>
+                <thead>
+                  <tr className={ui.tableHeadRow}>
+                    <th className={ui.tableHeaderCell}>Order</th>
+                    <th className={ui.tableHeaderCell}>Item</th>
+                    <th className={ui.tableHeaderCell}>Date</th>
+                    <th className={ui.tableHeaderCell}>Buyer</th>
+                    <th className={ui.tableHeaderCell}>Batch</th>
+                    <th className={ui.tableHeaderCell}>Fulfilment</th>
+                    <th className={ui.tableHeaderCell}>Remaining Qty</th>
+                    <th className={ui.tableHeaderCell}>Qty to fulfil</th>
+                    <th className={`${ui.tableHeaderCell} sticky right-0 z-10 bg-slate-50/95 text-right shadow-[-10px_0_18px_rgba(15,23,42,0.04)]`}>
+                      Action
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {partialFulfillmentRows.map((order) => {
+                    const rowKey = `${order.orderReference}:${order.itemIndex}`;
+                    const maxPartialQuantity = Math.max(1, Number(order.quantity || 0) - 1);
+                    const pendingSave = updatingReference === `partial:${rowKey}`;
+
+                    return (
+                      <tr key={`${order.id}-${order.itemIndex}-partial`} className={ui.tableRow}>
+                        <td className={ui.tableCell}>
+                          <div className="max-w-[15rem] space-y-0.5">
+                            <p className="font-semibold text-slate-900">
+                              {order.displayOrderReference || formatOrderReferenceDisplay(order.orderReference, order.createdAt, order.user, { batchNumber: order.salesItem?.batchNumber, orderSequence: order.orderSequence })}
+                            </p>
+                            <p className="truncate text-xs text-slate-500" title={getFulfillmentRowNarration(order, order)}>
+                              {getFulfillmentRowNarration(order, order)}
+                            </p>
+                          </div>
+                        </td>
+                        <td className={ui.tableCell}>
+                          <div className="max-w-[13rem] space-y-0.5">
+                            <p className="truncate font-medium text-slate-900" title={normalizeDisplayName(order.name || order.salesItem?.name || 'Order items')}>
+                              {normalizeDisplayName(order.name || order.salesItem?.name || 'Order items')}
+                            </p>
+                            <p className="truncate text-xs text-slate-500">Qty {order.quantity}</p>
+                          </div>
+                        </td>
+                        <td className={`${ui.tableCell} whitespace-nowrap`}>{formatDate(order.paidAt || order.createdAt)}</td>
+                        <td className={ui.tableCell}>
+                          <div className="max-w-[12rem] space-y-0.5">
+                            <p className="truncate font-medium text-slate-900" title={order.user?.name || 'Unknown buyer'}>{order.user?.name || 'Unknown buyer'}</p>
+                            <p className="truncate text-xs text-slate-500" title={order.user?.phone || order.user?.email || '—'}>{order.user?.phone || order.user?.email || '—'}</p>
+                          </div>
+                        </td>
+                        <td className={`${ui.tableCell} font-medium text-slate-900`}>{order.batchNumber || order.salesItem?.batchNumber || '—'}</td>
+                        <td className={ui.tableCell}>
+                          <div className="space-y-1">
+                            <AdminStatusBadge value={formatLabel(order.fulfillmentMethod)} tone={order.fulfillmentMethod === 'DELIVERY' ? 'warning' : 'success'} />
+                            {order.fulfillmentMethod === 'PICKUP' && order.preferredPickupLocation ? (
+                              <p className="max-w-[12rem] truncate text-xs text-slate-500" title={order.preferredPickupLocation}>
+                                {order.preferredPickupLocation}
+                              </p>
+                            ) : null}
+                          </div>
+                        </td>
+                        <td className={`${ui.tableCell} font-semibold text-slate-900`}>{order.quantity}</td>
+                        <td className={ui.tableCell}>
+                          <input
+                            className={`${ui.input} w-28`}
+                            type="number"
+                            min="1"
+                            max={maxPartialQuantity}
+                            value={partialQuantities[rowKey] || ''}
+                            onChange={(event) => setPartialQuantities((current) => ({ ...current, [rowKey]: event.target.value }))}
+                            placeholder="Qty"
+                          />
+                        </td>
+                        <td className={`${ui.tableCell} sticky right-0 z-10 whitespace-nowrap bg-white text-right shadow-[-10px_0_18px_rgba(15,23,42,0.04)]`}>
+                          <button
+                            type="button"
+                            className={ui.buttonGhost}
+                            onClick={() => handlePartialFulfillment(order)}
+                            disabled={pendingSave}
+                          >
+                            {pendingSave ? 'Saving...' : 'Confirm partial'}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+
+              {!loading && partialFulfillmentRows.length === 0 ? <AdminTableEmpty message="No partial fulfilment rows match the current view." /> : null}
+            </div>
+          ) : (
           <div className={ui.tableWrap}>
             <table className={`${ui.table} min-w-[1120px]`}>
               <thead>
@@ -803,7 +967,7 @@ export default function AdminFulfillmentPanel({
                         >
                           {updatingReference === `${order.orderReference}:${order.itemIndex}` ? 'Saving...' : getActionLabel(order)}
                         </button>
-                      ) : canRevertFulfillment && isCompletedFulfillment(order) ? (
+                      ) : canRevertFulfillment && isCompletedFulfillment(order) && !order.isPartialFulfillment ? (
                         <div className="inline-flex items-center justify-end gap-2">
                           <span className="text-sm font-medium text-slate-500">
                             {updatingReference === `${order.orderReference}:${order.itemIndex}` ? 'Saving...' : 'Completed'}
@@ -841,6 +1005,7 @@ export default function AdminFulfillmentPanel({
               onNext={() => goToPage(meta.page + 1)}
             />
           </div>
+          )}
         </div>
       </section>
     </section>
