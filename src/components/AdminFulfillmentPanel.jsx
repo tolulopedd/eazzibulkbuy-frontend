@@ -177,6 +177,17 @@ function getFulfillmentRowNarration(item, order) {
   return `${batchNumber} · ${itemName} x${quantity}`;
 }
 
+export function getPartialFulfillmentQuantities(outstandingQuantity, inputQuantity) {
+  const outstanding = Math.max(0, Number(outstandingQuantity) || 0);
+  const quantityToFulfil = Math.max(0, Number(inputQuantity) || 0);
+  return {
+    outstanding,
+    quantityToFulfil,
+    remaining: Math.max(0, outstanding - quantityToFulfil),
+    isValid: quantityToFulfil >= 1 && quantityToFulfil < outstanding,
+  };
+}
+
 function buildFulfillmentRows(orders, query) {
   const activeBatchFilters = parseBatchFilters(query.batchNumber);
   const activeSearchQuery = query.q.trim();
@@ -804,8 +815,9 @@ export default function AdminFulfillmentPanel({
                     <th className={ui.tableHeaderCell}>Buyer</th>
                     <th className={ui.tableHeaderCell}>Batch</th>
                     <th className={ui.tableHeaderCell}>Fulfilment</th>
-                    <th className={ui.tableHeaderCell}>Remaining Qty</th>
+                    <th className={ui.tableHeaderCell}>Outstanding to be fulfilled</th>
                     <th className={ui.tableHeaderCell}>Qty to fulfil</th>
+                    <th className={ui.tableHeaderCell}>Remaining Qty</th>
                     <th className={`${ui.tableHeaderCell} sticky right-0 z-10 bg-slate-50/95 text-right shadow-[-10px_0_18px_rgba(15,23,42,0.04)]`}>
                       Action
                     </th>
@@ -814,7 +826,8 @@ export default function AdminFulfillmentPanel({
                 <tbody>
                   {partialFulfillmentRows.map((order) => {
                     const rowKey = `${order.orderReference}:${order.itemIndex}`;
-                    const maxPartialQuantity = Math.max(1, Number(order.quantity || 0) - 1);
+                    const partialQuantitiesForRow = getPartialFulfillmentQuantities(order.quantity, partialQuantities[rowKey]);
+                    const maxPartialQuantity = Math.max(1, partialQuantitiesForRow.outstanding - 1);
                     const pendingSave = updatingReference === `partial:${rowKey}`;
 
                     return (
@@ -855,11 +868,13 @@ export default function AdminFulfillmentPanel({
                             ) : null}
                           </div>
                         </td>
-                        <td className={`${ui.tableCell} font-semibold text-slate-900`}>{order.quantity}</td>
+                        <td className={`${ui.tableCell} font-semibold text-slate-900`}>{partialQuantitiesForRow.outstanding}</td>
                         <td className={ui.tableCell}>
                           <input
-                            className={`${ui.input} w-28`}
+                            className={`${ui.input} min-h-[52px] w-32 text-lg font-semibold`}
                             type="number"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
                             min="1"
                             max={maxPartialQuantity}
                             value={partialQuantities[rowKey] || ''}
@@ -867,12 +882,13 @@ export default function AdminFulfillmentPanel({
                             placeholder="Qty"
                           />
                         </td>
+                        <td className={`${ui.tableCell} font-semibold text-slate-900`}>{partialQuantitiesForRow.remaining}</td>
                         <td className={`${ui.tableCell} sticky right-0 z-10 whitespace-nowrap bg-white text-right shadow-[-10px_0_18px_rgba(15,23,42,0.04)]`}>
                           <button
                             type="button"
                             className={ui.buttonGhost}
                             onClick={() => handlePartialFulfillment(order)}
-                            disabled={pendingSave}
+                            disabled={pendingSave || !partialQuantitiesForRow.isValid}
                           >
                             {pendingSave ? 'Saving...' : 'Confirm partial'}
                           </button>

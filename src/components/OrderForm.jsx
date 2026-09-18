@@ -179,6 +179,20 @@ function calculateStripeProcessingFee(totalAmountCents) {
   return Math.max(0, grossTotal - totalAmountCents);
 }
 
+function formatCad(amountCents) {
+  return `CAD ${(Math.max(0, Number(amountCents) || 0) / 100).toFixed(2)}`;
+}
+
+function parseCadInputToCents(value) {
+  const normalized = String(value || '').replace(/[^\d.]/g, '');
+  if (!normalized) {
+    return 0;
+  }
+
+  const [dollars = '0', cents = ''] = normalized.split('.');
+  return (Number(dollars) || 0) * 100 + (Number(cents.slice(0, 2).padEnd(2, '0')) || 0);
+}
+
 function formatBundleSummary(bundleItems = []) {
   if (!Array.isArray(bundleItems) || bundleItems.length === 0) {
     return '';
@@ -314,6 +328,7 @@ export default function OrderForm({
   const [addressSuggestions, setAddressSuggestions] = useState([]);
   const [showBuyerDetails, setShowBuyerDetails] = useState(false);
   const [selectedBuyer, setSelectedBuyer] = useState(null);
+  const [storeCreditAmount, setStoreCreditAmount] = useState('');
   const [showBuyerUpdateForm, setShowBuyerUpdateForm] = useState(false);
   const resetTimerRef = useRef(null);
   const selectedAddressRef = useRef('');
@@ -378,13 +393,17 @@ export default function OrderForm({
   const manualTransferEmail = manualOrder?.manualPayment?.transferEmail || 'payments@eazzibulkbuy.ca';
   const manualConfirmationEtaHours = manualOrder?.manualPayment?.confirmationEtaHours || manualOrder?.manualConfirmationEtaHours || 12;
   const stripeFeeBaseAmount = createdOrder
-    ? (createdOrder.subtotal || 0) + (createdOrder.deliveryFee || 0)
-    : cartSummary.totalAmount;
+    ? Math.max(0, (createdOrder.subtotal || 0) + (createdOrder.deliveryFee || 0) - (createdOrder.storeCreditApplied || 0))
+    : Math.max(0, cartSummary.totalAmount - parseCadInputToCents(storeCreditAmount));
   const stripeProcessingFeePreview = useMemo(
     () => calculateStripeProcessingFee(stripeFeeBaseAmount),
     [stripeFeeBaseAmount],
   );
   const stripeTotalPreview = stripeFeeBaseAmount + stripeProcessingFeePreview;
+  const storeCreditBalance = Math.max(0, Number(selectedBuyer?.storeCreditBalance) || 0);
+  const storeCreditAmountCents = parseCadInputToCents(storeCreditAmount);
+  const maxStoreCreditCents = Math.min(storeCreditBalance, cartSummary.totalAmount);
+  const orderAmountDuePreview = Math.max(0, cartSummary.totalAmount - storeCreditAmountCents);
   const manualTransferRemainingSeconds = manualTransferDeadlineMs
     ? Math.max(0, Math.ceil((manualTransferDeadlineMs - currentTimeMs) / 1000))
     : 0;
@@ -646,6 +665,7 @@ export default function OrderForm({
     setStatus('');
     setDetailsStatus('');
     setSelectedBuyer(null);
+    setStoreCreditAmount('');
     setShowBuyerUpdateForm(false);
     setPaymentMethod('INTERAC_E_TRANSFER');
     setPaymentProcessing(false);
@@ -667,6 +687,7 @@ export default function OrderForm({
     clearBuyerFields();
     setEmail(nextEmail);
     setSelectedBuyer(null);
+    setStoreCreditAmount('');
     setDetailsStatus('');
     setShowBuyerDetails(true);
     setShowBuyerUpdateForm(false);
@@ -705,28 +726,55 @@ export default function OrderForm({
       return;
     }
 
+    if (storeCreditAmountCents > maxStoreCreditCents) {
+      setStatus(`Store credit cannot exceed ${formatCad(maxStoreCreditCents)}.`);
+      return;
+    }
+
     if (createdOrder) {
       setStatus(createdOrder.paymentMethod ? 'Continue with the existing payment instructions for this order.' : 'Order already created. Choose your payment method below.');
       setPaymentModalOpen(true);
       return;
     }
 
-    try {
-      const created = await onCreateOrder({
-        existingCustomerId: selectedBuyer.id,
-        preferredPickupLocation: fulfillmentMethod === 'PICKUP' ? preferredPickupLocation : undefined,
-        items: cartLines.map((line) => ({
+	    try {
+	      const created = await onCreateOrder({
+	        existingCustomerId: selectedBuyer.id,
+	        preferredPickupLocation: fulfillmentMethod === 'PICKUP' ? preferredPickupLocation : undefined,
+	        storeCreditAmount: storeCreditAmountCents,
+	        items: cartLines.map((line) => ({
           salesItemId: line.id,
           quantity: line.quantity,
           fulfillmentMethod,
         })),
       });
 
-      setCreatedOrder(created);
-      setManualOrder(null);
-      setManualTransferDeadlineMs(null);
-      setCurrentTimeMs(Date.now());
-      setStatus('Order created. Choose your payment method below.');
+	      setCreatedOrder(created);
+	      setManualOrder(null);
+	      setManualTransferDeadlineMs(null);
+	      setCurrentTimeMs(Date.now());
+	      if (created.paymentStatus === 'PAID' || created.status === 'CONFIRMED' || (created.amountDue || 0) === 0) {
+	        clearCartItems();
+	        setCartItems([]);
+	        setSuccessfulOrder({
+	          orderReference: created.orderReference,
+	          displayOrderReference: created.displayOrderReference,
+	          createdAt: created.createdAt,
+	          itemName: cartItemSummary,
+	          totalAmount: created.totalAmount,
+	          buyer: {
+	            fullName: selectedBuyer?.fullName || [title, firstName, lastName].filter(Boolean).join(' '),
+	            batchNumber: created.batchNumber,
+	            orderSequence: created.orderSequence,
+	          },
+	          emailSent: false,
+	        });
+	        setShowSuccessPage(true);
+	        setPaymentModalOpen(false);
+	        setStatus('');
+	        return;
+	      }
+	      setStatus('Order created. Choose your payment method below.');
       setPaymentModalOpen(true);
     } catch (err) {
       setPaymentError(err.message || 'Unable to create your order. Please try again.');
@@ -918,7 +966,9 @@ export default function OrderForm({
       setSelectedBuyer({
         id: result.customer?.id,
         fullName: result.customer?.fullName || `${title} ${trimmedFirstName} ${trimmedLastName}`.trim(),
+        storeCreditBalance: result.customer?.storeCreditBalance || 0,
       });
+      setStoreCreditAmount('');
       setShowBuyerDetails(false);
       setShowBuyerUpdateForm(false);
       setDetailsStatus(result.message || 'Buyer details saved.');
@@ -1039,12 +1089,12 @@ export default function OrderForm({
                           <p className="text-sm leading-6 text-slate-600">{renderPaymentOptionNote(option)}</p>
                           {option.value === 'INTERAC_E_TRANSFER' ? (
                             <p className="text-sm leading-6 text-slate-700">
-                              Surcharge fee: <span className="font-semibold text-slate-900">CAD 0.00</span>. Total charge: <span className="font-semibold text-slate-900">CAD {((createdOrder?.totalAmount || cartSummary.totalAmount) / 100).toFixed(2)}</span>.
+	                              Surcharge fee: <span className="font-semibold text-slate-900">CAD 0.00</span>. Total charge: <span className="font-semibold text-slate-900">{formatCad(createdOrder?.amountDue ?? cartSummary.totalAmount)}</span>.
                             </p>
                           ) : null}
                           {option.value === 'STRIPE_CARD' ? (
                             <p className="text-sm leading-6 text-slate-700">
-                              Surcharge fee: <span className="font-semibold text-slate-900">CAD {(stripeProcessingFeePreview / 100).toFixed(2)}</span>. Total charge: <span className="font-semibold text-slate-900">CAD {(stripeTotalPreview / 100).toFixed(2)}</span>.
+	                              Surcharge fee: <span className="font-semibold text-slate-900">{formatCad(stripeProcessingFeePreview)}</span>. Total charge: <span className="font-semibold text-slate-900">{formatCad(stripeTotalPreview)}</span>.
                             </p>
                           ) : null}
                           {option.value === 'STRIPE_CARD' && !stripeConfigured ? (
@@ -1096,7 +1146,7 @@ export default function OrderForm({
                     </div>
                     <div className="grid gap-1 sm:grid-cols-[155px_1fr] sm:items-start">
                       <span className="font-semibold text-emerald-950">Total amount</span>
-                      <span className="font-semibold text-slate-900">CAD {((manualOrder.totalAmount || 0) / 100).toFixed(2)}</span>
+	                      <span className="font-semibold text-slate-900">{formatCad(manualOrder.amountDue ?? manualOrder.totalAmount)}</span>
                     </div>
                     <div className="grid gap-1 sm:grid-cols-[155px_1fr] sm:items-start">
                       <span className="font-semibold text-emerald-950">Transfer narration</span>
@@ -1151,6 +1201,7 @@ export default function OrderForm({
               setEmail(nextEmail);
               if (!nextEmail.trim()) {
                 setSelectedBuyer(null);
+                setStoreCreditAmount('');
                 setShowBuyerDetails(false);
                 setShowBuyerUpdateForm(false);
                 setDetailsStatus('');
@@ -1160,7 +1211,9 @@ export default function OrderForm({
               setSelectedBuyer({
                 id: customer.id,
                 fullName: customer.fullName,
+                storeCreditBalance: customer.storeCreditBalance || 0,
               });
+              setStoreCreditAmount('');
               setEmail(customer.email || email);
               setShowBuyerDetails(false);
               setShowBuyerUpdateForm(false);
@@ -1168,6 +1221,7 @@ export default function OrderForm({
             }}
             onNotFound={(buyerEmail) => {
               setSelectedBuyer(null);
+              setStoreCreditAmount('');
               setShowBuyerUpdateForm(false);
               if (buyerEmail) {
                 if (!showBuyerDetails) {
@@ -1544,6 +1598,59 @@ export default function OrderForm({
               ) : null}
             </div>
           ) : null}
+          {hasSelectedBuyer && storeCreditBalance > 0 ? (
+            <div className="rounded-3xl border border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-amber-50 px-4 py-4 shadow-sm">
+              <div className="grid gap-4 sm:grid-cols-[1fr_210px] sm:items-start">
+                <div className="flex gap-3">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-900 text-white shadow-sm">
+                    <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+                      <path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H18a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6.5A2.5 2.5 0 0 1 4 16.5v-9Z" />
+                      <path d="M16 12h4" />
+                      <path d="M7 5V3.8A1.8 1.8 0 0 1 8.8 2h6.4A1.8 1.8 0 0 1 17 3.8V5" />
+                    </svg>
+                  </div>
+                  <div className="min-w-0 space-y-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-sm font-bold text-emerald-950">Your Available Store credit</p>
+                      <span className="rounded-full bg-emerald-900 px-3 py-1 text-xs font-bold text-white">
+                        {formatCad(storeCreditBalance)}
+                      </span>
+                    </div>
+                    <p className="text-sm leading-6 text-slate-700">
+                      You can use part or all of this credit for this purchase. Enter how much to apply and only pay the remaining balance.
+                    </p>
+                  </div>
+                </div>
+                <div className={ui.fieldWrap}>
+                  <label className={ui.label}>Credit to use</label>
+                  <div className="relative">
+                    <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500">CAD</span>
+                    <input
+                      className={`${ui.input} pl-14`}
+                      type="number"
+                      min="0"
+                      max={(maxStoreCreditCents / 100).toFixed(2)}
+                      step="0.01"
+                      inputMode="decimal"
+                      value={storeCreditAmount}
+                      onChange={(event) => setStoreCreditAmount(event.target.value)}
+                      disabled={hasCreatedOrder}
+                      placeholder="0.00"
+                    />
+                  </div>
+                </div>
+              </div>
+              {storeCreditAmountCents > maxStoreCreditCents ? (
+                <p className="mt-3 rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">
+                  Store credit cannot exceed {formatCad(maxStoreCreditCents)}.
+                </p>
+              ) : storeCreditAmountCents > 0 ? (
+                <p className="mt-3 rounded-2xl border border-emerald-100 bg-white/80 px-3 py-2 text-sm font-semibold text-emerald-950">
+                  {formatCad(Math.min(storeCreditAmountCents, maxStoreCreditCents))} will be deducted from this order.
+                </p>
+              ) : null}
+            </div>
+          ) : null}
           <div className="space-y-3">
             {cartLines.map((line) => {
               const lineTotal = line.quantity * line.pricePerUnit;
@@ -1606,7 +1713,7 @@ export default function OrderForm({
           <button
             type="submit"
             className={`${ui.buttonPrimary} w-fit min-w-[220px]`}
-            disabled={loading || cartLines.length === 0 || !hasSelectedBuyer || (pickupLocationRequired && !hasPreferredPickupLocation)}
+	            disabled={loading || cartLines.length === 0 || !hasSelectedBuyer || (pickupLocationRequired && !hasPreferredPickupLocation) || storeCreditAmountCents > maxStoreCreditCents}
           >
             {cartLines.length === 0 ? 'Select items to continue' : !hasSelectedBuyer ? 'Input email to continue' : 'Create order'}
           </button>
@@ -1674,14 +1781,20 @@ export default function OrderForm({
                 <span>Subtotal</span>
                 <span className="font-semibold">CAD {(cartSummary.subtotal / 100).toFixed(2)}</span>
               </p>
-              <p className="mt-2 flex items-center justify-between gap-3">
-                <span>Delivery</span>
-                <span className="font-semibold">CAD {(cartSummary.groupedDeliveryFee / 100).toFixed(2)}</span>
-              </p>
-              <p className="mt-2 flex items-center justify-between gap-3 border-t border-slate-200 pt-2 text-base font-bold text-emerald-950">
-                <span>Total</span>
-                <span>CAD {(cartSummary.totalAmount / 100).toFixed(2)}</span>
-              </p>
+	              <p className="mt-2 flex items-center justify-between gap-3">
+	                <span>Delivery</span>
+	                <span className="font-semibold">CAD {(cartSummary.groupedDeliveryFee / 100).toFixed(2)}</span>
+	              </p>
+	              {storeCreditAmountCents > 0 ? (
+	                <p className="mt-2 flex items-center justify-between gap-3">
+	                  <span>Store credit</span>
+	                  <span className="font-semibold text-emerald-800">- {formatCad(Math.min(storeCreditAmountCents, maxStoreCreditCents))}</span>
+	                </p>
+	              ) : null}
+	              <p className="mt-2 flex items-center justify-between gap-3 border-t border-slate-200 pt-2 text-base font-bold text-emerald-950">
+	                <span>{storeCreditAmountCents > 0 ? 'Amount due' : 'Total'}</span>
+	                <span>{formatCad(storeCreditAmountCents > 0 ? orderAmountDuePreview : cartSummary.totalAmount)}</span>
+	              </p>
             </div>
             {createdOrder ? (
               <div className="rounded-2xl border border-slate-200 bg-white/90 px-4 py-3 text-sm text-slate-700">

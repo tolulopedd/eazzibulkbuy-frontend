@@ -36,7 +36,6 @@ import {
   deleteSalesItem,
   confirmAdminInteracPayment,
   fetchAdminPaymentProofViewUrl,
-  createAdminIncompleteOrderUploadUrl,
   markAdminIncompleteOrderPendingReview,
   deleteAdminIncompleteOrder,
   resendAdminPaymentConfirmation,
@@ -472,15 +471,6 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
     }
   }
 
-  async function handleCreateIncompleteOrderUploadUrl(orderReference, payload) {
-    setError('');
-    try {
-      return await createAdminIncompleteOrderUploadUrl(orderReference, payload);
-    } catch (err) {
-      rethrowWithSessionHandling(err, 'Unable to prepare receipt upload right now.');
-    }
-  }
-
   async function handleMarkIncompleteOrderPendingReview(orderReference, payload) {
     setError('');
     try {
@@ -623,7 +613,6 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
         onLoadOrders={handleLoadOrders}
         onConfirmInteracPayment={handleConfirmInteracPayment}
         onLoadPaymentProofViewUrl={handleLoadPaymentProofViewUrl}
-        onCreateIncompleteOrderUploadUrl={handleCreateIncompleteOrderUploadUrl}
         onMarkIncompleteOrderPendingReview={handleMarkIncompleteOrderPendingReview}
         onDeleteIncompleteOrder={handleDeleteIncompleteOrder}
         onResendPaymentConfirmation={handleResendPaymentConfirmation}

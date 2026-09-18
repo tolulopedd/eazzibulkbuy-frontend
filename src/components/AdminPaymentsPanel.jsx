@@ -124,7 +124,7 @@ function isPaidLike(order) {
 
 function getDisplayPaymentStatus(order) {
   const resolutionAction = order?.payment?.providerPayloadJson?.adminResolution?.action;
-  if (resolutionAction === 'REFUNDED' || resolutionAction === 'CANCELLED') {
+  if (resolutionAction === 'REFUNDED' || resolutionAction === 'CANCELLED' || resolutionAction === 'STORE_CREDIT') {
     return resolutionAction;
   }
 
@@ -132,12 +132,16 @@ function getDisplayPaymentStatus(order) {
   if (resolvedItems.length) {
     const hasRefunded = resolvedItems.some((item) => item.resolutionAction === 'REFUNDED');
     const hasCancelled = resolvedItems.some((item) => item.resolutionAction === 'CANCELLED');
+    const hasStoreCredit = resolvedItems.some((item) => item.resolutionAction === 'STORE_CREDIT');
 
-    if (hasRefunded && hasCancelled) {
+    if ([hasRefunded, hasCancelled, hasStoreCredit].filter(Boolean).length > 1) {
       return 'PARTIALLY_RESOLVED';
     }
     if (hasRefunded) {
       return 'PARTIALLY_REFUNDED';
+    }
+    if (hasStoreCredit) {
+      return 'PARTIALLY_STORE_CREDIT';
     }
     if (hasCancelled) {
       return 'PARTIALLY_CANCELLED';
@@ -162,8 +166,9 @@ function getStatusTone(status) {
   if (status === 'PENDING_REVIEW') return 'warning';
   if (status === 'PENDING_PAYMENT') return 'danger';
   if (status === 'REFUNDED') return 'warning';
+  if (status === 'STORE_CREDIT') return 'warning';
   if (status === 'CANCELLED') return 'danger';
-  if (status === 'PARTIALLY_REFUNDED' || status === 'PARTIALLY_RESOLVED') return 'warning';
+  if (status === 'PARTIALLY_REFUNDED' || status === 'PARTIALLY_STORE_CREDIT' || status === 'PARTIALLY_RESOLVED') return 'warning';
   if (status === 'PARTIALLY_CANCELLED') return 'danger';
   return 'neutral';
 }
@@ -182,7 +187,7 @@ function parseOrderNotes(notes) {
 
 function getSourceItemResolutionAction(item) {
   const action = item?.paymentResolution?.action;
-  return action === 'CANCELLED' || action === 'REFUNDED' ? action : '';
+  return action === 'CANCELLED' || action === 'REFUNDED' || action === 'STORE_CREDIT' ? action : '';
 }
 
 function buildFallbackSourceItem(order) {
@@ -381,8 +386,6 @@ function PaymentDetailsModal({
   const resolvedSourceItems = getResolvedOrderSourceItems(order);
   const discountReason = getDiscountReason(order);
   const [adminComment, setAdminComment] = useState('');
-  const [adminReceiptFile, setAdminReceiptFile] = useState(null);
-  const [adminReceiptName, setAdminReceiptName] = useState('');
   const [modalError, setModalError] = useState('');
   const [resolutionAction, setResolutionAction] = useState('CANCELLED');
   const [resolutionComment, setResolutionComment] = useState('');
@@ -399,8 +402,6 @@ function PaymentDetailsModal({
 
   useEffect(() => {
     setAdminComment('');
-    setAdminReceiptFile(null);
-    setAdminReceiptName('');
     setModalError('');
     setResolutionAction('CANCELLED');
     setResolutionComment('');
@@ -423,37 +424,7 @@ function PaymentDetailsModal({
     ));
   }
 
-  function handleReceiptChange(event) {
-    const file = event.target.files?.[0];
-    if (!file) {
-      setAdminReceiptFile(null);
-      setAdminReceiptName('');
-      return;
-    }
-
-    if (!file.type.startsWith('image/')) {
-      setModalError('Upload an image receipt for the Interac transfer proof.');
-      event.target.value = '';
-      return;
-    }
-
-    if (file.size > 5 * 1024 * 1024) {
-      setModalError('Receipt image must be 5MB or smaller.');
-      event.target.value = '';
-      return;
-    }
-
-    setModalError('');
-    setAdminReceiptFile(file);
-    setAdminReceiptName(file.name);
-  }
-
   async function handleSubmitRecovery() {
-    if (!adminReceiptFile) {
-      setModalError('Upload the Interac receipt before sending for review.');
-      return;
-    }
-
     if (adminComment.trim().length <= 2) {
       setModalError('Enter a comment longer than 2 characters before sending for review.');
       return;
@@ -462,7 +433,6 @@ function PaymentDetailsModal({
     setModalError('');
     try {
       await onSubmitIncompleteReview(order.orderReference, {
-        file: adminReceiptFile,
         comment: adminComment.trim(),
       });
     } catch (error) {
@@ -472,7 +442,7 @@ function PaymentDetailsModal({
 
   async function handleResolvePaymentAction() {
     if (!selectedItems.length) {
-      setModalError(`Select at least one item to ${resolutionAction === 'REFUNDED' ? 'refund' : 'cancel'}.`);
+      setModalError(`Select at least one item to ${resolutionAction === 'REFUNDED' ? 'refund' : resolutionAction === 'STORE_CREDIT' ? 'convert to store credit' : 'cancel'}.`);
       return;
     }
 
@@ -651,11 +621,6 @@ function PaymentDetailsModal({
               <div className={`${ui.section} space-y-3`}>
                 <h3 className="text-base font-semibold text-slate-900">Move incomplete order to pending review</h3>
                 <div className={ui.fieldWrap}>
-                  <label className={ui.label}>Upload Interac receipt</label>
-                  <input type="file" accept="image/*" className={ui.input} onChange={handleReceiptChange} />
-                  {adminReceiptName ? <p className="text-xs leading-5 text-slate-500">Selected receipt: {adminReceiptName}</p> : null}
-                </div>
-                <div className={ui.fieldWrap}>
                   <label className={ui.label}>Comment</label>
                   <textarea
                     className={ui.textarea}
@@ -672,7 +637,7 @@ function PaymentDetailsModal({
                   onClick={handleSubmitRecovery}
                   disabled={submittingIncompleteReference === order.orderReference}
                 >
-                  {submittingIncompleteReference === order.orderReference ? 'Uploading...' : 'Send to pending review'}
+                  {submittingIncompleteReference === order.orderReference ? 'Sending...' : 'Send to pending review'}
                 </button>
               </div>
             ) : null}
@@ -713,10 +678,11 @@ function PaymentDetailsModal({
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className={ui.fieldWrap}>
                     <label className={ui.label}>Action</label>
-                    <select className={ui.select} value={resolutionAction} onChange={(event) => setResolutionAction(event.target.value)}>
-                      <option value="CANCELLED">Cancel</option>
-                      <option value="REFUNDED">Refund</option>
-                    </select>
+	                    <select className={ui.select} value={resolutionAction} onChange={(event) => setResolutionAction(event.target.value)}>
+	                      <option value="CANCELLED">Cancel</option>
+	                      <option value="REFUNDED">Refund</option>
+	                      <option value="STORE_CREDIT">Store Credit</option>
+	                    </select>
                   </div>
                   <label className={`${ui.section} flex items-center gap-3 px-4 py-3 text-sm text-slate-700`}>
                     <input type="checkbox" checked={notifyBuyer} onChange={(event) => setNotifyBuyer(event.target.checked)} />
@@ -730,21 +696,23 @@ function PaymentDetailsModal({
                     rows={3}
                     value={resolutionComment}
                     onChange={(event) => setResolutionComment(event.target.value)}
-                    placeholder="Enter the reason for this cancellation or refund"
+	                    placeholder="Enter the reason for this action"
                   />
                 </div>
                 {modalError ? <p className={ui.error}>{modalError}</p> : null}
                 <button
                   type="button"
-                  className={resolutionAction === 'REFUNDED' ? ui.buttonGhost : ui.buttonDanger}
+	                  className={resolutionAction === 'CANCELLED' ? ui.buttonDanger : ui.buttonGhost}
                   onClick={handleResolvePaymentAction}
                   disabled={resolvingPaymentReference === order.orderReference}
                 >
                   {resolvingPaymentReference === order.orderReference
                     ? 'Saving...'
-                    : resolutionAction === 'REFUNDED'
-                      ? 'Save refund'
-                      : 'Save cancellation'}
+	                    : resolutionAction === 'REFUNDED'
+	                      ? 'Save refund'
+	                      : resolutionAction === 'STORE_CREDIT'
+	                        ? 'Issue store credit'
+	                        : 'Save cancellation'}
                 </button>
               </div>
             ) : null}
@@ -784,7 +752,6 @@ export default function AdminPaymentsPanel({
   onConfirmInteracPayment,
   onResendPaymentConfirmation,
   onLoadPaymentProofViewUrl,
-  onCreateIncompleteOrderUploadUrl,
   onMarkIncompleteOrderPendingReview,
   onDeleteIncompleteOrder,
   onResolvePayment,
@@ -941,34 +908,13 @@ export default function AdminPaymentsPanel({
     }
   }
 
-  async function handleSubmitIncompleteReview(orderReference, { file, comment }) {
+  async function handleSubmitIncompleteReview(orderReference, { comment }) {
     setSubmittingIncompleteReference(orderReference);
     setActionStatus('');
     setError('');
     try {
-      const uploadTarget = await onCreateIncompleteOrderUploadUrl(orderReference, {
-        fileName: file.name,
-        contentType: file.type,
-        sizeBytes: file.size,
-      });
-
-      const uploadResponse = await fetch(uploadTarget.uploadUrl, {
-        method: 'PUT',
-        body: file,
-      });
-
-      if (!uploadResponse.ok) {
-        throw new Error('Unable to upload the Interac receipt right now.');
-      }
-
       const result = await onMarkIncompleteOrderPendingReview(orderReference, {
         comment,
-        transferProof: {
-          fileName: file.name,
-          contentType: file.type,
-          sizeBytes: file.size,
-          objectKey: uploadTarget.objectKey,
-        },
       });
 
       setActionStatus(result.message || 'Incomplete order moved to pending review successfully.');
@@ -1163,11 +1109,13 @@ export default function AdminPaymentsPanel({
                 <option value="PENDING_PAYMENT">Incomplete Order</option>
                 <option value="PENDING_REVIEW">Pending review</option>
                 <option value="PAID">Paid</option>
-                <option value="PARTIALLY_CANCELLED">Partially Cancelled</option>
-                <option value="PARTIALLY_REFUNDED">Partially Refunded</option>
-                <option value="PARTIALLY_RESOLVED">Partially Resolved</option>
-                <option value="CANCELLED">Cancelled</option>
-                <option value="REFUNDED">Refunded</option>
+	                <option value="PARTIALLY_CANCELLED">Partially Cancelled</option>
+	                <option value="PARTIALLY_REFUNDED">Partially Refunded</option>
+	                <option value="PARTIALLY_STORE_CREDIT">Partially Store Credit</option>
+	                <option value="PARTIALLY_RESOLVED">Partially Resolved</option>
+	                <option value="CANCELLED">Cancelled</option>
+	                <option value="REFUNDED">Refunded</option>
+	                <option value="STORE_CREDIT">Store Credit</option>
               </select>
             </div>
             <div className="xl:col-span-2 flex flex-wrap items-end gap-3">
