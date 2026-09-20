@@ -821,10 +821,16 @@ function PickupAllocationPanel({
     .filter((location) => location.isActive !== false)
     .map((location) => location.name)
     .filter(Boolean);
-  const productOptions = useMemo(
-    () => [...new Set((produceOptions || []).map(normalizeProduceOptionName).filter(Boolean))].sort((a, b) => a.localeCompare(b)),
-    [produceOptions],
-  );
+  const productOptions = useMemo(() => {
+    const names = [
+      ...(produceOptions || []),
+      ...(salesEventOptions || []).map((item) => item.name),
+      ...(pendingSummaryItems || []).map((item) => item.name),
+    ];
+
+    return [...new Set(names.map(normalizeProduceOptionName).filter(Boolean))]
+      .sort((a, b) => a.localeCompare(b));
+  }, [produceOptions, salesEventOptions, pendingSummaryItems]);
   const batchOptionsByProduce = useMemo(() => {
     const options = new Map();
 
