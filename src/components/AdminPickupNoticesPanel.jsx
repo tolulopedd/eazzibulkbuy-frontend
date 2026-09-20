@@ -97,6 +97,10 @@ function normalizeAllocationValue(value) {
   return String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
+function normalizeProduceOptionName(value) {
+  return String(value || '').trim().replace(/^[A-Z]{1,4}\d{1,4}\s+/, '').trim();
+}
+
 const DEFAULT_PICKUP_EMAIL_BODY = `Hello {{name}},
 
 
@@ -818,14 +822,14 @@ function PickupAllocationPanel({
     .map((location) => location.name)
     .filter(Boolean);
   const productOptions = useMemo(
-    () => [...new Set((produceOptions || []).filter(Boolean))].sort((a, b) => a.localeCompare(b)),
+    () => [...new Set((produceOptions || []).map(normalizeProduceOptionName).filter(Boolean))].sort((a, b) => a.localeCompare(b)),
     [produceOptions],
   );
   const batchOptionsByProduce = useMemo(() => {
     const options = new Map();
 
     (salesEventOptions || []).forEach((item) => {
-      const produceName = String(item.name || '').trim();
+      const produceName = normalizeProduceOptionName(item.name);
       const batchNumber = String(item.batchNumber || '').trim();
       if (!produceName || !batchNumber) return;
 

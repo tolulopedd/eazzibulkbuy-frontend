@@ -76,6 +76,10 @@ function formatStatusLabel(value) {
     .join(' ');
 }
 
+function normalizeProduceOptionName(value) {
+  return String(value || '').trim().replace(/^[A-Z]{1,4}\d{1,4}\s+/, '').trim();
+}
+
 function cx(...classes) {
   return classes.filter(Boolean).join(' ');
 }
@@ -458,7 +462,12 @@ export default function AdminDashboard({
   }, []);
 
   const activeProduceOptions = useMemo(
-    () => produceItems.filter((item) => item.isActive).map((item) => item.name),
+    () => [...new Set(
+      produceItems
+        .filter((item) => item.isActive)
+        .map((item) => normalizeProduceOptionName(item.name))
+        .filter(Boolean),
+    )],
     [produceItems],
   );
 
