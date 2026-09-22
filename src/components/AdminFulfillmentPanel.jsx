@@ -56,6 +56,29 @@ function DateFilterField({ label, value, onChange, max = formatDateInputValue() 
 
 const DEFAULT_QUERY_LIMIT = 20;
 
+function FulfillmentTabIcon({ type }) {
+  if (type === 'partial') {
+    return (
+      <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true">
+        <path d="M4 7h16" />
+        <path d="M4 12h10" />
+        <path d="M4 17h7" />
+        <path d="M17 14v6" />
+        <path d="M14 17h6" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true">
+      <path d="M3 7h12v10H3z" />
+      <path d="M15 10h2.5l3.5 4v3h-6z" />
+      <circle cx="7" cy="18" r="1.5" />
+      <circle cx="17.5" cy="18" r="1.5" />
+    </svg>
+  );
+}
+
 function createDefaultQuery() {
   const today = formatDateInputValue();
   return {
@@ -252,6 +275,7 @@ export default function AdminFulfillmentPanel({
   onLoadOrders,
   onUpdateFulfillmentStatus,
   onUpdatePartialFulfillment,
+  onUndoPartialFulfillment,
   onForceRelogin,
   onRefreshReports,
   canUseCustomerSuggestions = true,
@@ -516,6 +540,36 @@ export default function AdminFulfillmentPanel({
     }
   }
 
+  async function handleUndoPartialFulfillment(order) {
+    if (!onUndoPartialFulfillment) {
+      return;
+    }
+
+    if (!window.confirm('Undo this partial fulfilment?')) {
+      return;
+    }
+
+    const rowKey = `${order.orderReference}:${order.itemIndex}`;
+    setUpdatingReference(`undo-partial:${rowKey}`);
+    setStatus('');
+    setError('');
+    try {
+      const result = await onUndoPartialFulfillment(order.orderReference, {
+        itemIndex: order.itemIndex,
+      });
+      setStatus(result.message || 'Partial fulfilment undone successfully.');
+      await loadFulfillment(query);
+      mergeUpdatedFulfillmentOrder(result.order);
+      if (onRefreshReports) {
+        await onRefreshReports();
+      }
+    } catch (err) {
+      setError(err.message || 'Unable to undo partial fulfilment.');
+    } finally {
+      setUpdatingReference('');
+    }
+  }
+
   async function loadAllFulfillmentRowsForExport() {
     const exportLimit = 100;
     const baseQuery = {
@@ -682,16 +736,18 @@ export default function AdminFulfillmentPanel({
           <div className="flex flex-wrap gap-3 rounded-[1.75rem] border border-[#dfe3dc] bg-white p-2">
             <button
               type="button"
-              className={`rounded-full px-5 py-2 text-sm font-semibold transition ${activeTab === 'fulfillment' ? 'bg-[#45d0bb] text-slate-950 shadow-sm' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
+              className={`inline-flex items-center gap-2 rounded-full px-5 py-2 text-sm font-semibold transition ${activeTab === 'fulfillment' ? 'bg-[#45d0bb] text-slate-950 shadow-sm' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
               onClick={() => setActiveTab('fulfillment')}
             >
+              <FulfillmentTabIcon type="fulfillment" />
               Fulfilment
             </button>
             <button
               type="button"
-              className={`rounded-full px-5 py-2 text-sm font-semibold transition ${activeTab === 'partial' ? 'bg-[#45d0bb] text-slate-950 shadow-sm' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
+              className={`inline-flex items-center gap-2 rounded-full px-5 py-2 text-sm font-semibold transition ${activeTab === 'partial' ? 'bg-[#45d0bb] text-slate-950 shadow-sm' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
               onClick={() => setActiveTab('partial')}
             >
+              <FulfillmentTabIcon type="partial" />
               Partial Fulfilment
             </button>
           </div>
@@ -995,6 +1051,25 @@ export default function AdminFulfillmentPanel({
                             disabled={updatingReference === `${order.orderReference}:${order.itemIndex}`}
                             title={`Change back to ${order.fulfillmentMethod === 'DELIVERY' ? 'confirm delivery' : 'confirm pickup'}`}
                             aria-label={`Change back to ${order.fulfillmentMethod === 'DELIVERY' ? 'confirm delivery' : 'confirm pickup'}`}
+                          >
+                            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                              <path d="M9 14 4 9l5-5" />
+                              <path d="M4 9h10a6 6 0 1 1 0 12h-2" />
+                            </svg>
+                          </button>
+                        </div>
+                      ) : canRevertFulfillment && isCompletedFulfillment(order) && order.isPartialFulfillment ? (
+                        <div className="inline-flex items-center justify-end gap-2">
+                          <span className="text-sm font-medium text-slate-500">
+                            {updatingReference === `undo-partial:${order.orderReference}:${order.itemIndex}` ? 'Saving...' : 'Completed'}
+                          </span>
+                          <button
+                            type="button"
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                            onClick={() => handleUndoPartialFulfillment(order)}
+                            disabled={updatingReference === `undo-partial:${order.orderReference}:${order.itemIndex}`}
+                            title="Undo partial fulfilment"
+                            aria-label="Undo partial fulfilment"
                           >
                             <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                               <path d="M9 14 4 9l5-5" />

@@ -8,6 +8,7 @@ import {
   CloseIcon,
   MailIcon,
 } from './AdminTablePrimitives';
+import AdminPickupLocationsPanel from './AdminPickupLocationsPanel';
 import { formatDateInputValue, toIsoBoundary } from '../utils/centralTime';
 
 function formatDisplayDate(value) {
@@ -83,6 +84,67 @@ const DEFAULT_ALLOCATION_FILTERS = {
   location: '',
   noticeStatus: 'NOT_SENT',
 };
+
+function PickupNoticeTabIcon({ type }) {
+  if (type === 'reminders') {
+    return (
+      <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true">
+        <path d="M12 6v6l3 2" />
+        <circle cx="12" cy="12" r="8" />
+      </svg>
+    );
+  }
+
+  if (type === 'allocation') {
+    return (
+      <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true">
+        <path d="M4 6h7v7H4z" />
+        <path d="M13 6h7v7h-7z" />
+        <path d="M4 15h7v3H4z" />
+        <path d="M13 15h7v3h-7z" />
+      </svg>
+    );
+  }
+
+  if (type === 'general') {
+    return (
+      <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true">
+        <path d="M4 6h16v12H4z" />
+        <path d="m4 8 8 5 8-5" />
+        <path d="M8 18v2" />
+        <path d="M16 18v2" />
+      </svg>
+    );
+  }
+
+  if (type === 'templates') {
+    return (
+      <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true">
+        <path d="M7 3h7l5 5v13H7z" />
+        <path d="M14 3v5h5" />
+        <path d="M10 13h6" />
+        <path d="M10 17h4" />
+      </svg>
+    );
+  }
+
+  if (type === 'locations') {
+    return (
+      <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true">
+        <path d="M12 21s6-5.4 6-11a6 6 0 1 0-12 0c0 5.6 6 11 6 11Z" />
+        <circle cx="12" cy="10" r="2.4" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true">
+      <path d="M4 5h16v12H5.5L4 19.5z" />
+      <path d="M8 9h8" />
+      <path d="M8 13h5" />
+    </svg>
+  );
+}
 
 const LOCATION_NOT_SET_FILTER = '__LOCATION_NOT_SET__';
 
@@ -1239,6 +1301,219 @@ function PickupAllocationPanel({
   );
 }
 
+function GeneralNoticesPanel({
+  onLoadCustomers,
+  onSendGeneralNotices,
+}) {
+  const defaultGeneralNoticeMessage = [
+    'Dear {{Firstname}},',
+    '',
+    '',
+    '',
+    'Regards,',
+    'EazziBulkBuy.',
+  ].join('\n');
+  const [query, setQuery] = useState('');
+  const [customers, setCustomers] = useState([]);
+  const [selectedCustomers, setSelectedCustomers] = useState([]);
+  const [subject, setSubject] = useState('');
+  const [message, setMessage] = useState(defaultGeneralNoticeMessage);
+  const [loading, setLoading] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState('');
+  const [status, setStatus] = useState('');
+
+  async function searchCustomers() {
+    setLoading(true);
+    setError('');
+    setStatus('');
+    try {
+      const response = await onLoadCustomers({
+        q: query.trim(),
+        page: 1,
+        limit: 25,
+        sortBy: 'updatedAt',
+        sortOrder: 'desc',
+      });
+      setCustomers(response.items || []);
+    } catch (err) {
+      setError(err.message || 'Unable to load customers right now.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function toggleCustomer(customer) {
+    setSelectedCustomers((current) => (
+      current.some((entry) => entry.id === customer.id)
+        ? current.filter((entry) => entry.id !== customer.id)
+        : [...current, customer]
+    ));
+  }
+
+  function selectVisibleCustomers() {
+    setSelectedCustomers((current) => {
+      const next = [...current];
+      for (const customer of customers) {
+        if (!next.some((entry) => entry.id === customer.id)) {
+          next.push(customer);
+        }
+      }
+      return next;
+    });
+  }
+
+  async function sendNotice() {
+    if (!selectedCustomers.length || !subject.trim() || !message.trim()) {
+      return;
+    }
+
+    setSending(true);
+    setError('');
+    setStatus('');
+    try {
+      const result = await onSendGeneralNotices({
+        customerIds: selectedCustomers.map((customer) => customer.id),
+        subject: subject.trim(),
+        message: message.trim(),
+      });
+      setStatus(result.message || 'General notice sent.');
+    } catch (err) {
+      setError(err.message || 'Unable to send general notice right now.');
+    } finally {
+      setSending(false);
+    }
+  }
+
+  useEffect(() => {
+    searchCustomers();
+  }, []);
+
+  const canSend = selectedCustomers.length > 0 && subject.trim() && message.trim();
+
+  return (
+    <section className={ui.card}>
+      <div className="space-y-5">
+        <div className="space-y-2">
+          <h1 className="text-2xl font-bold tracking-tight text-emerald-950">General Notices</h1>
+        </div>
+
+        {status ? <p className={ui.success}>{status}</p> : null}
+        {error ? <p className={ui.error}>{error}</p> : null}
+
+        <div className={`${ui.filterPanel} grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto]`}>
+          <div className={ui.fieldWrap}>
+            <label className={ui.label}>Search customer</label>
+            <input
+              className={ui.input}
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault();
+                  searchCustomers();
+                }
+              }}
+              placeholder="Name, email, phone"
+            />
+          </div>
+          <div className="flex items-end gap-3">
+            <button type="button" className={ui.buttonGhost} onClick={searchCustomers} disabled={loading}>
+              {loading ? 'Searching...' : 'Search'}
+            </button>
+            <button type="button" className={ui.buttonGhost} onClick={selectVisibleCustomers} disabled={!customers.length}>
+              Select visible
+            </button>
+          </div>
+        </div>
+
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(24rem,32rem)]">
+          <div className={ui.tableWrap}>
+            <table className={`${ui.table} min-w-[760px]`}>
+              <thead>
+                <tr className={ui.tableHeadRow}>
+                  <th className={ui.tableHeaderCell}>Select</th>
+                  <th className={ui.tableHeaderCell}>Customer</th>
+                  <th className={ui.tableHeaderCell}>Email</th>
+                  <th className={ui.tableHeaderCell}>Phone</th>
+                </tr>
+              </thead>
+              <tbody>
+                {customers.map((customer) => {
+                  const selected = selectedCustomers.some((entry) => entry.id === customer.id);
+                  return (
+                    <tr key={customer.id} className={ui.tableRow}>
+                      <td className={ui.tableCell}>
+                        <input
+                          type="checkbox"
+                          checked={selected}
+                          onChange={() => toggleCustomer(customer)}
+                          className="h-4 w-4 accent-emerald-500"
+                        />
+                      </td>
+                      <td className={`${ui.tableCell} font-semibold text-slate-900`}>{customer.name || '-'}</td>
+                      <td className={ui.tableCell}>{customer.email || '-'}</td>
+                      <td className={ui.tableCell}>{customer.phone || '-'}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            {!loading && customers.length === 0 ? <AdminTableEmpty message="No customers found." /> : null}
+          </div>
+
+          <div className={`${ui.filterPanel} space-y-4`}>
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-lg font-bold text-emerald-950">Notice</h2>
+              <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-800">
+                {selectedCustomers.length} selected
+              </span>
+            </div>
+
+            {selectedCustomers.length ? (
+              <div className="max-h-28 overflow-y-auto rounded-2xl border border-[#deded4] bg-white p-2">
+                {selectedCustomers.map((customer) => (
+                  <div key={customer.id} className="flex items-center justify-between gap-3 rounded-xl px-3 py-2 text-sm font-semibold text-slate-700">
+                    <span>{customer.name || customer.email}</span>
+                    <button type="button" className="text-xs font-bold text-red-600" onClick={() => toggleCustomer(customer)}>
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
+            <div className={ui.fieldWrap}>
+              <label className={ui.label}>Subject</label>
+              <input
+                className={ui.input}
+                value={subject}
+                onChange={(event) => setSubject(event.target.value)}
+                placeholder="Notice subject"
+              />
+            </div>
+
+            <div className={ui.fieldWrap}>
+              <label className={ui.label}>Message</label>
+              <textarea
+                className={ui.textarea}
+                rows={8}
+                value={message}
+                onChange={(event) => setMessage(event.target.value)}
+                placeholder="Message to send"
+              />
+            </div>
+
+            <button type="button" className={ui.buttonPrimary} onClick={sendNotice} disabled={sending || !canSend}>
+              {sending ? 'Sending...' : 'Send notice'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default function AdminPickupNoticesPanel({
   onLoadPickupNotices,
   onLoadPickupAllocationPendingSummary,
@@ -1248,6 +1523,12 @@ export default function AdminPickupNoticesPanel({
   onUpdatePickupNoticeTemplate,
   onDeletePickupNoticeTemplate,
   onSendPickupNotices,
+  onLoadCustomers,
+  onSendGeneralNotices,
+  onLoadPickupLocations,
+  onCreatePickupLocation,
+  onUpdatePickupLocation,
+  onDeletePickupLocation,
   pickupLocations = [],
   produceOptions = [],
   salesEventOptions = [],
@@ -1456,7 +1737,7 @@ export default function AdminPickupNoticesPanel({
     ? `${isReminderTab ? 'Remind' : 'Notify'} selected (${selectedRows.length})`
     : `Select items to ${actionVerb}`;
   const tabButtonClass = (tab) => (
-    `rounded-full px-5 py-2.5 text-sm font-semibold transition ${
+    `inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition ${
       activeTab === tab
         ? 'bg-[#46d2b8] text-[#0f1612] shadow-sm'
         : 'border border-[#d7d9cf] bg-white text-[#4f574c] hover:bg-[#f7f8f4]'
@@ -1467,24 +1748,48 @@ export default function AdminPickupNoticesPanel({
     <section className="space-y-5">
       <div className="flex flex-wrap gap-3 rounded-full border border-[#e4e6dc] bg-[#fbfbf8] p-2">
         <button type="button" className={tabButtonClass('notices')} onClick={() => switchTab('notices')}>
+          <PickupNoticeTabIcon type="notices" />
           Pickup Notices
         </button>
 	        <button type="button" className={tabButtonClass('reminders')} onClick={() => switchTab('reminders')}>
+	          <PickupNoticeTabIcon type="reminders" />
 	          Pickup Reminder
 	        </button>
-	        <button type="button" className={tabButtonClass('allocation')} onClick={() => switchTab('allocation')}>
-	          Pickup Allocation
+	        <button type="button" className={tabButtonClass('general')} onClick={() => switchTab('general')}>
+	          <PickupNoticeTabIcon type="general" />
+	          General Notices
 	        </button>
+	        <button type="button" className={tabButtonClass('allocation')} onClick={() => switchTab('allocation')}>
+	          <PickupNoticeTabIcon type="allocation" />
+	          Pickup Allocation
+        </button>
 	        <button type="button" className={tabButtonClass('templates')} onClick={() => switchTab('templates')}>
+	          <PickupNoticeTabIcon type="templates" />
 	          Templates
 	        </button>
-      </div>
+	        <button type="button" className={tabButtonClass('locations')} onClick={() => switchTab('locations')}>
+	          <PickupNoticeTabIcon type="locations" />
+	          Locations
+	        </button>
+	      </div>
 
       {status ? <p className={ui.success}>{status}</p> : null}
       {error ? <p className={ui.error}>{error}</p> : null}
 
-      {activeTab === 'templates' ? (
-        <PickupNoticeTemplateManager
+	      {activeTab === 'general' ? (
+	        <GeneralNoticesPanel
+	          onLoadCustomers={onLoadCustomers}
+	          onSendGeneralNotices={onSendGeneralNotices}
+	        />
+	      ) : activeTab === 'locations' ? (
+	        <AdminPickupLocationsPanel
+	          onLoadPickupLocations={onLoadPickupLocations}
+	          onCreatePickupLocation={onCreatePickupLocation}
+	          onUpdatePickupLocation={onUpdatePickupLocation}
+	          onDeletePickupLocation={onDeletePickupLocation}
+	        />
+	      ) : activeTab === 'templates' ? (
+	        <PickupNoticeTemplateManager
           templates={templates}
           pickupLocations={pickupLocations}
           loading={loadingTemplates}

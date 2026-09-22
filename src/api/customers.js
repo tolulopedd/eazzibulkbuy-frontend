@@ -37,3 +37,18 @@ export async function createCustomerUpdateRequest(customerId, payload) {
 
   return response.json();
 }
+
+export async function createCustomerFeedbackNote(payload) {
+  const response = await fetch(buildApiUrl('/api/customers/feedback-note'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.message || 'Unable to submit your note. Please try again.');
+  }
+
+  return response.json();
+}

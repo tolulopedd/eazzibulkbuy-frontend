@@ -21,6 +21,11 @@ import {
   fetchAdminDiscountOrders,
   fetchAdminSalesItems,
   fetchAdminCustomers,
+  fetchAdminCustomerStatement,
+  fetchAdminCustomerNotes,
+  createAdminCustomerNote,
+  fetchAdminCustomerNoteNotifications,
+  markAdminCustomerNoteNotificationsRead,
   updateAdminCustomer,
   updateAdminPickupLocation,
   updateAdminPickupNoticeTemplate,
@@ -41,8 +46,10 @@ import {
   resendAdminPaymentConfirmation,
   resolveAdminPayment,
   sendAdminPickupNotices,
+  sendAdminGeneralNotices,
   updateAdminFulfillmentStatus,
   updateAdminPartialFulfillment,
+  undoAdminPartialFulfillment,
   updateAdminOrderPreferredPickupLocation,
   fetchAdminUsers,
   createAdminUser,
@@ -323,6 +330,15 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
     }
   }
 
+  async function handleSendGeneralNotices(payload) {
+    setError('');
+    try {
+      return await sendAdminGeneralNotices(payload);
+    } catch (err) {
+      rethrowWithSessionHandling(err, 'Unable to send general notices right now.');
+    }
+  }
+
   async function handleCreateDiscountOrder(payload) {
     setError('');
     try {
@@ -362,6 +378,47 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
       return await fetchAdminCustomers(query);
     } catch (err) {
       rethrowWithSessionHandling(err, 'Unable to load customers right now.');
+    }
+  }
+
+  async function handleLoadCustomerStatement(customerId) {
+    try {
+      return await fetchAdminCustomerStatement(customerId);
+    } catch (err) {
+      rethrowWithSessionHandling(err, 'Unable to load customer statement right now.');
+    }
+  }
+
+  async function handleLoadCustomerNotes(customerId) {
+    try {
+      return await fetchAdminCustomerNotes(customerId);
+    } catch (err) {
+      rethrowWithSessionHandling(err, 'Unable to load customer notes right now.');
+    }
+  }
+
+  async function handleCreateCustomerNote(customerId, payload) {
+    setError('');
+    try {
+      return await createAdminCustomerNote(customerId, payload);
+    } catch (err) {
+      rethrowWithSessionHandling(err, 'Unable to save customer note right now.');
+    }
+  }
+
+  async function handleLoadCustomerNoteNotifications() {
+    try {
+      return await fetchAdminCustomerNoteNotifications();
+    } catch (err) {
+      rethrowWithSessionHandling(err, 'Unable to load customer note notifications right now.');
+    }
+  }
+
+  async function handleMarkCustomerNoteNotificationsRead(payload) {
+    try {
+      return await markAdminCustomerNoteNotificationsRead(payload);
+    } catch (err) {
+      rethrowWithSessionHandling(err, 'Unable to update customer note notifications right now.');
     }
   }
 
@@ -507,6 +564,15 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
     }
   }
 
+  async function handleUndoPartialFulfillment(orderReference, payload) {
+    setError('');
+    try {
+      return await undoAdminPartialFulfillment(orderReference, payload);
+    } catch (err) {
+      rethrowWithSessionHandling(err, 'Unable to undo partial fulfilment. Please try again.');
+    }
+  }
+
   async function handleUpdatePreferredPickupLocation(orderReference, preferredPickupLocation) {
     setError('');
     try {
@@ -585,6 +651,7 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
         onPreviewPickupAllocation={handlePreviewPickupAllocation}
         onLoadPickupLocations={handleLoadPickupLocations}
         onLoadPickupNoticeTemplates={handleLoadPickupNoticeTemplates}
+        onSendGeneralNotices={handleSendGeneralNotices}
         onLoadProduceItems={handleLoadProduceItems}
         onCreateSalesItem={handleCreateSalesItem}
         onCreateDiscountOrder={handleCreateDiscountOrder}
@@ -605,6 +672,11 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
         onLoadUsers={handleLoadUsers}
         onCreateUser={handleCreateUser}
         onLoadCustomers={handleLoadCustomers}
+        onLoadCustomerStatement={handleLoadCustomerStatement}
+        onLoadCustomerNotes={handleLoadCustomerNotes}
+        onCreateCustomerNote={handleCreateCustomerNote}
+        onLoadCustomerNoteNotifications={handleLoadCustomerNoteNotifications}
+        onMarkCustomerNoteNotificationsRead={handleMarkCustomerNoteNotificationsRead}
         onCreateCustomer={handleCreateCustomer}
         onUpdateCustomer={handleUpdateCustomer}
         onExportCustomers={handleExportCustomers}
@@ -620,6 +692,7 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
         onSendPickupNotices={handleSendPickupNotices}
         onUpdateFulfillmentStatus={handleUpdateFulfillmentStatus}
         onUpdatePartialFulfillment={handleUpdatePartialFulfillment}
+        onUndoPartialFulfillment={handleUndoPartialFulfillment}
         onUpdatePreferredPickupLocation={handleUpdatePreferredPickupLocation}
         onForceRelogin={handleForceRelogin}
         onLogout={handleLogout}

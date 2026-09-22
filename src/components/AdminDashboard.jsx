@@ -4,7 +4,6 @@ import AdminSalesPanel from './AdminSalesPanel';
 import AdminReportsPanel from './AdminReportsPanel';
 import AdminPaymentsPanel from './AdminPaymentsPanel';
 import AdminPickupNoticesPanel from './AdminPickupNoticesPanel';
-import AdminPickupLocationsPanel from './AdminPickupLocationsPanel';
 import AdminProduceItemsPanel from './AdminProduceItemsPanel';
 import AdminCustomersPanel from './AdminCustomersPanel';
 import AdminFulfillmentPanel from './AdminFulfillmentPanel';
@@ -93,6 +92,11 @@ function getInitials(value) {
   return parts.slice(0, 2).map((part) => part.charAt(0).toUpperCase()).join('');
 }
 
+function formatNotificationTime(value) {
+  if (!value) return '';
+  return new Date(value).toLocaleString();
+}
+
 function DashboardIcon() {
   return (
     <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
@@ -129,15 +133,6 @@ function NoticeIcon() {
     <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
       <path d="M4 6h16v12H4z" />
       <path d="m4 8 8 6 8-6" />
-    </svg>
-  );
-}
-
-function PickupLocationIcon() {
-  return (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
-      <path d="M12 21s6-5.4 6-11a6 6 0 1 0-12 0c0 5.6 6 11 6 11Z" />
-      <circle cx="12" cy="10" r="2.5" />
     </svg>
   );
 }
@@ -193,15 +188,6 @@ function CustomerIcon() {
   );
 }
 
-function CustomerUpdateIcon() {
-  return (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
-      <path d="M12 6v6l4 2" />
-      <circle cx="12" cy="12" r="8" />
-    </svg>
-  );
-}
-
 function LogisticsIcon() {
   return (
     <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
@@ -243,6 +229,11 @@ export default function AdminDashboard({
   onUpdateSalesItem,
   onDeleteSalesItem,
   onLoadCustomers,
+  onLoadCustomerStatement,
+  onLoadCustomerNotes,
+  onCreateCustomerNote,
+  onLoadCustomerNoteNotifications,
+  onMarkCustomerNoteNotificationsRead,
   onCreateCustomer,
   onUpdateCustomer,
   onExportCustomers,
@@ -254,6 +245,7 @@ export default function AdminDashboard({
   onPreviewPickupAllocation,
   onLoadPickupLocations,
   onLoadPickupNoticeTemplates,
+  onSendGeneralNotices,
   onSendPickupNotices,
   onCreatePickupLocation,
   onCreatePickupNoticeTemplate,
@@ -269,6 +261,7 @@ export default function AdminDashboard({
   onResolvePayment,
   onUpdateFulfillmentStatus,
   onUpdatePartialFulfillment,
+  onUndoPartialFulfillment,
   onUpdatePreferredPickupLocation,
   onForceRelogin,
   onUpdatePickupLocation,
@@ -312,6 +305,12 @@ export default function AdminDashboard({
   const [produceItems, setProduceItems] = useState([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const [notificationOpen, setNotificationOpen] = useState(false);
+  const [notificationLoading, setNotificationLoading] = useState(false);
+  const [notificationError, setNotificationError] = useState('');
+  const [noteNotifications, setNoteNotifications] = useState([]);
+  const [unreadNoteCount, setUnreadNoteCount] = useState(0);
+  const [notesInitialCustomer, setNotesInitialCustomer] = useState(null);
 
   const modules = useMemo(() => {
     if (canManageSales) {
@@ -321,12 +320,10 @@ export default function AdminDashboard({
         { id: 'produce-items', label: 'Our Produce', title: 'Our Produce', icon: ProduceIcon },
         { id: 'discount-orders', label: 'Discount Orders', title: 'Discount Orders', icon: DiscountIcon },
         { id: 'payments', label: 'Payments', title: 'Payments', icon: PaymentIcon },
-        { id: 'pickup-notices', label: 'Pickup Notices', title: 'Pickup Notices', icon: NoticeIcon },
-        { id: 'pickup-locations', label: 'Pickup Locations', title: 'Pickup Locations', icon: PickupLocationIcon },
+        { id: 'pickup-notices', label: 'Notices', title: 'Notices', icon: NoticeIcon },
         { id: 'fulfillment', label: 'Fulfilment', title: 'Fulfilment', icon: FulfillmentIcon },
         { id: 'reports', label: 'Reports', title: 'Reports', icon: ReportsIcon },
         { id: 'customers', label: 'Customer', title: 'Customer', icon: CustomerIcon },
-        { id: 'customer-updates', label: 'Customer Update', title: 'Customer Update', icon: CustomerUpdateIcon },
       ];
 
       if (isSuperAdmin) {
@@ -359,7 +356,64 @@ export default function AdminDashboard({
 
   useEffect(() => {
     setAccountMenuOpen(false);
+    setNotificationOpen(false);
   }, [activeModule]);
+
+  async function loadNoteNotifications({ markRead = false } = {}) {
+    if (!canManageSales || typeof onLoadCustomerNoteNotifications !== 'function') {
+      return;
+    }
+
+    setNotificationLoading(true);
+    setNotificationError('');
+    try {
+      const response = await onLoadCustomerNoteNotifications();
+      const items = response.items || [];
+      setNoteNotifications(items);
+      setUnreadNoteCount(response.unreadCount || 0);
+
+      if (markRead && items.length && typeof onMarkCustomerNoteNotificationsRead === 'function') {
+        await onMarkCustomerNoteNotificationsRead({ noteIds: items.map((note) => note.id) });
+        setUnreadNoteCount(0);
+        setNoteNotifications(items.map((note) => ({ ...note, readAt: note.readAt || new Date().toISOString() })));
+      }
+    } catch (err) {
+      setNotificationError(err.message || 'Unable to load notifications.');
+    } finally {
+      setNotificationLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!canManageSales || typeof onLoadCustomerNoteNotifications !== 'function') {
+      return undefined;
+    }
+
+    loadNoteNotifications();
+    const timer = window.setInterval(() => {
+      loadNoteNotifications();
+    }, 60000);
+
+    return () => window.clearInterval(timer);
+  }, [canManageSales, onLoadCustomerNoteNotifications]);
+
+  async function toggleNotifications() {
+    const nextOpen = !notificationOpen;
+    setNotificationOpen(nextOpen);
+    if (nextOpen) {
+      await loadNoteNotifications({ markRead: true });
+    }
+  }
+
+  function openCustomerNotesFromNotification(note) {
+    if (!note?.customer?.id) {
+      return;
+    }
+
+    setNotesInitialCustomer(note.customer);
+    setActiveModule('customers');
+    setNotificationOpen(false);
+  }
 
   async function loadReports(query = {}) {
     setLoadingReports(true);
@@ -690,35 +744,30 @@ export default function AdminDashboard({
           onUpdatePickupNoticeTemplate={onUpdatePickupNoticeTemplate}
 	          onDeletePickupNoticeTemplate={onDeletePickupNoticeTemplate}
 	          onSendPickupNotices={onSendPickupNotices}
+	          onLoadCustomers={onLoadCustomers}
+	          onSendGeneralNotices={onSendGeneralNotices}
+	          onLoadPickupLocations={onLoadPickupLocations}
+	          onCreatePickupLocation={async (payload) => {
+	            const result = await onCreatePickupLocation(payload);
+	            await loadPickupLocations();
+	            return result;
+	          }}
+	          onUpdatePickupLocation={async (pickupLocationId, payload) => {
+	            const result = await onUpdatePickupLocation(pickupLocationId, payload);
+	            await loadPickupLocations();
+	            return result;
+	          }}
+	          onDeletePickupLocation={async (pickupLocationId) => {
+	            const result = await onDeletePickupLocation(pickupLocationId);
+	            await loadPickupLocations();
+	            return result;
+	          }}
 	          pickupLocations={pickupLocations}
 	          produceOptions={activeProduceOptions}
 	          salesEventOptions={allocationSalesItems}
 	        />
-      );
-    }
-
-    if (activeModule === 'pickup-locations') {
-      return (
-        <AdminPickupLocationsPanel
-          onLoadPickupLocations={onLoadPickupLocations}
-          onCreatePickupLocation={async (payload) => {
-            const result = await onCreatePickupLocation(payload);
-            await loadPickupLocations();
-            return result;
-          }}
-          onUpdatePickupLocation={async (pickupLocationId, payload) => {
-            const result = await onUpdatePickupLocation(pickupLocationId, payload);
-            await loadPickupLocations();
-            return result;
-          }}
-          onDeletePickupLocation={async (pickupLocationId) => {
-            const result = await onDeletePickupLocation(pickupLocationId);
-            await loadPickupLocations();
-            return result;
-          }}
-        />
-      );
-    }
+	      );
+	    }
 
     if (activeModule === 'produce-items') {
       return (
@@ -767,6 +816,7 @@ export default function AdminDashboard({
           onLoadOrders={onLoadOrders}
           onUpdateFulfillmentStatus={onUpdateFulfillmentStatus}
           onUpdatePartialFulfillment={onUpdatePartialFulfillment}
+          onUndoPartialFulfillment={onUndoPartialFulfillment}
           onUpdatePreferredPickupLocation={onUpdatePreferredPickupLocation}
           onForceRelogin={onForceRelogin}
           onRefreshReports={canManageSales ? loadReports : undefined}
@@ -785,20 +835,11 @@ export default function AdminDashboard({
           onExportCustomers={onExportCustomers}
           onApproveCustomerUpdateRequest={onApproveCustomerUpdateRequest}
           onDeclineCustomerUpdateRequest={onDeclineCustomerUpdateRequest}
+          onLoadCustomerStatement={onLoadCustomerStatement}
+          onLoadCustomerNotes={onLoadCustomerNotes}
+          onCreateCustomerNote={onCreateCustomerNote}
+          initialNotesCustomer={notesInitialCustomer}
           mode="customers"
-        />
-      );
-    }
-
-    if (activeModule === 'customer-updates') {
-      return (
-        <AdminCustomersPanel
-          onLoadCustomers={onLoadCustomers}
-          onUpdateCustomer={onUpdateCustomer}
-          onExportCustomers={onExportCustomers}
-          onApproveCustomerUpdateRequest={onApproveCustomerUpdateRequest}
-          onDeclineCustomerUpdateRequest={onDeclineCustomerUpdateRequest}
-          mode="updates"
         />
       );
     }
@@ -962,11 +1003,64 @@ export default function AdminDashboard({
                   </button>
                   <h1 className="text-[2rem] font-bold tracking-tight text-[#171a16]">{activeModuleConfig?.title || 'Admin Portal'}</h1>
                 </div>
-                <div className="flex items-center gap-3">
-                  <button type="button" className="relative inline-flex h-11 w-11 items-center justify-center rounded-full border border-[#d7d9cf] bg-white text-[#555b53] transition hover:bg-[#f7f8f4]" aria-label="Notifications">
+                <div className="relative flex items-center gap-3">
+                  <button
+                    type="button"
+                    className="relative inline-flex h-11 w-11 items-center justify-center rounded-full border border-[#d7d9cf] bg-white text-[#555b53] transition hover:bg-[#f7f8f4]"
+                    aria-label="Notifications"
+                    onClick={toggleNotifications}
+                  >
                     <BellIcon />
-                    <span className="absolute right-2 top-2 h-2.5 w-2.5 rounded-full bg-[#46d2b8]" />
+                    {unreadNoteCount > 0 ? (
+                      <span className="absolute -right-1 -top-1 min-w-[1.35rem] rounded-full bg-[#e64b4b] px-1.5 py-0.5 text-center text-[0.68rem] font-black leading-none text-white shadow-sm">
+                        {unreadNoteCount > 99 ? '99+' : unreadNoteCount}
+                      </span>
+                    ) : null}
                   </button>
+                  {notificationOpen ? (
+                    <div className="absolute right-14 top-14 z-40 w-[min(24rem,calc(100vw-2rem))] rounded-[28px] border border-[#dedfd4] bg-white p-3 shadow-[0_24px_70px_rgba(15,23,42,0.18)]">
+                      <div className="flex items-center justify-between gap-3 border-b border-[#eceee5] px-2 pb-3">
+                        <div>
+                          <p className="text-sm font-black uppercase tracking-[0.2em] text-[#858a7f]">Notes</p>
+                          <h2 className="text-lg font-bold text-emerald-950">Customer notes</h2>
+                        </div>
+                        <button type="button" className="text-sm font-bold text-slate-500 hover:text-emerald-800" onClick={() => setNotificationOpen(false)}>
+                          Close
+                        </button>
+                      </div>
+                      <div className="max-h-[26rem] overflow-y-auto py-2">
+                        {notificationLoading ? (
+                          <p className="px-3 py-4 text-sm font-semibold text-slate-500">Loading notes...</p>
+                        ) : null}
+                        {notificationError ? (
+                          <p className="m-2 rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{notificationError}</p>
+                        ) : null}
+                        {!notificationLoading && !notificationError && noteNotifications.length === 0 ? (
+                          <p className="px-3 py-4 text-sm font-semibold text-slate-500">No unread customer notes.</p>
+                        ) : null}
+                        {noteNotifications.map((note) => (
+                          <button
+                            key={note.id}
+                            type="button"
+                            className="block w-full rounded-2xl px-3 py-3 text-left transition hover:bg-emerald-50"
+                            onClick={() => openCustomerNotesFromNotification(note)}
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <p className="font-bold text-slate-950">{note.customer?.name || 'Customer'}</p>
+                                <p className="text-xs font-semibold text-slate-500">{note.customer?.email || ''}</p>
+                              </div>
+                              <span className="shrink-0 rounded-full bg-emerald-50 px-2.5 py-1 text-[0.68rem] font-black uppercase tracking-[0.12em] text-emerald-800">
+                                New
+                              </span>
+                            </div>
+                            <p className="mt-2 max-h-16 overflow-hidden whitespace-pre-wrap text-sm leading-5 text-slate-700">{note.note}</p>
+                            <p className="mt-2 text-xs font-semibold text-slate-500">{formatNotificationTime(note.createdAt)}</p>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
                   <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#181818] text-sm font-bold text-white">{profileInitials}</div>
                 </div>
               </header>

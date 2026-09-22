@@ -37,11 +37,31 @@ export function writeCartItems(items) {
 }
 
 export function setCartQuantity(salesItemId, quantity) {
+  const normalizedSalesItemId = String(salesItemId || '');
+  const nextQuantity = Math.max(0, Number(quantity) || 0);
   const current = readCartItems();
-  const next = current.filter((item) => item.salesItemId !== salesItemId);
+  const next = [];
+  let updatedExistingItem = false;
 
-  if (quantity > 0) {
-    next.push({ salesItemId, quantity });
+  if (!normalizedSalesItemId) {
+    return writeCartItems(current);
+  }
+
+  current.forEach((item) => {
+    if (item.salesItemId !== normalizedSalesItemId) {
+      next.push(item);
+      return;
+    }
+
+    if (!updatedExistingItem && nextQuantity > 0) {
+      next.push({ salesItemId: normalizedSalesItemId, quantity: nextQuantity });
+    }
+
+    updatedExistingItem = true;
+  });
+
+  if (!updatedExistingItem && nextQuantity > 0) {
+    next.push({ salesItemId: normalizedSalesItemId, quantity: nextQuantity });
   }
 
   return writeCartItems(next);

@@ -7,6 +7,7 @@ import AdminModule from './components/AdminModule';
 import AdminInviteAccept from './components/AdminInviteAccept';
 import AdminForgotPassword from './components/AdminForgotPassword';
 import AdminResetPassword from './components/AdminResetPassword';
+import CustomerFeedbackPage from './components/CustomerFeedbackPage';
 import { useOrderPlacement } from './hooks/useOrderPlacement';
 import { ui } from './ui/classes';
 
@@ -44,6 +45,8 @@ export default function App() {
       <main className={pageClass}>
         {path.startsWith('/admin/invite') ? (
           <AdminInviteAccept onGoAdmin={() => navigate('/admin')} onBackHome={() => navigate('/')} />
+        ) : path.startsWith('/customer-feedback') ? (
+          <CustomerFeedbackPage onBackHome={() => navigate('/')} />
         ) : path.startsWith('/admin/forgot-password') ? (
           <AdminForgotPassword onGoAdmin={() => navigate('/admin')} onBackHome={() => navigate('/')} />
         ) : path.startsWith('/admin/reset-password') ? (

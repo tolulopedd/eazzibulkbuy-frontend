@@ -9,6 +9,8 @@ import {
   CloseIcon,
   PencilIcon,
 } from './AdminTablePrimitives';
+import AdminCustomerStatementPanel from './AdminCustomerStatementPanel';
+import AdminCustomerNotesPanel from './AdminCustomerNotesPanel';
 
 const DEFAULT_QUERY = {
   q: '',
@@ -17,6 +19,46 @@ const DEFAULT_QUERY = {
   page: 1,
   limit: 15,
 };
+
+function CustomerTabIcon({ type }) {
+  if (type === 'statement') {
+    return (
+      <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true">
+        <path d="M7 3h7l5 5v13H7z" />
+        <path d="M14 3v5h5" />
+        <path d="M10 13h6" />
+        <path d="M10 17h4" />
+      </svg>
+    );
+  }
+
+  if (type === 'updates') {
+    return (
+      <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true">
+        <path d="M12 6v6l4 2" />
+        <circle cx="12" cy="12" r="8" />
+      </svg>
+    );
+  }
+
+  if (type === 'notes') {
+    return (
+      <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true">
+        <path d="M6 4h12v16H6z" />
+        <path d="M9 8h6" />
+        <path d="M9 12h6" />
+        <path d="M9 16h4" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true">
+      <circle cx="12" cy="8" r="3" />
+      <path d="M5 19a7 7 0 0 1 14 0" />
+    </svg>
+  );
+}
 
 function CustomerEditModal({ customer, onClose, onSave, saving }) {
   const [form, setForm] = useState({
@@ -112,6 +154,10 @@ export default function AdminCustomersPanel({
   onExportCustomers,
   onApproveCustomerUpdateRequest,
   onDeclineCustomerUpdateRequest,
+  onLoadCustomerStatement,
+  onLoadCustomerNotes,
+  onCreateCustomerNote,
+  initialNotesCustomer,
   mode = 'customers',
 }) {
   const [customers, setCustomers] = useState([]);
@@ -131,6 +177,9 @@ export default function AdminCustomersPanel({
   const [reviewingRequestId, setReviewingRequestId] = useState('');
   const [exporting, setExporting] = useState(false);
   const [exportingPdf, setExportingPdf] = useState(false);
+  const [activeTab, setActiveTab] = useState('customers');
+  const [statementCustomer, setStatementCustomer] = useState(null);
+  const [notesCustomer, setNotesCustomer] = useState(null);
 
   async function loadCustomers(nextQuery = query) {
     setLoading(true);
@@ -155,6 +204,13 @@ export default function AdminCustomersPanel({
   useEffect(() => {
     loadCustomers(DEFAULT_QUERY);
   }, []);
+
+  useEffect(() => {
+    if (initialNotesCustomer?.id) {
+      setNotesCustomer(initialNotesCustomer);
+      setActiveTab('notes');
+    }
+  }, [initialNotesCustomer?.id]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -259,13 +315,71 @@ export default function AdminCustomersPanel({
     }
   }
 
+  function handleViewStatement(customer) {
+    setStatementCustomer(customer);
+    setActiveTab('statement');
+  }
+
+  function handleViewNotes(customer) {
+    setNotesCustomer(customer);
+    setActiveTab('notes');
+  }
+
   const listStart = meta.total === 0 ? 0 : (meta.page - 1) * meta.limit + 1;
   const listEnd = meta.total === 0 ? 0 : Math.min(meta.page * meta.limit, meta.total);
   const isCustomerUpdatesMode = mode === 'updates';
+  const showCustomerTabs = !isCustomerUpdatesMode;
+  const showStatementTab = showCustomerTabs && typeof onLoadCustomerStatement === 'function';
+  const showNotesTab = showCustomerTabs && typeof onLoadCustomerNotes === 'function' && typeof onCreateCustomerNote === 'function';
+  const showUpdatesPanel = isCustomerUpdatesMode || activeTab === 'updates';
+  const tabButtonClass = (tab) => [
+    'inline-flex items-center gap-2 rounded-[22px] px-5 py-2.5 text-sm font-semibold transition',
+    activeTab === tab
+      ? 'bg-[#46d2b8] text-emerald-950 shadow-[0_12px_30px_rgba(20,184,166,0.22)]'
+      : 'border border-[#dedfd4] bg-white text-[#5f675e] hover:border-[#46d2b8] hover:text-emerald-900',
+  ].join(' ');
 
   return (
     <section className="space-y-5">
-      {!isCustomerUpdatesMode ? (
+      {showCustomerTabs ? (
+        <div className="flex flex-wrap gap-3 rounded-[28px] border border-[#e5e4d9] bg-white/80 p-2">
+          <button type="button" className={tabButtonClass('customers')} onClick={() => setActiveTab('customers')}>
+            <CustomerTabIcon type="customers" />
+            Customer
+          </button>
+          <button type="button" className={tabButtonClass('statement')} onClick={() => setActiveTab('statement')}>
+            <CustomerTabIcon type="statement" />
+            Statement
+          </button>
+          <button type="button" className={tabButtonClass('notes')} onClick={() => setActiveTab('notes')}>
+            <CustomerTabIcon type="notes" />
+            Notes
+          </button>
+          <button type="button" className={tabButtonClass('updates')} onClick={() => setActiveTab('updates')}>
+            <CustomerTabIcon type="updates" />
+            Information Update
+          </button>
+        </div>
+      ) : null}
+
+      {showStatementTab && activeTab === 'statement' ? (
+        <AdminCustomerStatementPanel
+          onLoadCustomers={onLoadCustomers}
+          onLoadCustomerStatement={onLoadCustomerStatement}
+          initialCustomer={statementCustomer}
+        />
+      ) : null}
+
+      {showNotesTab && activeTab === 'notes' ? (
+        <AdminCustomerNotesPanel
+          onLoadCustomers={onLoadCustomers}
+          onLoadCustomerNotes={onLoadCustomerNotes}
+          onCreateCustomerNote={onCreateCustomerNote}
+          initialCustomer={notesCustomer}
+        />
+      ) : null}
+
+      {!isCustomerUpdatesMode && activeTab === 'customers' ? (
       <section className={ui.card}>
         <div className="space-y-5">
           <div className="space-y-2">
@@ -319,9 +433,21 @@ export default function AdminCustomersPanel({
                       <AdminStatusBadge value={customer.isActive ? 'Active' : 'Inactive'} tone={customer.isActive ? 'success' : 'neutral'} />
                     </td>
                     <td className={`${ui.tableCell} whitespace-nowrap text-right`}>
-                      <AdminIconButton label="Edit customer" onClick={() => setSelectedCustomer(customer)}>
-                        <PencilIcon />
-                      </AdminIconButton>
+                      <div className="flex flex-wrap justify-end gap-2">
+                        {showStatementTab ? (
+                          <button type="button" className={ui.buttonGhost} onClick={() => handleViewStatement(customer)}>
+                            View statement
+                          </button>
+                        ) : null}
+                        {showNotesTab ? (
+                          <button type="button" className={ui.buttonGhost} onClick={() => handleViewNotes(customer)}>
+                            Notes
+                          </button>
+                        ) : null}
+                        <AdminIconButton label="Edit customer" onClick={() => setSelectedCustomer(customer)}>
+                          <PencilIcon />
+                        </AdminIconButton>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -342,11 +468,11 @@ export default function AdminCustomersPanel({
       </section>
       ) : null}
 
-      {isCustomerUpdatesMode ? (
+      {showUpdatesPanel ? (
       <section className={ui.card}>
         <div className="space-y-5">
           <div className="space-y-2">
-            <h2 className="text-xl font-bold tracking-tight text-emerald-950">Pending customer update requests</h2>
+            <h2 className="text-xl font-bold tracking-tight text-emerald-950">Information Update</h2>
             <p className="leading-6 text-slate-600">Review buyer phone and address changes.</p>
           </div>
 

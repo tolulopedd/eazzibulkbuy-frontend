@@ -362,6 +362,14 @@ export function sendAdminPickupNotices(payload) {
   });
 }
 
+export function sendAdminGeneralNotices(payload) {
+  return request('/api/admin/general-notices/send', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
 export function createAdminDiscountOrder(payload) {
   return request('/api/admin/discount-orders', {
     method: 'POST',
@@ -536,6 +544,34 @@ export function fetchAdminCustomers(params = {}) {
 
   const suffix = search.toString() ? `?${search.toString()}` : '';
   return request(`/api/admin/customers${suffix}`);
+}
+
+export function fetchAdminCustomerStatement(customerId) {
+  return request(`/api/admin/customers/${customerId}/statement`);
+}
+
+export function fetchAdminCustomerNotes(customerId) {
+  return request(`/api/admin/customers/${customerId}/notes`);
+}
+
+export function createAdminCustomerNote(customerId, payload) {
+  return request(`/api/admin/customers/${customerId}/notes`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function fetchAdminCustomerNoteNotifications() {
+  return request('/api/admin/customer-note-notifications');
+}
+
+export function markAdminCustomerNoteNotificationsRead(payload = {}) {
+  return request('/api/admin/customer-note-notifications/read', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
 }
 
 export function createAdminCustomer(payload) {
@@ -763,6 +799,14 @@ export function updateAdminFulfillmentStatus(orderReference, fulfillmentStatus, 
 
 export function updateAdminPartialFulfillment(orderReference, payload) {
   return request(`/api/admin/orders/${orderReference}/partial-fulfillment`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function undoAdminPartialFulfillment(orderReference, payload) {
+  return request(`/api/admin/orders/${orderReference}/partial-fulfillment/undo`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
