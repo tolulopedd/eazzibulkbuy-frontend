@@ -212,6 +212,30 @@ Thank you
 Titilayo
 EazziBulkBuy.`;
 
+const DEFAULT_DELIVERY_EMAIL_BODY = `Hello {{name}},
+
+
+Your paid order is now ready for delivery coordination.
+
+
+Order reference: {{orderReference}}
+Items: {{items}}
+
+
+Dispatch / meeting address: {{address}}
+Date: {{readyDate}}
+Time: {{timeWindow}}
+
+
+{{additionalInstructions}}
+
+
+Please watch for further coordination from our team if needed.
+
+
+Regards,
+EazziBulkBuy.`;
+
 const DEFAULT_TEMPLATE_FORM = {
   name: '',
   templateType: 'PICKUP_NOTICE',
@@ -234,11 +258,31 @@ function getTemplateDefaults(templateType) {
     };
   }
 
+  if (templateType === 'DELIVERY_NOTICE') {
+    return {
+      timeWindow: '2:00 PM - 5:00 PM',
+      emailSubject: 'Your order is ready for delivery',
+      emailBody: DEFAULT_DELIVERY_EMAIL_BODY,
+    };
+  }
+
   return {
     timeWindow: '2:00 PM - 5:00 PM',
     emailSubject: 'Your order is ready for pickup',
     emailBody: DEFAULT_PICKUP_EMAIL_BODY,
   };
+}
+
+function getTemplateTypeLabel(templateType) {
+  if (templateType === 'PICKUP_REMINDER') return 'Pickup reminder';
+  if (templateType === 'DELIVERY_NOTICE') return 'Delivery notice';
+  return 'Pickup notice';
+}
+
+function getTemplateTypeTone(templateType) {
+  if (templateType === 'PICKUP_REMINDER') return 'warning';
+  if (templateType === 'DELIVERY_NOTICE') return 'neutral';
+  return 'success';
 }
 
 const HOUR_OPTIONS = Array.from({ length: 12 }, (_, index) => String(index + 1));
@@ -495,6 +539,7 @@ function PickupNoticeTemplateManager({
           >
             <option value="PICKUP_NOTICE">Pickup notice</option>
             <option value="PICKUP_REMINDER">Pickup reminder</option>
+            <option value="DELIVERY_NOTICE">Delivery notice</option>
           </select>
         </div>
         <div className={ui.fieldWrap}>
@@ -575,7 +620,7 @@ function PickupNoticeTemplateManager({
               return (
                 <tr key={template.id} className={ui.tableRow}>
                   <td className={ui.tableCell}>
-                    <AdminStatusBadge value={template.templateType === 'PICKUP_REMINDER' ? 'Pickup reminder' : 'Pickup notice'} tone={template.templateType === 'PICKUP_REMINDER' ? 'warning' : 'success'} />
+                    <AdminStatusBadge value={getTemplateTypeLabel(template.templateType)} tone={getTemplateTypeTone(template.templateType)} />
                   </td>
                   <td className={ui.tableCell}>
                     {isEditing ? (
@@ -696,6 +741,7 @@ function PickupNoticeTemplateManager({
                 >
                   <option value="PICKUP_NOTICE">Pickup notice</option>
                   <option value="PICKUP_REMINDER">Pickup reminder</option>
+                  <option value="DELIVERY_NOTICE">Delivery notice</option>
                 </select>
               </div>
               <div className={ui.fieldWrap}>
@@ -866,6 +912,7 @@ function PickupAllocationPanel({
   onLoadPendingSummary,
   onPreview,
   onSend,
+  fulfillmentMethod = 'PICKUP',
 }) {
   const [filters, setFilters] = useState(DEFAULT_ALLOCATION_FILTERS);
   const [stockRows, setStockRows] = useState([createAllocationStockRow()]);
@@ -878,7 +925,11 @@ function PickupAllocationPanel({
   const [sending, setSending] = useState(false);
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
-  const activeTemplates = templates.filter((template) => template.isActive !== false && (template.templateType || 'PICKUP_NOTICE') === 'PICKUP_NOTICE');
+  const isDeliveryAllocation = fulfillmentMethod === 'DELIVERY';
+  const allocationTitle = isDeliveryAllocation ? 'Delivery Allocation' : 'Pickup Allocation';
+  const locationLabel = isDeliveryAllocation ? 'Delivery location' : 'Pickup location';
+  const templateType = isDeliveryAllocation ? 'DELIVERY_NOTICE' : 'PICKUP_NOTICE';
+  const activeTemplates = templates.filter((template) => template.isActive !== false && (template.templateType || 'PICKUP_NOTICE') === templateType);
   const pickupLocationOptions = pickupLocations
     .filter((location) => location.isActive !== false)
     .map((location) => location.name)
@@ -960,6 +1011,7 @@ function PickupAllocationPanel({
           batchNumber: filters.batchNumber.trim(),
           location: filters.location,
           noticeStatus: filters.noticeStatus,
+          fulfillmentMethod,
         });
         if (mounted) {
           setPendingSummaryItems(response.items || []);
@@ -979,7 +1031,7 @@ function PickupAllocationPanel({
       mounted = false;
       window.clearTimeout(timer);
     };
-  }, [filters.startDate, filters.endDate, filters.q, filters.batchNumber, filters.location, filters.noticeStatus, onLoadPendingSummary]);
+  }, [filters.startDate, filters.endDate, filters.q, filters.batchNumber, filters.location, filters.noticeStatus, fulfillmentMethod, onLoadPendingSummary]);
 
   function updateStockRow(rowId, patch) {
     setStockRows((current) => current.map((row) => (row.id === rowId ? { ...row, ...patch } : row)));
@@ -1021,6 +1073,7 @@ function PickupAllocationPanel({
           batchNumber: filters.batchNumber.trim(),
           location: filters.location,
           noticeStatus: filters.noticeStatus,
+          fulfillmentMethod,
         },
       });
       setPreview(result);
@@ -1060,7 +1113,7 @@ function PickupAllocationPanel({
         channels: ['EMAIL'],
         templateId: selectedTemplateId,
       });
-      setStatus(result.message || 'Pickup notices sent successfully.');
+      setStatus(result.message || `${allocationTitle} notices sent successfully.`);
       setPreview(null);
       setSelectedOrders([]);
     } catch (err) {
@@ -1111,7 +1164,7 @@ function PickupAllocationPanel({
     <section className={ui.card}>
       <div className="space-y-5">
         <div className="space-y-2">
-          <h1 className="text-2xl font-bold tracking-tight text-emerald-950">Pickup Allocation</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-emerald-950">{allocationTitle}</h1>
         </div>
 
         {status ? <p className={ui.success}>{status}</p> : null}
@@ -1135,7 +1188,7 @@ function PickupAllocationPanel({
               />
             </div>
             <div className={ui.fieldWrap}>
-              <label className={ui.label}>Pickup location</label>
+              <label className={ui.label}>{locationLabel}</label>
               <select className={ui.select} value={filters.location} onChange={(event) => setFilters((current) => ({ ...current, location: event.target.value }))}>
                 <option value="">All Location</option>
                 <option value={LOCATION_NOT_SET_FILTER}>Location Not Set</option>
@@ -1155,7 +1208,7 @@ function PickupAllocationPanel({
             <div className={`${ui.fieldWrap} md:col-span-2`}>
               <label className={ui.label}>Template</label>
               <select className={ui.select} value={selectedTemplateId} onChange={(event) => setSelectedTemplateId(event.target.value)}>
-                <option value="">Select template</option>
+                <option value="">Select {isDeliveryAllocation ? 'delivery' : 'pickup'} template</option>
                 {activeTemplates.map((template) => (
                   <option key={template.id} value={template.id}>{template.name}</option>
                 ))}
@@ -1316,34 +1369,47 @@ function GeneralNoticesPanel({
   const [query, setQuery] = useState('');
   const [customers, setCustomers] = useState([]);
   const [selectedCustomers, setSelectedCustomers] = useState([]);
+  const [selectAllCustomers, setSelectAllCustomers] = useState(false);
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState(defaultGeneralNoticeMessage);
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
   const [status, setStatus] = useState('');
+  const customerSearchRequestRef = useRef(0);
 
-  async function searchCustomers() {
+  async function searchCustomers(searchTerm = query) {
+    const requestId = customerSearchRequestRef.current + 1;
+    customerSearchRequestRef.current = requestId;
     setLoading(true);
     setError('');
     setStatus('');
     try {
       const response = await onLoadCustomers({
-        q: query.trim(),
+        q: searchTerm.trim(),
         page: 1,
         limit: 25,
         sortBy: 'updatedAt',
         sortOrder: 'desc',
       });
+      if (requestId !== customerSearchRequestRef.current) {
+        return;
+      }
       setCustomers(response.items || []);
+      setSelectAllCustomers(false);
     } catch (err) {
-      setError(err.message || 'Unable to load customers right now.');
+      if (requestId === customerSearchRequestRef.current) {
+        setError(err.message || 'Unable to load customers right now.');
+      }
     } finally {
-      setLoading(false);
+      if (requestId === customerSearchRequestRef.current) {
+        setLoading(false);
+      }
     }
   }
 
   function toggleCustomer(customer) {
+    setSelectAllCustomers(false);
     setSelectedCustomers((current) => (
       current.some((entry) => entry.id === customer.id)
         ? current.filter((entry) => entry.id !== customer.id)
@@ -1351,8 +1417,15 @@ function GeneralNoticesPanel({
     ));
   }
 
-  function selectVisibleCustomers() {
+  function toggleVisibleCustomers(event) {
+    const checked = event.target.checked;
+    setSelectAllCustomers(false);
     setSelectedCustomers((current) => {
+      if (!checked) {
+        const visibleIds = new Set(customers.map((customer) => customer.id));
+        return current.filter((customer) => !visibleIds.has(customer.id));
+      }
+
       const next = [...current];
       for (const customer of customers) {
         if (!next.some((entry) => entry.id === customer.id)) {
@@ -1363,8 +1436,16 @@ function GeneralNoticesPanel({
     });
   }
 
+  function toggleAllCustomersForNotice(event) {
+    const checked = event.target.checked;
+    setSelectAllCustomers(checked);
+    if (checked) {
+      setSelectedCustomers([]);
+    }
+  }
+
   async function sendNotice() {
-    if (!selectedCustomers.length || !subject.trim() || !message.trim()) {
+    if ((!selectedCustomers.length && !selectAllCustomers) || !subject.trim() || !message.trim()) {
       return;
     }
 
@@ -1373,7 +1454,9 @@ function GeneralNoticesPanel({
     setStatus('');
     try {
       const result = await onSendGeneralNotices({
-        customerIds: selectedCustomers.map((customer) => customer.id),
+        customerIds: selectAllCustomers ? [] : selectedCustomers.map((customer) => customer.id),
+        selectAllMatching: selectAllCustomers,
+        q: selectAllCustomers ? '' : query.trim(),
         subject: subject.trim(),
         message: message.trim(),
       });
@@ -1386,10 +1469,20 @@ function GeneralNoticesPanel({
   }
 
   useEffect(() => {
-    searchCustomers();
-  }, []);
+    const timer = window.setTimeout(() => {
+      searchCustomers(query);
+    }, 300);
 
-  const canSend = selectedCustomers.length > 0 && subject.trim() && message.trim();
+    return () => window.clearTimeout(timer);
+  }, [query]);
+
+  const canSend = (selectedCustomers.length > 0 || selectAllCustomers) && subject.trim() && message.trim();
+  const selectedLabel = selectAllCustomers
+    ? 'All customers selected'
+    : `${selectedCustomers.length.toLocaleString()} selected`;
+  const visibleCustomersSelected = customers.length > 0 && customers.every((customer) => (
+    selectedCustomers.some((entry) => entry.id === customer.id)
+  ));
 
   return (
     <section className={ui.card}>
@@ -1417,13 +1510,29 @@ function GeneralNoticesPanel({
               placeholder="Name, email, phone"
             />
           </div>
-          <div className="flex items-end gap-3">
+          <div className="flex flex-wrap items-end gap-3">
             <button type="button" className={ui.buttonGhost} onClick={searchCustomers} disabled={loading}>
               {loading ? 'Searching...' : 'Search'}
             </button>
-            <button type="button" className={ui.buttonGhost} onClick={selectVisibleCustomers} disabled={!customers.length}>
+            <label className={`flex min-h-[3rem] items-center gap-3 rounded-full border border-[#deded4] bg-white px-5 py-2 text-base font-semibold text-slate-800 shadow-sm ${!customers.length ? 'cursor-not-allowed opacity-60' : ''}`}>
+              <input
+                type="checkbox"
+                checked={visibleCustomersSelected}
+                onChange={toggleVisibleCustomers}
+                disabled={!customers.length}
+                className="h-5 w-5 accent-emerald-500 disabled:cursor-not-allowed"
+              />
               Select visible
-            </button>
+            </label>
+            <label className="flex min-h-[3rem] items-center gap-3 rounded-full border border-[#deded4] bg-white px-5 py-2 text-base font-semibold text-slate-800 shadow-sm">
+              <input
+                type="checkbox"
+                checked={selectAllCustomers}
+                onChange={toggleAllCustomersForNotice}
+                className="h-5 w-5 accent-emerald-500"
+              />
+              All Customer
+            </label>
           </div>
         </div>
 
@@ -1466,11 +1575,15 @@ function GeneralNoticesPanel({
             <div className="flex items-center justify-between gap-3">
               <h2 className="text-lg font-bold text-emerald-950">Notice</h2>
               <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-800">
-                {selectedCustomers.length} selected
+                {selectedLabel}
               </span>
             </div>
 
-            {selectedCustomers.length ? (
+            {selectAllCustomers ? (
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-900">
+                All customers will receive this notice.
+              </div>
+            ) : selectedCustomers.length ? (
               <div className="max-h-28 overflow-y-auto rounded-2xl border border-[#deded4] bg-white p-2">
                 {selectedCustomers.map((customer) => (
                   <div key={customer.id} className="flex items-center justify-between gap-3 rounded-xl px-3 py-2 text-sm font-semibold text-slate-700">
@@ -1759,13 +1872,17 @@ export default function AdminPickupNoticesPanel({
 	          <PickupNoticeTabIcon type="general" />
 	          General Notices
 	        </button>
-	        <button type="button" className={tabButtonClass('allocation')} onClick={() => switchTab('allocation')}>
-	          <PickupNoticeTabIcon type="allocation" />
-	          Pickup Allocation
-        </button>
-	        <button type="button" className={tabButtonClass('templates')} onClick={() => switchTab('templates')}>
-	          <PickupNoticeTabIcon type="templates" />
-	          Templates
+        <button type="button" className={tabButtonClass('allocation')} onClick={() => switchTab('allocation')}>
+          <PickupNoticeTabIcon type="allocation" />
+          Pickup Allocation
+	        </button>
+        <button type="button" className={tabButtonClass('delivery-allocation')} onClick={() => switchTab('delivery-allocation')}>
+          <PickupNoticeTabIcon type="allocation" />
+          Delivery Allocation
+	        </button>
+        <button type="button" className={tabButtonClass('templates')} onClick={() => switchTab('templates')}>
+          <PickupNoticeTabIcon type="templates" />
+          Templates
 	        </button>
 	        <button type="button" className={tabButtonClass('locations')} onClick={() => switchTab('locations')}>
 	          <PickupNoticeTabIcon type="locations" />
@@ -1804,11 +1921,22 @@ export default function AdminPickupNoticesPanel({
 	          pickupLocations={pickupLocations}
 	          produceOptions={produceOptions}
 	          salesEventOptions={salesEventOptions}
-	          onLoadPendingSummary={onLoadPickupAllocationPendingSummary}
-	          onPreview={onPreviewPickupAllocation}
-	          onSend={onSendPickupNotices}
-	        />
-	      ) : (
+          onLoadPendingSummary={onLoadPickupAllocationPendingSummary}
+          onPreview={onPreviewPickupAllocation}
+          onSend={onSendPickupNotices}
+        />
+      ) : activeTab === 'delivery-allocation' ? (
+        <PickupAllocationPanel
+          templates={templates}
+          pickupLocations={pickupLocations}
+          produceOptions={produceOptions}
+          salesEventOptions={salesEventOptions}
+          onLoadPendingSummary={onLoadPickupAllocationPendingSummary}
+          onPreview={onPreviewPickupAllocation}
+          onSend={onSendPickupNotices}
+          fulfillmentMethod="DELIVERY"
+        />
+      ) : (
       <section className={ui.card}>
         <div className="space-y-5">
           <div className="space-y-2">

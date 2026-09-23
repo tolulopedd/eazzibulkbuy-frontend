@@ -278,6 +278,7 @@ export default function AdminDashboard({
   const [salesItems, setSalesItems] = useState([]);
   const [allocationSalesItems, setAllocationSalesItems] = useState([]);
   const [loadingReports, setLoadingReports] = useState(false);
+  const [reportPanelFilters, setReportPanelFilters] = useState(null);
   const [loadingSalesItems, setLoadingSalesItems] = useState(false);
   const [reportError, setReportError] = useState('');
   const [salesItemError, setSalesItemError] = useState('');
@@ -425,6 +426,24 @@ export default function AdminDashboard({
     } finally {
       setLoadingReports(false);
     }
+  }
+
+  async function openPendingFulfillmentReport(query = {}) {
+    const nextQuery = {
+      reportType: 'pendingFulfillment',
+      ...query,
+    };
+    setReportPanelFilters(nextQuery);
+    setActiveModule('reports');
+    await loadReports(nextQuery);
+  }
+
+  function selectModule(moduleId) {
+    if (moduleId === 'overview') {
+      setReportPanelFilters(null);
+      loadReports();
+    }
+    setActiveModule(moduleId);
   }
 
   async function loadSalesItems(nextQuery = salesQuery) {
@@ -712,7 +731,15 @@ export default function AdminDashboard({
     }
 
     if (activeModule === 'reports') {
-      return <AdminReportsPanel reports={reports} reportError={reportError} loadingReports={loadingReports} onRefreshReports={loadReports} />;
+      return (
+        <AdminReportsPanel
+          reports={reports}
+          reportError={reportError}
+          loadingReports={loadingReports}
+          onRefreshReports={loadReports}
+          initialFilters={reportPanelFilters}
+        />
+      );
     }
 
     if (activeModule === 'payments') {
@@ -855,7 +882,15 @@ export default function AdminDashboard({
 
     if (activeModule === 'logistics') return renderLogisticsModule();
 
-    return <AdminOverviewPanel reports={reports} reportError={reportError} loadingReports={loadingReports} activeSalesSummary={activeSalesSummary} />;
+    return (
+      <AdminOverviewPanel
+        reports={reports}
+        reportError={reportError}
+        loadingReports={loadingReports}
+        activeSalesSummary={activeSalesSummary}
+        onOpenPendingFulfillmentReport={openPendingFulfillmentReport}
+      />
+    );
   }
 
   const profileName = currentAdmin?.email?.split('@')[0]?.replace(/[._-]+/g, ' ') || 'Admin User';
@@ -938,7 +973,7 @@ export default function AdminDashboard({
                     <button
                       key={module.id}
                       type="button"
-                      onClick={() => setActiveModule(module.id)}
+                      onClick={() => selectModule(module.id)}
                       className={cx(
                         'flex w-full items-center gap-3 rounded-full px-4 py-3 text-left text-[1rem] font-semibold transition',
                         active ? 'bg-[#d7f7ee] text-[#139978]' : 'text-[#4e544d] hover:bg-[#f6f7f2] hover:text-[#171a16]',
@@ -971,7 +1006,7 @@ export default function AdminDashboard({
                       <button
                         key={module.id}
                         type="button"
-                        onClick={() => setActiveModule(module.id)}
+                        onClick={() => selectModule(module.id)}
                         className={cx(
                           'flex w-full items-center gap-3 rounded-full px-4 py-3 text-left text-[1rem] font-semibold transition',
                           active ? 'bg-[#d7f7ee] text-[#139978]' : 'text-[#4e544d] hover:bg-[#f6f7f2] hover:text-[#171a16]',

@@ -173,6 +173,7 @@ export function fetchAdminPickupAllocationPendingSummary(params = {}) {
   if (params.batchNumber) search.set('batchNumber', params.batchNumber);
   if (params.location) search.set('location', params.location);
   if (params.noticeStatus) search.set('noticeStatus', params.noticeStatus);
+  if (params.fulfillmentMethod) search.set('fulfillmentMethod', params.fulfillmentMethod);
 
   const suffix = search.toString() ? `?${search.toString()}` : '';
   return request(`/api/admin/pickup-notices/allocation-pending-summary${suffix}`);

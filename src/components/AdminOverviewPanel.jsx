@@ -11,6 +11,10 @@ function formatCad(cents) {
   }).format((cents || 0) / 100);
 }
 
+function formatNumber(value) {
+  return new Intl.NumberFormat('en-CA').format(Number(value) || 0);
+}
+
 function formatTimestamp(value) {
   if (!value) return '—';
   return new Date(value).toLocaleString(undefined, {
@@ -136,7 +140,7 @@ function MiniBarRow({ label, value, total, tone = 'mint' }) {
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-3 text-sm">
         <span className="font-semibold text-[#21251f]">{label}</span>
-        <span className="text-[#5f665d]">{value}</span>
+        <span className="text-[#5f665d]">{formatNumber(value)}</span>
       </div>
       <div className="h-2.5 rounded-full bg-[#eceee7]">
         <div className={`h-2.5 rounded-full ${toneClass}`} style={{ width: `${Math.max(percent, value > 0 ? 8 : 0)}%` }} />
@@ -145,8 +149,11 @@ function MiniBarRow({ label, value, total, tone = 'mint' }) {
   );
 }
 
-function FulfillmentLocationAnalytics({ rows }) {
+function FulfillmentLocationAnalytics({ rows, onOpenPendingFulfillmentReport }) {
   const locations = rows || [];
+  const locationRows = locations.filter((row) => row.location !== 'Delivery');
+  const deliveryRows = locations.filter((row) => row.location === 'Delivery');
+  const displayRows = [...locationRows, ...deliveryRows];
 
   if (!locations.length) {
     return <p className={ui.note}>No data.</p>;
@@ -163,6 +170,43 @@ function FulfillmentLocationAnalytics({ rows }) {
     return 'border-red-200 bg-red-50 text-red-700';
   }
 
+  function getDashboardLocationLabel(value) {
+    const normalized = String(value || '').trim().toLowerCase();
+    if (normalized.includes('st. vital') || normalized.includes('dakota')) {
+      return 'Dakota';
+    }
+    if (normalized.includes('east kildonan') || normalized.includes('munroe')) {
+      return 'Kildonan';
+    }
+    return value;
+  }
+
+  function getReportLocationFilter(value) {
+    const normalized = String(value || '').trim().toLowerCase();
+    if (normalized.includes('st. vital') || normalized.includes('dakota')) {
+      return 'Dakota';
+    }
+    if (normalized.includes('east kildonan') || normalized.includes('munroe')) {
+      return 'Kildonan';
+    }
+    return value;
+  }
+
+  const totals = locations.reduce((current, row) => ({
+    totalOrders: current.totalOrders + (Number(row.totalOrders) || 0),
+    pendingItems: current.pendingItems + (Number(row.pendingItems) || 0),
+    fulfilledItems: current.fulfilledItems + (Number(row.fulfilledItems) || 0),
+    totalItems: current.totalItems + (Number(row.totalItems) || 0),
+  }), {
+    totalOrders: 0,
+    pendingItems: 0,
+    fulfilledItems: 0,
+    totalItems: 0,
+  });
+  const totalPercentageFulfilled = totals.totalItems > 0
+    ? (totals.fulfilledItems / totals.totalItems) * 100
+    : 0;
+
   return (
     <div className="overflow-x-auto">
       <table className={`${ui.table} min-w-[820px]`}>
@@ -177,18 +221,43 @@ function FulfillmentLocationAnalytics({ rows }) {
           </tr>
         </thead>
         <tbody>
-          {locations.map((row) => {
+          {displayRows.map((row) => {
+            const isDelivery = row.location === 'Delivery';
+            const canDrillDown = typeof onOpenPendingFulfillmentReport === 'function';
+            const openDrillDown = () => {
+              if (!canDrillDown) return;
+              onOpenPendingFulfillmentReport({
+                fulfillmentMethod: isDelivery ? 'DELIVERY' : 'PICKUP',
+                fulfillmentStatus: isDelivery ? 'PENDING_DELIVERY' : 'PENDING_PICKUP',
+                pickupLocation: isDelivery ? '' : getReportLocationFilter(row.location),
+              });
+            };
             return (
-              <tr key={row.location} className={ui.tableRow}>
-                <td className={`${ui.tableCell} max-w-[18rem] font-semibold text-[#171a16]`}>
-                  <span className="block truncate" title={row.location}>{row.location}</span>
+              <tr
+                key={row.location}
+                className={`${ui.tableRow} ${isDelivery ? 'bg-sky-50/70' : ''} ${canDrillDown ? 'cursor-pointer transition hover:bg-emerald-50/70' : ''}`}
+                onClick={openDrillDown}
+              >
+                <td className={`${ui.tableCell} max-w-[18rem] font-semibold ${isDelivery ? 'text-sky-900' : 'text-[#171a16]'}`}>
+                  <button
+                    type="button"
+                    className={`${canDrillDown ? 'underline decoration-emerald-300 underline-offset-4 hover:text-emerald-700' : ''} block truncate text-left`}
+                    title={row.location}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      openDrillDown();
+                    }}
+                    disabled={!canDrillDown}
+                  >
+                    {getDashboardLocationLabel(row.location)}
+                  </button>
                 </td>
                 <td className={ui.tableCell}>
-                  <span className="font-bold text-slate-900">{row.totalOrders || 0}</span>
+                  <span className="font-bold text-slate-900">{formatNumber(row.totalOrders)}</span>
                 </td>
-                <td className={ui.tableCell}>{row.pendingItems || 0}</td>
-                <td className={ui.tableCell}>{row.fulfilledItems || 0}</td>
-                <td className={ui.tableCell}>{row.totalItems || 0}</td>
+                <td className={ui.tableCell}>{formatNumber(row.pendingItems)}</td>
+                <td className={ui.tableCell}>{formatNumber(row.fulfilledItems)}</td>
+                <td className={ui.tableCell}>{formatNumber(row.totalItems)}</td>
                 <td className={ui.tableCell}>
                   <span className={`inline-flex rounded-full border px-3 py-1 text-sm font-bold ${getPercentageBadgeClass(row.percentageFulfilled)}`}>
                     {Number(row.percentageFulfilled || 0).toFixed(1)}%
@@ -197,6 +266,20 @@ function FulfillmentLocationAnalytics({ rows }) {
               </tr>
             );
           })}
+          <tr className={`${ui.tableRow} bg-emerald-50/50 font-bold`}>
+            <td className={`${ui.tableCell} max-w-[18rem] text-emerald-950`}>Total</td>
+            <td className={ui.tableCell}>
+              <span className="font-bold text-slate-900">{formatNumber(totals.totalOrders)}</span>
+            </td>
+            <td className={ui.tableCell}>{formatNumber(totals.pendingItems)}</td>
+            <td className={ui.tableCell}>{formatNumber(totals.fulfilledItems)}</td>
+            <td className={ui.tableCell}>{formatNumber(totals.totalItems)}</td>
+            <td className={ui.tableCell}>
+              <span className={`inline-flex rounded-full border px-3 py-1 text-sm font-bold ${getPercentageBadgeClass(totalPercentageFulfilled)}`}>
+                {Number(totalPercentageFulfilled || 0).toFixed(1)}%
+              </span>
+            </td>
+          </tr>
         </tbody>
       </table>
     </div>
@@ -244,7 +327,7 @@ function TrendChart({ data }) {
               <g key={`grid-${index}`}>
                 <line x1={leftPadding} y1={y} x2={chartWidth - rightPadding} y2={y} stroke="#e7e8df" strokeWidth="1" />
                 <text x={leftPadding - 8} y={y + 4} textAnchor="end" fontSize="11" fill="#7a7f75">
-                  {value}
+                  {formatNumber(value)}
                 </text>
               </g>
             );
@@ -290,7 +373,7 @@ function TrendChart({ data }) {
                   fontWeight="700"
                   fill="#47d0c0"
                 >
-                  {item.normalPaidItems || 0}
+                  {formatNumber(item.normalPaidItems)}
                 </text>
                 <text
                   x={bundleX + barWidth / 2}
@@ -300,7 +383,7 @@ function TrendChart({ data }) {
                   fontWeight="700"
                   fill="#1b1d1a"
                 >
-                  {item.bundlePaidItems || 0}
+                  {formatNumber(item.bundlePaidItems)}
                 </text>
                 <text x={labelX} y={chartHeight - 8} textAnchor="middle" fontSize="12" fontWeight="600" fill="#7a7f75">
                   {item.batchNumber}
@@ -314,7 +397,7 @@ function TrendChart({ data }) {
   );
 }
 
-export default function AdminOverviewPanel({ reports, reportError, loadingReports }) {
+export default function AdminOverviewPanel({ reports, reportError, loadingReports, onOpenPendingFulfillmentReport }) {
   const [now, setNow] = useState(() => new Date());
 
   useEffect(() => {
@@ -353,19 +436,19 @@ export default function AdminOverviewPanel({ reports, reportError, loadingReport
   const metricCards = [
     {
       label: 'Total Orders YTD',
-      value: overview.totalOrdersYtd,
-      sublabel: `${overview.totalOrdersMtd} this month`,
+      value: formatNumber(overview.totalOrdersYtd),
+      sublabel: `${formatNumber(overview.totalOrdersMtd)} this month`,
       progress: overview.totalOrdersYtd > 0 ? (overview.totalOrdersMtd / overview.totalOrdersYtd) * 100 : 0,
     },
     {
       label: 'Paid Orders YTD',
-      value: overview.paidOrdersYtd,
-      sublabel: `${overview.paidOrdersMtd} paid this month`,
+      value: formatNumber(overview.paidOrdersYtd),
+      sublabel: `${formatNumber(overview.paidOrdersMtd)} paid this month`,
       progress: overview.paidOrdersYtd > 0 ? (overview.paidOrdersMtd / overview.paidOrdersYtd) * 100 : 0,
     },
     {
       label: 'Pending Payment',
-      value: overview.pendingPaymentOrders,
+      value: formatNumber(overview.pendingPaymentOrders),
       sublabel: 'Awaiting payment',
       progress: overview.totalOrdersYtd > 0 ? (overview.pendingPaymentOrders / overview.totalOrdersYtd) * 100 : 0,
     },
@@ -391,10 +474,10 @@ export default function AdminOverviewPanel({ reports, reportError, loadingReport
       </div>
 
       <SectionCard
-        title="Fulfilment by location"
+        title="Fulfilment by location/delivery"
         aside={<span className="text-sm font-medium text-[#6c7268]">Paid orders</span>}
       >
-        <FulfillmentLocationAnalytics rows={fulfillmentByLocation} />
+        <FulfillmentLocationAnalytics rows={fulfillmentByLocation} onOpenPendingFulfillmentReport={onOpenPendingFulfillmentReport} />
       </SectionCard>
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.55fr)_420px]">
@@ -468,7 +551,7 @@ export default function AdminOverviewPanel({ reports, reportError, loadingReport
               </div>
               <div className={ui.metricCard}>
                 <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#6f756b]">Sales events YTD</p>
-                <h3 className="mt-2 text-[1.9rem] font-bold text-[#171a16]">{overview.salesEventsYtd}</h3>
+                <h3 className="mt-2 text-[1.9rem] font-bold text-[#171a16]">{formatNumber(overview.salesEventsYtd)}</h3>
               </div>
             </div>
             <div className="space-y-4">

@@ -24,6 +24,7 @@ const REPORT_OPTIONS = [
   { value: 'fulfilledOrders', label: 'Fulfilled Orders Report' },
   { value: 'fulfillmentByProduct', label: 'Fulfilment by Product' },
   { value: 'allocatedPendingFulfillment', label: 'Allocated Pending Fulfilment' },
+  { value: 'pendingFulfillment', label: 'Pending Fulfilment Report' },
 ];
 
 function formatDisplayDate(value) {
@@ -55,6 +56,33 @@ function buildReportExportFileName(label) {
     .replace(/^-+|-+$/g, '');
   const dateStamp = new Date().toISOString().slice(0, 10);
   return `${safeLabel || 'report'}-${dateStamp}`;
+}
+
+function isoToDateInputValue(value) {
+  if (!value) {
+    return '';
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+
+  return formatDateInputValue(date);
+}
+
+function mergeReportFilters(current, next = {}) {
+  return {
+    ...current,
+    startDate: next.startDate ? isoToDateInputValue(next.startDate) : '',
+    endDate: next.endDate ? isoToDateInputValue(next.endDate) : '',
+    salesItemId: next.salesItemId || '',
+    batchNumber: next.batchNumber || '',
+    pickupLocation: next.pickupLocation || '',
+    fulfillmentMethod: next.fulfillmentMethod || '',
+    fulfillmentStatus: next.fulfillmentStatus || '',
+    reportType: next.reportType || 'orderReady',
+  };
 }
 
 function DateFilterField({ label, value, onChange, max = formatDateInputValue() }) {
@@ -117,16 +145,98 @@ function ReportTable({ columns, rows, emptyMessage }) {
   );
 }
 
-export default function AdminReportsPanel({ reports, reportError, loadingReports, onRefreshReports }) {
+export default function AdminReportsPanel({ reports, reportError, loadingReports, onRefreshReports, initialFilters }) {
   const [filters, setFilters] = useState(() => createDefaultFilters());
   const [exporting, setExporting] = useState(false);
   const [exportingPdf, setExportingPdf] = useState(false);
   const [exportError, setExportError] = useState('');
   const didInitFiltersRef = useRef(false);
+  const skipNextFilterRefreshRef = useRef(false);
+
+  useEffect(() => {
+    if (!initialFilters) {
+      return;
+    }
+
+    setFilters((current) => {
+      const nextFilters = mergeReportFilters(current, initialFilters);
+      const hasChanged = Object.keys(nextFilters).some((key) => nextFilters[key] !== current[key]);
+      if (!hasChanged) {
+        return current;
+      }
+
+      skipNextFilterRefreshRef.current = true;
+      return nextFilters;
+    });
+  }, [
+    initialFilters?.startDate,
+    initialFilters?.endDate,
+    initialFilters?.salesItemId,
+    initialFilters?.batchNumber,
+    initialFilters?.pickupLocation,
+    initialFilters?.fulfillmentMethod,
+    initialFilters?.fulfillmentStatus,
+    initialFilters?.reportType,
+  ]);
+
+  useEffect(() => {
+    if (!reports?.filters) {
+      return;
+    }
+    if (
+      initialFilters?.reportType &&
+      reports.filters.reportType &&
+      reports.filters.reportType !== initialFilters.reportType
+    ) {
+      return;
+    }
+    if (
+      initialFilters?.pickupLocation &&
+      (reports.filters.pickupLocation || '') !== initialFilters.pickupLocation
+    ) {
+      return;
+    }
+    if (
+      initialFilters?.fulfillmentMethod &&
+      (reports.filters.fulfillmentMethod || '') !== initialFilters.fulfillmentMethod
+    ) {
+      return;
+    }
+    if (
+      initialFilters?.fulfillmentStatus &&
+      (reports.filters.fulfillmentStatus || '') !== initialFilters.fulfillmentStatus
+    ) {
+      return;
+    }
+
+    setFilters((current) => {
+      const nextFilters = mergeReportFilters(current, reports.filters);
+      const hasChanged = Object.keys(nextFilters).some((key) => nextFilters[key] !== current[key]);
+      if (!hasChanged) {
+        return current;
+      }
+
+      skipNextFilterRefreshRef.current = true;
+      return nextFilters;
+    });
+  }, [
+    reports?.filters?.startDate,
+    reports?.filters?.endDate,
+    reports?.filters?.salesItemId,
+    reports?.filters?.batchNumber,
+    reports?.filters?.pickupLocation,
+    reports?.filters?.fulfillmentMethod,
+    reports?.filters?.fulfillmentStatus,
+    reports?.filters?.reportType,
+  ]);
 
   useEffect(() => {
     if (!didInitFiltersRef.current) {
       didInitFiltersRef.current = true;
+      return;
+    }
+    if (skipNextFilterRefreshRef.current) {
+      skipNextFilterRefreshRef.current = false;
       return;
     }
 
@@ -222,6 +332,9 @@ export default function AdminReportsPanel({ reports, reportError, loadingReports
       } else if (activeReportType === 'allocatedPendingFulfillment') {
         columns = allocatedPendingFulfillmentColumns;
         rows = reports?.allocatedPendingFulfillmentRows || [];
+      } else if (activeReportType === 'pendingFulfillment') {
+        columns = pendingFulfillmentColumns;
+        rows = reports?.pendingFulfillmentRows || [];
       } else if (activeReportType === 'fulfillmentByProduct') {
         columns = fulfillmentByProductColumns;
         rows = reports?.fulfillmentByProductRows || [];
@@ -242,13 +355,8 @@ export default function AdminReportsPanel({ reports, reportError, loadingReports
   }
 
   const salesItems = reports?.filterOptions?.salesItems || [];
-  const pickupLocationOptions = [
-    ...new Set([
-      ...(reports?.filterOptions?.pickupLocations || []),
-      ...(reports?.fulfilledOrderRows || []).map((row) => row.preferredPickupLocation),
-    ].filter(Boolean)),
-  ];
-  const activeReportType = reports?.filters?.reportType || filters.reportType;
+  const pickupLocationOptions = ['Sage Creek', 'Dakota', 'Kildonan'];
+  const activeReportType = filters.reportType;
   const activeReportLabel = REPORT_OPTIONS.find((option) => option.value === activeReportType)?.label || 'Reports';
 
   const orderReadyColumns = [
@@ -315,6 +423,8 @@ export default function AdminReportsPanel({ reports, reportError, loadingReports
     { key: 'noticeSentAt', label: 'Notice Sent At', render: (row) => row.noticeSentAt ? new Date(row.noticeSentAt).toLocaleString() : '—' },
   ];
 
+  const pendingFulfillmentColumns = allocatedPendingFulfillmentColumns;
+
   function renderActiveReport() {
     if (!reports) {
       return <p className={ui.note}>{loadingReports ? 'Loading...' : 'No data.'}</p>;
@@ -334,6 +444,10 @@ export default function AdminReportsPanel({ reports, reportError, loadingReports
 
     if (activeReportType === 'allocatedPendingFulfillment') {
       return <ReportTable columns={allocatedPendingFulfillmentColumns} rows={reports.allocatedPendingFulfillmentRows || []} emptyMessage="No rows." />;
+    }
+
+    if (activeReportType === 'pendingFulfillment') {
+      return <ReportTable columns={pendingFulfillmentColumns} rows={reports.pendingFulfillmentRows || []} emptyMessage="No rows." />;
     }
 
     if (activeReportType === 'fulfillmentByProduct') {
