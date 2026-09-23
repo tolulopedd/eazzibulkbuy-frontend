@@ -52,7 +52,7 @@ export default function CustomerFeedbackPage({ onBackHome }) {
     <div className="mx-auto flex min-h-screen w-full max-w-[760px] flex-col justify-center px-4 py-10">
       <section className={`${ui.card} space-y-6`}>
         <div className="flex items-center justify-between gap-4">
-          <BrandLogo className="h-14 w-auto" />
+          <BrandLogo compact imageClassName="w-44 sm:w-52" />
           <button type="button" className={ui.buttonGhost} onClick={onBackHome}>
             Home
           </button>
@@ -97,7 +97,7 @@ export default function CustomerFeedbackPage({ onBackHome }) {
                 rows={7}
                 value={note}
                 onChange={handleNoteChange}
-                placeholder="Write your note or feedback here - not more than 150 words."
+                placeholder="Write your note or feedback here."
                 required
               />
             </div>
