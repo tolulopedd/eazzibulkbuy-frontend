@@ -433,16 +433,16 @@ export default function AdminCustomersPanel({
                       <AdminStatusBadge value={customer.isActive ? 'Active' : 'Inactive'} tone={customer.isActive ? 'success' : 'neutral'} />
                     </td>
                     <td className={`${ui.tableCell} whitespace-nowrap text-right`}>
-                      <div className="flex flex-wrap justify-end gap-2">
+                      <div className="flex flex-nowrap items-center justify-end gap-2">
                         {showStatementTab ? (
-                          <button type="button" className={ui.buttonGhost} onClick={() => handleViewStatement(customer)}>
-                            View statement
-                          </button>
+                          <AdminIconButton label="View customer statement" onClick={() => handleViewStatement(customer)}>
+                            <CustomerTabIcon type="statement" />
+                          </AdminIconButton>
                         ) : null}
                         {showNotesTab ? (
-                          <button type="button" className={ui.buttonGhost} onClick={() => handleViewNotes(customer)}>
-                            Notes
-                          </button>
+                          <AdminIconButton label="View customer notes" onClick={() => handleViewNotes(customer)}>
+                            <CustomerTabIcon type="notes" />
+                          </AdminIconButton>
                         ) : null}
                         <AdminIconButton label="Edit customer" onClick={() => setSelectedCustomer(customer)}>
                           <PencilIcon />

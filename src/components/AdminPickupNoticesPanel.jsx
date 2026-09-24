@@ -1301,7 +1301,7 @@ function PickupAllocationPanel({
                           aria-label={`Select ${suggestion.displayOrderReference}`}
                         />
                       </td>
-                      <td className={`${ui.tableCell} font-semibold text-slate-900`}>{suggestion.displayOrderReference}</td>
+                      <td className={`${ui.tableCell} whitespace-nowrap font-semibold text-slate-900`}>{suggestion.displayOrderReference}</td>
                       <td className={ui.tableCell}>
                         <div className="max-w-[14rem]">
                           <p className="truncate font-medium text-slate-900">{suggestion.buyerName}</p>
@@ -2044,8 +2044,8 @@ export default function AdminPickupNoticesPanel({
                           title={noticeDisabled ? 'Fulfilment is already completed.' : undefined}
                         />
                       </td>
-                      <td className={ui.tableCell}>
-                        <div className="max-w-[12rem] space-y-0.5">
+                      <td className={`${ui.tableCell} whitespace-nowrap`}>
+                        <div className="flex items-center gap-2">
                           <p className="font-semibold text-slate-900">{row.displayOrderReference}</p>
                           <p className="text-xs text-slate-500">{formatDate(row.paidAt || row.createdAt)}</p>
                         </div>

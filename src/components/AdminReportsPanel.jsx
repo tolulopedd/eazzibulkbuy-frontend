@@ -119,7 +119,7 @@ function ReportTable({ columns, rows, emptyMessage }) {
         <thead>
           <tr className={ui.tableHeadRow}>
             {columns.map((column) => (
-              <th key={column.key} className={ui.tableHeaderCell}>{column.label}</th>
+              <th key={column.key} className={`${ui.tableHeaderCell} ${column.key === 'displayOrderReference' ? 'whitespace-nowrap' : ''}`}>{column.label}</th>
             ))}
           </tr>
         </thead>
@@ -128,7 +128,7 @@ function ReportTable({ columns, rows, emptyMessage }) {
             rows.map((row, index) => (
               <tr key={row.id || row.displayOrderReference || `${index}`} className={ui.tableRow}>
                 {columns.map((column) => (
-                  <td key={column.key} className={ui.tableCell}>
+                  <td key={column.key} className={`${ui.tableCell} ${column.key === 'displayOrderReference' ? 'whitespace-nowrap' : ''}`}>
                     {column.render ? column.render(row) : row[column.key] ?? '—'}
                   </td>
                 ))}

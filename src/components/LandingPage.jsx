@@ -150,18 +150,45 @@ const flowSteps = [
   },
 ];
 
+const countWordsBelowTwenty = [
+  'zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine',
+  'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen',
+  'seventeen', 'eighteen', 'nineteen',
+];
+const countTensWords = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
+
+function countToWords(count) {
+  if (count < 20) return countWordsBelowTwenty[count];
+  if (count < 100) {
+    const remainder = count % 10;
+    return `${countTensWords[Math.floor(count / 10)]}${remainder ? `-${countWordsBelowTwenty[remainder]}` : ''}`;
+  }
+  if (count < 1000) {
+    const remainder = count % 100;
+    return `${countWordsBelowTwenty[Math.floor(count / 100)]} hundred${remainder ? ` ${countToWords(remainder)}` : ''}`;
+  }
+  return String(count);
+}
+
+function openSalesEventMessage(count) {
+  const countWord = countToWords(count);
+  const capitalizedCount = `${countWord.charAt(0).toUpperCase()}${countWord.slice(1)}`;
+  return `${capitalizedCount} bulk sales event${count === 1 ? '' : 's'} ${count === 1 ? 'is' : 'are'} currently open.`;
+}
+
 function getCountdownParts(targetDate, nowMs) {
   const diff = new Date(targetDate).getTime() - nowMs;
   if (diff <= 0) {
     return null;
   }
 
-  const totalMinutes = Math.floor(diff / 60000);
-  const days = Math.floor(totalMinutes / 1440);
-  const hours = Math.floor((totalMinutes % 1440) / 60);
-  const minutes = totalMinutes % 60;
+  const totalSeconds = Math.floor(diff / 1000);
+  const days = Math.floor(totalSeconds / 86400);
+  const hours = Math.floor((totalSeconds % 86400) / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
 
-  return { days, hours, minutes };
+  return { days, hours, minutes, seconds };
 }
 
 function ImpactImage({ item }) {
@@ -377,24 +404,64 @@ function CountdownDisplay({ countdown, emptyLabel = 'No active countdown', empty
     );
   }
 
+  const seconds = countdown.seconds || 0;
+  const minuteProgress = ((countdown.minutes * 60) + seconds) / 3600;
+  const clockFill = Math.max(4, Math.round(minuteProgress * 100));
+  const hourRotation = ((countdown.hours % 12) * 30) + (countdown.minutes * 0.5);
+  const minuteRotation = (countdown.minutes * 6) + (seconds * 0.1);
+  const secondRotation = seconds * 6;
   const segments = [
     { label: 'Days', value: String(countdown.days).padStart(2, '0') },
     { label: 'Hours', value: String(countdown.hours).padStart(2, '0') },
-    { label: 'Minutes', value: String(countdown.minutes).padStart(2, '0') },
+    { label: 'Mins', value: String(countdown.minutes).padStart(2, '0') },
   ];
 
   return (
     <article className={`rounded-[24px] border p-4 shadow-[0_8px_20px_rgba(16,24,40,0.04)] backdrop-blur-[2px] ${accentClasses.card}`}>
-      <p className={`text-[11px] font-bold uppercase tracking-[0.12em] ${accentClasses.label}`}>Next sales closes</p>
+      <p className={`text-center text-[11px] font-bold uppercase tracking-[0.12em] ${accentClasses.label}`}>Next sales closes</p>
+      <div className="mt-3 flex flex-col items-center">
+        <div className="relative flex h-24 w-24 shrink-0 items-center justify-center rounded-full border border-amber-200 bg-white shadow-[0_12px_28px_rgba(146,89,18,0.14)]">
+          <div
+            className="absolute inset-2 rounded-full"
+            style={{ background: `conic-gradient(#f59e0b ${clockFill}%, #fff7ed ${clockFill}% 100%)` }}
+            aria-hidden="true"
+          />
+          <div className="absolute inset-4 rounded-full bg-white shadow-inner" aria-hidden="true" />
+          {[0, 1, 2, 3].map((tick) => (
+            <span
+              key={tick}
+              className="absolute left-1/2 top-1/2 h-1.5 w-1.5 rounded-full bg-amber-400"
+              style={{ transform: `rotate(${tick * 90}deg) translateY(-2.15rem)` }}
+              aria-hidden="true"
+            />
+          ))}
+          <span
+            className="absolute left-1/2 top-1/2 z-10 h-7 w-1 origin-bottom rounded-full bg-emerald-950 transition-transform duration-300"
+            style={{ transform: `translate(-50%, -100%) rotate(${hourRotation}deg)` }}
+            aria-hidden="true"
+          />
+          <span
+            className="absolute left-1/2 top-1/2 z-10 h-8 w-0.5 origin-bottom rounded-full bg-emerald-700 transition-transform duration-300"
+            style={{ transform: `translate(-50%, -100%) rotate(${minuteRotation}deg)` }}
+            aria-hidden="true"
+          />
+          <span
+            className="absolute left-1/2 top-1/2 z-20 h-9 w-px origin-bottom rounded-full bg-orange-600 transition-transform duration-300"
+            style={{ transform: `translate(-50%, -100%) rotate(${secondRotation}deg)` }}
+            aria-hidden="true"
+          />
+          <span className="absolute left-1/2 top-1/2 z-30 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-orange-600 shadow" aria-hidden="true" />
+        </div>
+        <p className="mt-3 max-w-[12rem] text-center text-xs font-bold leading-4 text-slate-600">Season Sale Ending Soon! Don’t miss out</p>
+      </div>
       <div className="mt-3 grid grid-cols-3 gap-2">
         {segments.map((segment) => (
-          <div key={segment.label} className={`rounded-2xl border px-3 py-2.5 text-center shadow-[0_6px_16px_rgba(16,24,40,0.04)] ${accentClasses.tile}`}>
-            <p className="text-2xl font-extrabold tracking-tight">{segment.value}</p>
-            <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">{segment.label}</p>
+          <div key={segment.label} className={`rounded-2xl border px-2 py-2.5 text-center shadow-[0_6px_16px_rgba(16,24,40,0.04)] ${accentClasses.tile}`}>
+            <p className="text-xl font-extrabold tracking-tight">{segment.value}</p>
+            <p className="mt-1 text-[9px] font-bold uppercase tracking-[0.12em] text-slate-500">{segment.label}</p>
           </div>
         ))}
       </div>
-      <p className="mt-3 text-sm text-slate-600">Review live items early so you do not miss the current order window.</p>
     </article>
   );
 }
@@ -511,7 +578,7 @@ export default function LandingPage({ onGoShop }) {
   }
 
   const headerLinks = [
-    { label: 'Active Sales', href: '#active-products' },
+    { label: 'Active Bulk Sales', href: '#active-products' },
     { label: 'How it works', href: '#how-it-works' },
     { label: 'Our Produce', href: '#community-impact' },
     { label: 'About us', href: '#about-us' },
@@ -622,7 +689,7 @@ export default function LandingPage({ onGoShop }) {
                       : 'bg-amber-100 text-amber-800 shadow-[0_10px_20px_rgba(180,83,9,0.12)]'
                   }`}
                 >
-                  {hasLiveItems ? 'Active Sales ' : 'No Active Sales '}
+                  {hasLiveItems ? 'Active Bulk Sales ' : 'No Active Bulk Sales '}
                 </span>
               </div>
               <div className="space-y-3">
@@ -641,13 +708,9 @@ export default function LandingPage({ onGoShop }) {
 
             <div className="hidden gap-3 lg:grid sm:grid-cols-3">
               <article className="rounded-[24px] border border-[#dfe7df] bg-[rgba(255,255,255,0.6)] p-4 shadow-[0_8px_20px_rgba(16,24,40,0.04)] backdrop-blur-[2px]">
-                <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-emerald-700">Active Sales</p>
+                <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-emerald-700">Active Bulk Sales</p>
                 <p className="mt-2 text-3xl font-extrabold text-[#171a16]">{activeItems.length}</p>
-                <p className="mt-1 text-sm text-slate-600">
-                  {activeItems.length === 1
-                    ? '1 sales event is currently open.'
-                    : `${activeItems.length} sales events are currently open.`}
-                </p>
+                <p className="mt-1 text-sm text-slate-600">{openSalesEventMessage(activeItems.length)}</p>
               </article>
               <CountdownDisplay
                 countdown={nextClosingCountdown}
@@ -846,11 +909,7 @@ export default function LandingPage({ onGoShop }) {
           <article className="rounded-[24px] border border-[#dfe7df] bg-[rgba(255,255,255,0.6)] p-4 shadow-[0_8px_20px_rgba(16,24,40,0.04)] backdrop-blur-[2px]">
             <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-emerald-700">Live events</p>
             <p className="mt-2 text-3xl font-extrabold text-[#171a16]">{activeItems.length}</p>
-            <p className="mt-1 text-sm text-slate-600">
-              {activeItems.length === 1
-                ? '1 sales event is currently open.'
-                : `${activeItems.length} sales events are currently open.`}
-            </p>
+            <p className="mt-1 text-sm text-slate-600">{openSalesEventMessage(activeItems.length)}</p>
           </article>
           <CountdownDisplay
             countdown={nextClosingCountdown}
@@ -868,7 +927,7 @@ export default function LandingPage({ onGoShop }) {
       >
         <div className="space-y-5">
           <p className="inline-flex w-fit items-center rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold uppercase tracking-wide text-emerald-800 shadow-sm">
-            Community-first bulk purchasing
+            Buy in bulk. Save more
           </p>
           <h1 className="max-w-3xl text-3xl font-extrabold leading-[1.15] tracking-tight py-2 text-emerald-950 sm:text-[2.1rem]">
             Bulk food ordering made simple, affordable, and reliable.
@@ -891,10 +950,7 @@ export default function LandingPage({ onGoShop }) {
           id="how-it-works"
           className="scroll-mt-28 rounded-[28px] border border-slate-200 bg-white p-4 shadow-[0_18px_36px_rgba(15,23,42,0.05)] sm:p-5"
         >
-          <p className="inline-flex w-fit items-center rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold uppercase tracking-[0.08em] text-slate-500 shadow-sm">
-            Quick preview
-          </p>
-          <h2 className="mt-3 text-xl font-bold tracking-tight text-slate-900">How EazziBulkBuy works</h2>
+          <h2 className="text-xl font-bold tracking-tight text-slate-900">How EazziBulkBuy works</h2>
           <div className="mt-4 space-y-3">
             {flowSteps.map((step, index) => (
               <article key={step.title} className="rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm">
@@ -904,7 +960,6 @@ export default function LandingPage({ onGoShop }) {
               </article>
             ))}
           </div>
-          <p className="mt-3 text-sm leading-6 text-slate-600">Orders close automatically when the countdown reaches zero.</p>
         </aside>
       </section>
 
