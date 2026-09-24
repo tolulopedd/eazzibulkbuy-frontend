@@ -34,6 +34,24 @@ function formatSource(value) {
   return value === 'CUSTOMER' ? 'Customer' : 'Admin';
 }
 
+function formatMessageType(value) {
+  if (!value) return '-';
+  const labels = {
+    CUSTOMER_FEEDBACK: 'Customer feedback',
+    MESSAGE_REPLY: 'Message reply',
+    PICKUP_NOTICE: 'Pickup notice',
+    PICKUP_REMINDER: 'Pickup reminder',
+    DELIVERY_NOTICE: 'Delivery notice',
+    PAYMENT: 'Payment',
+    FULFILMENT: 'Fulfilment',
+    CUSTOMER_UPDATE: 'Customer information update',
+    COMPLAINT: 'Complaint',
+    OTHER: 'Other',
+  };
+
+  return labels[value] || value;
+}
+
 export default function AdminCustomerNotesPanel({
   onLoadCustomers,
   onLoadCustomerNotes,
@@ -347,7 +365,7 @@ export default function AdminCustomerNotesPanel({
                       <AdminStatusBadge value={formatSource(note.source)} tone={note.source === 'CUSTOMER' ? 'warning' : 'neutral'} />
                     </td>
                     <td className={`${ui.tableCell} font-semibold text-slate-900`}>{note.orderReference || '-'}</td>
-                    <td className={ui.tableCell}>{note.messageType || '-'}</td>
+                    <td className={ui.tableCell}>{formatMessageType(note.messageType)}</td>
                     <td className={`${ui.tableCell} max-w-[34rem] whitespace-pre-wrap leading-6`}>{note.note || '-'}</td>
                     <td className={ui.tableCell}>{note.createdBy?.email || note.createdBy?.name || '-'}</td>
                   </tr>

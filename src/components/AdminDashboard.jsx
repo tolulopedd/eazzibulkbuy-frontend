@@ -6,6 +6,7 @@ import AdminPaymentsPanel from './AdminPaymentsPanel';
 import AdminPickupNoticesPanel from './AdminPickupNoticesPanel';
 import AdminProduceItemsPanel from './AdminProduceItemsPanel';
 import AdminCustomersPanel from './AdminCustomersPanel';
+import AdminMessagingPanel from './AdminMessagingPanel';
 import AdminFulfillmentPanel from './AdminFulfillmentPanel';
 import AdminDiscountOrdersPanel from './AdminDiscountOrdersPanel';
 import SuperadminUsersPanel from './SuperadminUsersPanel';
@@ -232,6 +233,8 @@ export default function AdminDashboard({
   onLoadCustomerStatement,
   onLoadCustomerNotes,
   onCreateCustomerNote,
+  onLoadCustomerMessages,
+  onReplyCustomerMessage,
   onLoadCustomerNoteNotifications,
   onMarkCustomerNoteNotificationsRead,
   onCreateCustomer,
@@ -321,10 +324,11 @@ export default function AdminDashboard({
         { id: 'produce-items', label: 'Our Produce', title: 'Our Produce', icon: ProduceIcon },
         { id: 'discount-orders', label: 'Discount Orders', title: 'Discount Orders', icon: DiscountIcon },
         { id: 'payments', label: 'Payments', title: 'Payments', icon: PaymentIcon },
-        { id: 'pickup-notices', label: 'Notices', title: 'Notices', icon: NoticeIcon },
         { id: 'fulfillment', label: 'Fulfilment', title: 'Fulfilment', icon: FulfillmentIcon },
-        { id: 'reports', label: 'Reports', title: 'Reports', icon: ReportsIcon },
         { id: 'customers', label: 'Customer', title: 'Customer', icon: CustomerIcon },
+        { id: 'pickup-notices', label: 'Notices', title: 'Notices', icon: NoticeIcon },
+        { id: 'messaging', label: 'Messaging', title: 'Messaging', icon: NoticeIcon },
+        { id: 'reports', label: 'Reports', title: 'Reports', icon: ReportsIcon },
       ];
 
       if (isSuperAdmin) {
@@ -412,7 +416,7 @@ export default function AdminDashboard({
     }
 
     setNotesInitialCustomer(note.customer);
-    setActiveModule('customers');
+    setActiveModule('messaging');
     setNotificationOpen(false);
   }
 
@@ -867,6 +871,15 @@ export default function AdminDashboard({
           onCreateCustomerNote={onCreateCustomerNote}
           initialNotesCustomer={notesInitialCustomer}
           mode="customers"
+        />
+      );
+    }
+
+    if (activeModule === 'messaging') {
+      return (
+        <AdminMessagingPanel
+          onLoadCustomerMessages={onLoadCustomerMessages}
+          onReplyCustomerMessage={onReplyCustomerMessage}
         />
       );
     }

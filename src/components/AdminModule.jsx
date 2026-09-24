@@ -24,7 +24,9 @@ import {
   fetchAdminCustomerStatement,
   fetchAdminCustomerNotes,
   createAdminCustomerNote,
+  fetchAdminCustomerMessages,
   fetchAdminCustomerNoteNotifications,
+  replyAdminCustomerMessage,
   markAdminCustomerNoteNotificationsRead,
   updateAdminCustomer,
   updateAdminPickupLocation,
@@ -406,6 +408,23 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
     }
   }
 
+  async function handleLoadCustomerMessages(query = {}) {
+    try {
+      return await fetchAdminCustomerMessages(query);
+    } catch (err) {
+      rethrowWithSessionHandling(err, 'Unable to load customer messages right now.');
+    }
+  }
+
+  async function handleReplyCustomerMessage(noteId, payload) {
+    setError('');
+    try {
+      return await replyAdminCustomerMessage(noteId, payload);
+    } catch (err) {
+      rethrowWithSessionHandling(err, 'Unable to send customer message reply right now.');
+    }
+  }
+
   async function handleLoadCustomerNoteNotifications() {
     try {
       return await fetchAdminCustomerNoteNotifications();
@@ -675,6 +694,8 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
         onLoadCustomerStatement={handleLoadCustomerStatement}
         onLoadCustomerNotes={handleLoadCustomerNotes}
         onCreateCustomerNote={handleCreateCustomerNote}
+        onLoadCustomerMessages={handleLoadCustomerMessages}
+        onReplyCustomerMessage={handleReplyCustomerMessage}
         onLoadCustomerNoteNotifications={handleLoadCustomerNoteNotifications}
         onMarkCustomerNoteNotificationsRead={handleMarkCustomerNoteNotificationsRead}
         onCreateCustomer={handleCreateCustomer}

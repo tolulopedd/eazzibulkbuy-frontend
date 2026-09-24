@@ -575,6 +575,26 @@ export function markAdminCustomerNoteNotificationsRead(payload = {}) {
   });
 }
 
+export function fetchAdminCustomerMessages(params = {}) {
+  const search = new URLSearchParams();
+
+  if (params.q) search.set('q', params.q);
+  if (params.status) search.set('status', params.status);
+  if (params.page) search.set('page', String(params.page));
+  if (params.limit) search.set('limit', String(params.limit));
+
+  const suffix = search.toString() ? `?${search.toString()}` : '';
+  return request(`/api/admin/customer-messages${suffix}`);
+}
+
+export function replyAdminCustomerMessage(noteId, payload) {
+  return request(`/api/admin/customer-messages/${noteId}/reply`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
 export function createAdminCustomer(payload) {
   return request('/api/admin/customers', {
     method: 'POST',
