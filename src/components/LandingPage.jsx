@@ -588,11 +588,11 @@ export default function LandingPage({ onGoShop }) {
   return (
     <div className={`${ui.shell} space-y-4 sm:space-y-5`}>
       <section className="overflow-hidden rounded-[30px] border border-[#dfe7df] bg-[linear-gradient(180deg,#fbfdf9_0%,#f5faf6_46%,#edf6ef_100%)] shadow-[0_24px_60px_rgba(15,23,42,0.08)]">
-        <header className="px-3 py-4 sm:px-5 sm:py-5 lg:px-8">
-          <div className="flex items-center justify-between gap-3 lg:grid lg:grid-cols-[auto_1fr_auto] lg:items-center">
+        <header className="px-3 py-4 sm:px-5 sm:py-5 xl:px-8">
+          <div className="flex items-center justify-between gap-3 xl:grid xl:grid-cols-[auto_1fr_auto] xl:items-center">
           <button
             type="button"
-            className="inline-flex h-[3.1625rem] w-[3.1625rem] items-center justify-center rounded-full border border-emerald-200 bg-white/90 text-emerald-900 transition hover:bg-emerald-50 lg:hidden"
+            className="inline-flex h-[3.1625rem] w-[3.1625rem] items-center justify-center rounded-full border border-emerald-200 bg-white/90 text-emerald-900 transition hover:bg-emerald-50 xl:hidden"
             aria-label={mobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
             aria-expanded={mobileMenuOpen}
             onClick={() => setMobileMenuOpen((open) => !open)}
@@ -613,7 +613,7 @@ export default function LandingPage({ onGoShop }) {
             </svg>
           </button>
 
-          <div className="hidden lg:flex lg:items-center lg:justify-center lg:gap-10 lg:justify-self-center">
+          <div className="hidden xl:flex xl:items-center xl:justify-center xl:gap-10 xl:justify-self-center">
             <BrandLogo
               compact
               className="items-start gap-0"
@@ -621,7 +621,7 @@ export default function LandingPage({ onGoShop }) {
             />
             <nav
               aria-label="Primary"
-              className="lg:block"
+              className="xl:block"
             >
               <ul className="flex items-center gap-3 rounded-full bg-transparent px-2 py-2">
               {headerLinks.map((link) => (
@@ -643,8 +643,8 @@ export default function LandingPage({ onGoShop }) {
             </nav>
           </div>
 
-          <div className="flex justify-end lg:justify-self-end">
-            <div className="lg:hidden rounded-xl bg-white/88 px-1.5 py-1.5 shadow-[0_8px_20px_rgba(15,23,42,0.04)]">
+          <div className="flex justify-end xl:justify-self-end">
+            <div className="rounded-xl bg-white/88 px-1.5 py-1.5 shadow-[0_8px_20px_rgba(15,23,42,0.04)] xl:hidden">
               <BrandLogo
                 compact
                 className="items-end gap-0 text-right"
@@ -655,7 +655,7 @@ export default function LandingPage({ onGoShop }) {
         </div>
 
           {mobileMenuOpen ? (
-          <nav aria-label="Mobile primary" className="mt-3 rounded-2xl border border-emerald-100 bg-white p-2 shadow-[0_14px_30px_rgba(15,23,42,0.06)] lg:hidden">
+          <nav aria-label="Mobile primary" className="mt-3 rounded-2xl border border-emerald-100 bg-white p-2 shadow-[0_14px_30px_rgba(15,23,42,0.06)] xl:hidden">
             <ul className="grid gap-1">
               {headerLinks.map((link) => (
                 <li key={link.href}>
@@ -678,8 +678,8 @@ export default function LandingPage({ onGoShop }) {
           ) : null}
         </header>
 
-        <section id="active-products" className="scroll-mt-28 px-4 pb-5 pt-2 sm:px-5 lg:px-8 lg:pb-8">
-          <div className={`grid gap-6 ${hasLiveItems ? 'lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] lg:items-start' : ''}`}>
+        <section id="active-products" className="scroll-mt-28 px-4 pb-5 pt-2 sm:px-5 xl:px-8 xl:pb-8">
+          <div className={`grid gap-6 ${hasLiveItems ? 'xl:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] xl:items-start' : ''}`}>
             <div className={`space-y-4 pt-1 sm:space-y-5 sm:pt-2 ${hasLiveItems ? '' : 'mx-auto max-w-[920px] text-center'}`}>
               <div className={`flex flex-wrap items-center gap-2 ${hasLiveItems ? '' : 'justify-center'}`}>
                 <span
@@ -693,7 +693,7 @@ export default function LandingPage({ onGoShop }) {
                 </span>
               </div>
               <div className="space-y-3">
-                <h1 className={`text-[2.05rem] font-extrabold leading-[1.04] tracking-tight text-[#171a16] sm:text-[3.3rem] lg:text-[4.1rem] ${hasLiveItems ? 'max-w-xl' : 'mx-auto max-w-[860px]'}`}>
+                <h1 className={`text-[2.05rem] font-extrabold leading-[1.04] tracking-tight text-[#171a16] sm:text-[3.3rem] xl:text-[4.1rem] ${hasLiveItems ? 'max-w-xl' : 'mx-auto max-w-[860px]'}`}>
                   Order your item(s) from sales events below{' '}
                   <span className="inline-flex translate-y-1 align-middle text-emerald-700" aria-hidden="true">
                     ↓
@@ -706,7 +706,7 @@ export default function LandingPage({ onGoShop }) {
 
             </div>
 
-            <div className="hidden gap-3 lg:grid sm:grid-cols-3">
+            <div className="hidden gap-3 sm:grid-cols-3 xl:grid">
               <article className="rounded-[24px] border border-[#dfe7df] bg-[rgba(255,255,255,0.6)] p-4 shadow-[0_8px_20px_rgba(16,24,40,0.04)] backdrop-blur-[2px]">
                 <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-emerald-700">Active Bulk Sales</p>
                 <p className="mt-2 text-3xl font-extrabold text-[#171a16]">{activeItems.length}</p>
@@ -738,7 +738,7 @@ export default function LandingPage({ onGoShop }) {
             </div>
 
             {hasLiveItems ? (
-            <div className="space-y-4 lg:col-span-2">
+            <div className="space-y-4 xl:col-span-2">
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
                 {highlightedItems.map((item) => {
                   const countdown = getCountdownParts(item.closingDate, nowMs);
@@ -888,7 +888,7 @@ export default function LandingPage({ onGoShop }) {
             </div>
           </div>
         ) : null}
-        <div className="mt-5 grid gap-3 sm:grid-cols-3 lg:hidden">
+        <div className="mt-5 grid gap-3 sm:grid-cols-3 xl:hidden">
           <article className="rounded-[24px] border border-[#dfe7df] bg-[rgba(243,251,246,0.72)] p-4 shadow-[0_8px_20px_rgba(16,24,40,0.03)] backdrop-blur-[2px]">
             <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-emerald-700">Checkout options</p>
             <div className="mt-2 flex flex-wrap gap-2">
@@ -923,7 +923,7 @@ export default function LandingPage({ onGoShop }) {
 
       <section
         id="about-us"
-        className={`${ui.card} scroll-mt-28 grid gap-5 border border-slate-200 bg-white p-5 sm:p-6 lg:grid-cols-[1.25fr_0.95fr]`}
+        className={`${ui.card} scroll-mt-28 grid gap-5 border border-slate-200 bg-white p-5 sm:p-6 xl:grid-cols-[1.25fr_0.95fr]`}
       >
         <div className="space-y-5">
           <p className="inline-flex w-fit items-center rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold uppercase tracking-wide text-emerald-800 shadow-sm">
@@ -988,7 +988,7 @@ export default function LandingPage({ onGoShop }) {
       </section>
 
       <footer className="overflow-hidden rounded-[30px] border border-[#0b2a1f] bg-[linear-gradient(135deg,#03150f_0%,#0a2219_55%,#113123_100%)] px-5 py-8 text-white shadow-[0_22px_50px_rgba(3,21,15,0.34)] sm:px-6 sm:py-10 lg:px-8">
-        <div className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr_0.9fr_0.9fr]">
+        <div className="grid gap-8 md:grid-cols-2 xl:grid-cols-[1.2fr_0.8fr_0.9fr_0.9fr]">
           <div className="space-y-4">
             <BrandLogo
               compact

@@ -1850,7 +1850,7 @@ export default function AdminPickupNoticesPanel({
     ? `${isReminderTab ? 'Remind' : 'Notify'} selected (${selectedRows.length})`
     : `Select items to ${actionVerb}`;
   const tabButtonClass = (tab) => (
-    `inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition ${
+    `inline-flex shrink-0 items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition ${
       activeTab === tab
         ? 'bg-[#46d2b8] text-[#0f1612] shadow-sm'
         : 'border border-[#d7d9cf] bg-white text-[#4f574c] hover:bg-[#f7f8f4]'
@@ -1859,7 +1859,7 @@ export default function AdminPickupNoticesPanel({
 
   return (
     <section className="space-y-5">
-      <div className="flex flex-wrap gap-3 rounded-full border border-[#e4e6dc] bg-[#fbfbf8] p-2">
+      <div className="flex flex-nowrap gap-3 overflow-x-auto rounded-[28px] border border-[#e4e6dc] bg-[#fbfbf8] p-2 overscroll-x-contain">
         <button type="button" className={tabButtonClass('notices')} onClick={() => switchTab('notices')}>
           <PickupNoticeTabIcon type="notices" />
           Pickup Notices

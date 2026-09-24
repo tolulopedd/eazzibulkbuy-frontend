@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ui } from '../ui/classes';
 import {
   AdminIconButton,
-  AdminPagination,
   AdminStatusBadge,
   AdminTableEmpty,
   CloseIcon,
@@ -110,7 +109,8 @@ function isPositiveNumber(value) {
 function isSalesFormValid(form) {
   const hasName = String(form.name || '').trim().length > 0;
   const hasBatchNumber = /^[A-Z0-9]{3}$/.test(String(form.batchNumber || '').trim().toUpperCase());
-  const hasClosingDate = Boolean(form.closingDate);
+  const hasClosingDate = Boolean(form.closingDate)
+    && (form.status !== 'ACTIVE' || new Date(form.closingDate) > new Date());
   const hasLocation = String(form.pickupInstructions || '').trim().length > 0;
   const hasPrice = isPositiveNumber(form.pricePerUnit);
 
@@ -149,7 +149,7 @@ function SalesDetailsModal({
     return null;
   }
 
-  const editing = mode === 'edit' && isEditableSalesItem(item);
+  const editing = mode === 'edit';
   const resolvedItemOptions = itemOptions.length ? itemOptions : SALES_ITEM_OPTIONS;
 
   return (
@@ -299,7 +299,7 @@ function SalesDetailsModal({
 
             <div className="flex flex-wrap gap-3">
               <button type="button" className={ui.buttonPrimary} onClick={onSaveEdit} disabled={saveLoadingId === item.id || !editFormIsValid}>
-                {saveLoadingId === item.id ? 'Saving changes...' : editFormIsValid ? 'Save changes' : 'Complete details to save'}
+                {saveLoadingId === item.id ? 'Saving changes...' : editFormIsValid ? 'Save changes' : 'Edit details to save'}
               </button>
               <button type="button" className={ui.buttonGhost} onClick={onCancelEdit}>Close</button>
               {isDeletableSalesItem(item) ? (
@@ -308,6 +308,9 @@ function SalesDetailsModal({
                 </button>
               ) : null}
             </div>
+            {!isEditableSalesItem(item) ? (
+              <p className={ui.note}>To reopen this sale, select a future closing date and set the status to Active.</p>
+            ) : null}
           </div>
         ) : (
           <div className="space-y-4">
@@ -361,7 +364,7 @@ function SalesDetailsModal({
                     ? `Pickup or delivery (up to ${item.deliveryBaseRangeMax} items for ${formatMoney(item.deliveryBasePrice)}, then ${formatMoney(item.deliveryAdditionalUnitPrice)} per extra item)`
                     : 'Pickup only'}</span>
                 </p>
-                {!isEditableSalesItem(item) ? <p className={ui.note}>Inactive or expired sales are view-only and cannot be changed.</p> : null}
+                {!isEditableSalesItem(item) ? <p className={ui.note}>This sale is closed. Use Edit to extend its closing date and reactivate it.</p> : null}
               </div>
             </div>
           </div>
@@ -381,7 +384,6 @@ export default function AdminSalesPanel({
   onSalesQueryChange,
   loadingSalesItems,
   onApplyFilters,
-  salesMeta,
   salesItemError,
   actionStatus,
   salesItems,
@@ -394,23 +396,26 @@ export default function AdminSalesPanel({
   onCancelEdit,
   onStartEdit,
   onDeleteItem,
-  onPrevPage,
-  onNextPage,
   formatStatusLabel,
   itemOptions = SALES_ITEM_OPTIONS,
 }) {
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [salesListTab, setSalesListTab] = useState('active');
   const [selectedSalesItem, setSelectedSalesItem] = useState(null);
   const [selectedMode, setSelectedMode] = useState('view');
   const didInitFiltersRef = useRef(false);
   const resolvedItemOptions = itemOptions.length ? itemOptions : SALES_ITEM_OPTIONS;
 
   const activeSalesItems = useMemo(
-    () => salesItems.filter((item) => item.status === 'ACTIVE' && new Date(item.closingDate) > new Date()),
+    () => salesItems
+      .filter((item) => item.status === 'ACTIVE' && new Date(item.closingDate) > new Date())
+      .sort((first, second) => new Date(second.closingDate).getTime() - new Date(first.closingDate).getTime()),
     [salesItems],
   );
   const closedSalesItems = useMemo(
-    () => salesItems.filter((item) => item.status !== 'ACTIVE' || new Date(item.closingDate) <= new Date()),
+    () => salesItems
+      .filter((item) => item.status !== 'ACTIVE' || new Date(item.closingDate) <= new Date())
+      .sort((first, second) => new Date(second.closingDate).getTime() - new Date(first.closingDate).getTime()),
     [salesItems],
   );
   const createFormIsValid = useMemo(() => isSalesFormValid(form), [form]);
@@ -445,14 +450,9 @@ export default function AdminSalesPanel({
     onCancelEdit();
   }
 
-  function renderSalesTable(title, items, tone) {
+  function renderSalesTable(title, items) {
     return (
-      <div className="space-y-3">
-        <div className="flex items-center justify-between gap-3">
-          <h2 className="text-lg font-bold tracking-tight text-emerald-950">{title}</h2>
-          <AdminStatusBadge value={String(items.length)} tone={tone} />
-        </div>
-
+      <div>
         <div className={ui.tableWrap}>
           <table className={`${ui.table} min-w-[980px]`}>
             <thead>
@@ -496,11 +496,9 @@ export default function AdminSalesPanel({
                       <AdminIconButton label="View sale" onClick={() => openSalesItem(item, 'view')}>
                         <EyeIcon />
                       </AdminIconButton>
-                      {isEditableSalesItem(item) ? (
-                        <AdminIconButton label="Edit sale" onClick={() => openSalesItem(item, 'edit')}>
-                          <PencilIcon />
-                        </AdminIconButton>
-                      ) : null}
+                      <AdminIconButton label={isEditableSalesItem(item) ? 'Edit sale' : 'Extend or reactivate sale'} onClick={() => openSalesItem(item, 'edit')}>
+                        <PencilIcon />
+                      </AdminIconButton>
                     </div>
                   </td>
                 </tr>
@@ -690,19 +688,40 @@ export default function AdminSalesPanel({
         {salesItemError ? <p className={ui.error}>{salesItemError}</p> : null}
         {actionStatus ? <p className={ui.success}>{actionStatus}</p> : null}
 
-        {renderSalesTable('Active Sales', activeSalesItems, 'success')}
-        {renderSalesTable('Closed Sales', closedSalesItems, 'neutral')}
+        <div className="flex flex-nowrap gap-3 overflow-x-auto rounded-[24px] border border-[#e5e4d9] bg-[#fafaf7] p-2 overscroll-x-contain" role="tablist" aria-label="Sales event status">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={salesListTab === 'active'}
+            className={`inline-flex shrink-0 items-center gap-2 rounded-[20px] px-5 py-2.5 text-sm font-semibold transition ${
+              salesListTab === 'active'
+                ? 'bg-[#46d2b8] text-emerald-950 shadow-[0_10px_24px_rgba(20,184,166,0.2)]'
+                : 'border border-[#dedfd4] bg-white text-[#5f675e] hover:border-[#46d2b8] hover:text-emerald-900'
+            }`}
+            onClick={() => setSalesListTab('active')}
+          >
+            Active Sales
+            <AdminStatusBadge value={String(activeSalesItems.length)} tone="success" />
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={salesListTab === 'closed'}
+            className={`inline-flex shrink-0 items-center gap-2 rounded-[20px] px-5 py-2.5 text-sm font-semibold transition ${
+              salesListTab === 'closed'
+                ? 'bg-[#46d2b8] text-emerald-950 shadow-[0_10px_24px_rgba(20,184,166,0.2)]'
+                : 'border border-[#dedfd4] bg-white text-[#5f675e] hover:border-[#46d2b8] hover:text-emerald-900'
+            }`}
+            onClick={() => setSalesListTab('closed')}
+          >
+            Closed Sales
+            <AdminStatusBadge value={String(closedSalesItems.length)} tone="neutral" />
+          </button>
+        </div>
 
-        {salesMeta.totalPages > 1 ? (
-          <AdminPagination
-            page={salesMeta.page}
-            totalPages={salesMeta.totalPages}
-            total={salesMeta.total}
-            label={`Page ${salesMeta.page} of ${salesMeta.totalPages}`}
-            onPrev={onPrevPage}
-            onNext={onNextPage}
-          />
-        ) : null}
+        {salesListTab === 'active'
+          ? renderSalesTable('Active Sales', activeSalesItems)
+          : renderSalesTable('Closed Sales', closedSalesItems)}
       </section>
 
       <SalesDetailsModal

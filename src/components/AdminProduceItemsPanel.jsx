@@ -220,11 +220,11 @@ export default function AdminProduceItemsPanel({
     <section className="space-y-5">
       <section className={`${ui.card} space-y-5`}>
         <div className="space-y-2">
-          <h1 className="text-[2rem] font-bold tracking-tight text-[#171a16]">Our Produce</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-[#171a16] sm:text-[2rem]">Our Produce</h1>
           <p className={ui.note}>Maintain the produce list used on the landing page and the Sales Events item name dropdown.</p>
         </div>
 
-        <form className="grid gap-4 rounded-[26px] border border-[#e5e7de] bg-[#fafbf7] p-4 lg:grid-cols-[1fr_1.3fr_130px_140px_auto]" onSubmit={handleCreate}>
+        <form className="grid gap-4 rounded-[26px] border border-[#e5e7de] bg-[#fafbf7] p-4 xl:grid-cols-[1fr_1.3fr_130px_140px_auto]" onSubmit={handleCreate}>
           <div className={ui.fieldWrap}>
             <label className={ui.label}>Produce name</label>
             <input

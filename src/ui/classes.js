@@ -4,7 +4,7 @@ export const ui = {
     'bg-[linear-gradient(180deg,#f7f8f4_0%,#f4f6f1_100%)]',
   pageSoft:
     'bg-[linear-gradient(180deg,#f7f8f4_0%,#f5f6f2_100%)]',
-  shell: 'mx-auto w-full max-w-[1280px] space-y-5 sm:space-y-6',
+  shell: 'mx-auto w-full max-w-[1280px] space-y-5 px-0 sm:space-y-6 sm:px-4 xl:px-0',
   card:
     'rounded-[28px] border border-[#e4e6dc] bg-white p-5 shadow-[0_1px_0_rgba(16,24,40,0.02)] sm:p-6',
   glass: 'bg-white/90 backdrop-blur-sm',
@@ -31,7 +31,7 @@ export const ui = {
   error: 'rounded-2xl border border-[#f1c8c8] bg-[#fff2f2] px-4 py-3 text-sm font-semibold leading-6 text-[#b14242]',
   summary: 'space-y-2 border-t border-[#e7e8df] pt-4',
   metricCard: 'space-y-1 rounded-[22px] border border-[#e7e8df] bg-white px-4 py-4',
-  tableWrap: 'overflow-x-auto overflow-y-hidden rounded-[28px] border border-[#e4e6dc] bg-white shadow-[0_1px_0_rgba(16,24,40,0.02)]',
+  tableWrap: 'overscroll-x-contain overflow-x-auto overflow-y-hidden rounded-[28px] border border-[#e4e6dc] bg-white shadow-[0_1px_0_rgba(16,24,40,0.02)]',
   table: 'min-w-full divide-y divide-[#ebece4]',
   tableHeadRow: 'bg-[#fafaf7]',
   tableHeaderCell: 'px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.16em] text-[#767c72]',

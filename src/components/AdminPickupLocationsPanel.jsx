@@ -149,7 +149,7 @@ export default function AdminPickupLocationsPanel({
     <section className="space-y-5">
       <section className={`${ui.card} space-y-5`}>
         <div className="space-y-2">
-          <h1 className="text-[2rem] font-bold tracking-tight text-[#171a16]">Pickup Locations</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-[#171a16] sm:text-[2rem]">Pickup Locations</h1>
           <p className={ui.note}>Manage the active pickup locations used in buyer checkout, Pickup Notices, Payments, and Fulfilment.</p>
         </div>
 

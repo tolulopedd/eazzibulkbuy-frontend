@@ -733,10 +733,10 @@ export default function AdminFulfillmentPanel({
             <p className="leading-6 text-slate-600">Confirm pickup or delivery for paid orders and download the current delivery view to Excel.</p>
           </div>
 
-          <div className="flex flex-wrap gap-3 rounded-[1.75rem] border border-[#dfe3dc] bg-white p-2">
+          <div className="flex flex-nowrap gap-3 overflow-x-auto rounded-[1.75rem] border border-[#dfe3dc] bg-white p-2 overscroll-x-contain">
             <button
               type="button"
-              className={`inline-flex items-center gap-2 rounded-full px-5 py-2 text-sm font-semibold transition ${activeTab === 'fulfillment' ? 'bg-[#45d0bb] text-slate-950 shadow-sm' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
+              className={`inline-flex shrink-0 items-center gap-2 rounded-full px-5 py-2 text-sm font-semibold transition ${activeTab === 'fulfillment' ? 'bg-[#45d0bb] text-slate-950 shadow-sm' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
               onClick={() => setActiveTab('fulfillment')}
             >
               <FulfillmentTabIcon type="fulfillment" />
@@ -744,7 +744,7 @@ export default function AdminFulfillmentPanel({
             </button>
             <button
               type="button"
-              className={`inline-flex items-center gap-2 rounded-full px-5 py-2 text-sm font-semibold transition ${activeTab === 'partial' ? 'bg-[#45d0bb] text-slate-950 shadow-sm' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
+              className={`inline-flex shrink-0 items-center gap-2 rounded-full px-5 py-2 text-sm font-semibold transition ${activeTab === 'partial' ? 'bg-[#45d0bb] text-slate-950 shadow-sm' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
               onClick={() => setActiveTab('partial')}
             >
               <FulfillmentTabIcon type="partial" />

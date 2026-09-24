@@ -88,9 +88,9 @@ function CustomerEditModal({ customer, onClose, onSave, saving }) {
   const customerFormIsValid = form.name.trim().length >= 2 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim());
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 py-6">
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/45 px-4 py-6 sm:items-center">
       <div className="absolute inset-0" onClick={onClose} aria-hidden="true" />
-      <div className="relative z-10 w-full max-w-2xl rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_30px_120px_rgba(15,23,42,0.24)] sm:p-6">
+      <div className="relative z-10 max-h-[calc(100vh-3rem)] w-full max-w-2xl overflow-y-auto rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_30px_120px_rgba(15,23,42,0.24)] sm:p-6">
         <div className="mb-5 flex items-start justify-between gap-4">
           <div className="space-y-1">
             <h2 className="text-2xl font-bold tracking-tight text-emerald-950">Edit customer</h2>
@@ -136,7 +136,7 @@ function CustomerEditModal({ customer, onClose, onSave, saving }) {
               onClick={() => onSave(customer.id, form)}
               disabled={saving || !customerFormIsValid}
             >
-              {saving ? 'Saving...' : customerFormIsValid ? 'Save customer' : 'Complete details to save'}
+              {saving ? 'Saving...' : customerFormIsValid ? 'Save customer' : 'Edit details to save'}
             </button>
             <button type="button" className={ui.buttonGhost} onClick={onClose}>
               Cancel
@@ -333,7 +333,7 @@ export default function AdminCustomersPanel({
   const showNotesTab = showCustomerTabs && typeof onLoadCustomerNotes === 'function' && typeof onCreateCustomerNote === 'function';
   const showUpdatesPanel = isCustomerUpdatesMode || activeTab === 'updates';
   const tabButtonClass = (tab) => [
-    'inline-flex items-center gap-2 rounded-[22px] px-5 py-2.5 text-sm font-semibold transition',
+    'inline-flex shrink-0 items-center gap-2 rounded-[22px] px-5 py-2.5 text-sm font-semibold transition',
     activeTab === tab
       ? 'bg-[#46d2b8] text-emerald-950 shadow-[0_12px_30px_rgba(20,184,166,0.22)]'
       : 'border border-[#dedfd4] bg-white text-[#5f675e] hover:border-[#46d2b8] hover:text-emerald-900',
@@ -342,7 +342,7 @@ export default function AdminCustomersPanel({
   return (
     <section className="space-y-5">
       {showCustomerTabs ? (
-        <div className="flex flex-wrap gap-3 rounded-[28px] border border-[#e5e4d9] bg-white/80 p-2">
+        <div className="flex flex-nowrap gap-3 overflow-x-auto rounded-[28px] border border-[#e5e4d9] bg-white/80 p-2 overscroll-x-contain">
           <button type="button" className={tabButtonClass('customers')} onClick={() => setActiveTab('customers')}>
             <CustomerTabIcon type="customers" />
             Customer

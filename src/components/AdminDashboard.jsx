@@ -17,10 +17,10 @@ const DEFAULT_SALES_QUERY = {
   q: '',
   batchNumber: '',
   status: '',
-  sortBy: 'createdAt',
+  sortBy: 'closingDate',
   sortOrder: 'desc',
   page: 1,
-  limit: 10,
+  limit: 500,
 };
 
 const DEFAULT_BUNDLE_ITEMS = [
@@ -454,17 +454,34 @@ export default function AdminDashboard({
     setLoadingSalesItems(true);
     setSalesItemError('');
     try {
-      const response = await onLoadSalesItems(nextQuery);
+      const fullListQuery = { ...nextQuery, page: 1, limit: 500 };
+      const response = await onLoadSalesItems(fullListQuery);
       if (Array.isArray(response)) {
         setSalesItems(response);
-        setSalesMeta({ page: 1, limit: response.length || nextQuery.limit, total: response.length, totalPages: 1 });
+        setSalesMeta({ page: 1, limit: response.length || fullListQuery.limit, total: response.length, totalPages: 1 });
       } else {
-        setSalesItems(response.items || []);
+        const remainingPages = Math.max(0, (response.totalPages || 1) - 1);
+        const remainingResponses = remainingPages
+          ? await Promise.all(
+              Array.from({ length: remainingPages }, (_, index) => onLoadSalesItems({
+                ...fullListQuery,
+                page: index + 2,
+              })),
+            )
+          : [];
+        const allItems = [
+          ...(response.items || []),
+          ...remainingResponses.flatMap((pageResponse) => (
+            Array.isArray(pageResponse) ? pageResponse : pageResponse.items || []
+          )),
+        ];
+
+        setSalesItems(allItems);
         setSalesMeta({
-          page: response.page || nextQuery.page,
-          limit: response.limit || nextQuery.limit,
-          total: response.total || 0,
-          totalPages: response.totalPages || 1,
+          page: 1,
+          limit: allItems.length || fullListQuery.limit,
+          total: response.total || allItems.length,
+          totalPages: 1,
         });
       }
     } catch (error) {
@@ -609,8 +626,8 @@ export default function AdminDashboard({
   async function saveEdit() {
     if (!editingId) return;
     const item = salesItems.find((entry) => entry.id === editingId);
-    if (!item || !isEditableSalesItem(item)) {
-      setActionStatus('Only active sales that have not expired can be edited.');
+    if (!item) {
+      setActionStatus('The selected sales event is no longer available.');
       setEditingId('');
       return;
     }
@@ -961,7 +978,7 @@ export default function AdminDashboard({
         <div className="relative min-h-screen overflow-hidden rounded-none border-0 bg-transparent lg:rounded-[34px] lg:border lg:border-[#e4e6dc] lg:bg-white lg:shadow-[0_10px_40px_rgba(20,27,22,0.06)]">
           <div
             className={cx(
-              'fixed inset-0 z-30 bg-black/20 transition-opacity md:hidden',
+              'fixed inset-0 z-30 bg-black/20 transition-opacity xl:hidden',
               sidebarOpen ? 'opacity-100' : 'pointer-events-none opacity-0',
             )}
             onClick={() => setSidebarOpen(false)}
@@ -970,7 +987,7 @@ export default function AdminDashboard({
 
           <aside
             className={cx(
-              'fixed inset-y-0 left-0 z-40 w-[252px] transform border-r border-[#e6e8dd] bg-white transition-transform duration-300 ease-out md:hidden',
+              'fixed inset-y-0 left-0 z-40 w-[min(20rem,86vw)] transform border-r border-[#e6e8dd] bg-white transition-transform duration-300 ease-out xl:hidden',
               sidebarOpen ? 'translate-x-0' : '-translate-x-full',
             )}
           >
@@ -978,7 +995,8 @@ export default function AdminDashboard({
               <div className="flex justify-center border-b border-[#eceee5] px-5 py-7">
                 <BrandLogo compact align="center" imageClassName="w-[3.25rem]" imageWidth="104px" />
               </div>
-              <nav className="grid gap-1 px-3 py-4" aria-label="Admin modules">
+              <nav className="min-h-0 flex-1 overflow-y-auto px-3 py-4" aria-label="Admin modules">
+                <div className="grid gap-1">
                 {modules.map((module) => {
                   const Icon = module.icon;
                   const active = activeModule === module.id;
@@ -997,6 +1015,7 @@ export default function AdminDashboard({
                     </button>
                   );
                 })}
+                </div>
               </nav>
               <div className="mt-auto px-3 pb-4 pt-6">
                 <AccountCard mobile />
@@ -1005,7 +1024,7 @@ export default function AdminDashboard({
           </aside>
 
           <div className="flex min-h-screen">
-            <aside className="hidden w-[252px] shrink-0 border-r border-[#e6e8dd] bg-white md:block">
+            <aside className="hidden w-[252px] shrink-0 border-r border-[#e6e8dd] bg-white xl:block">
               <div className="flex h-full flex-col">
                 <div className="flex justify-center border-b border-[#eceee5] px-5 py-7">
                   <BrandLogo compact align="center" imageClassName="w-[3.5rem]" imageWidth="112px" />
@@ -1043,13 +1062,13 @@ export default function AdminDashboard({
                 <div className="flex items-center gap-3">
                   <button
                     type="button"
-                    className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[#d7d9cf] bg-white text-[#4f554d] transition hover:bg-[#f7f8f4] md:hidden"
+                    className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[#d7d9cf] bg-white text-[#4f554d] transition hover:bg-[#f7f8f4] xl:hidden"
                     onClick={() => setSidebarOpen(true)}
                     aria-label="Open menu"
                   >
                     <MenuIcon />
                   </button>
-                  <h1 className="text-[2rem] font-bold tracking-tight text-[#171a16]">{activeModuleConfig?.title || 'Admin Portal'}</h1>
+                  <h1 className="text-2xl font-bold tracking-tight text-[#171a16] sm:text-[2rem]">{activeModuleConfig?.title || 'Admin Portal'}</h1>
                 </div>
                 <div className="relative flex items-center gap-3">
                   <button
@@ -1066,7 +1085,7 @@ export default function AdminDashboard({
                     ) : null}
                   </button>
                   {notificationOpen ? (
-                    <div className="absolute right-14 top-14 z-40 w-[min(24rem,calc(100vw-2rem))] rounded-[28px] border border-[#dedfd4] bg-white p-3 shadow-[0_24px_70px_rgba(15,23,42,0.18)]">
+                    <div className="fixed left-4 right-4 top-[5.25rem] z-40 rounded-[24px] border border-[#dedfd4] bg-white p-3 shadow-[0_24px_70px_rgba(15,23,42,0.18)] sm:absolute sm:left-auto sm:right-14 sm:top-14 sm:w-[min(24rem,calc(100vw-2rem))] sm:rounded-[28px]">
                       <div className="flex items-center justify-between gap-3 border-b border-[#eceee5] px-2 pb-3">
                         <div>
                           <p className="text-sm font-black uppercase tracking-[0.2em] text-[#858a7f]">Notes</p>

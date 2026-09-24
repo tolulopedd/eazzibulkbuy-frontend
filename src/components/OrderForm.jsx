@@ -1185,7 +1185,7 @@ export default function OrderForm({
         </div>
       ) : null}
 
-      <form onSubmit={handleSubmit} className="mx-auto grid w-full max-w-[1160px] gap-5 lg:grid-cols-[minmax(0,1.55fr)_minmax(320px,1fr)]">
+      <form onSubmit={handleSubmit} className="mx-auto grid w-full max-w-[1160px] gap-5 xl:grid-cols-[minmax(0,1.55fr)_minmax(320px,1fr)]">
       <section className={`${ui.card} space-y-5`}>
         <div className="space-y-1">
           <h1 className="text-2xl font-bold tracking-tight text-emerald-950">Your Cart</h1>
