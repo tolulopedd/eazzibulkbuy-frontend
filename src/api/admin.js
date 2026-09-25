@@ -720,6 +720,14 @@ export function updateAdminOrderPreferredPickupLocation(orderReference, payload)
   });
 }
 
+export function updateAdminOrderFulfillmentMethod(orderReference, payload) {
+  return request(`/api/admin/orders/${orderReference}/fulfillment-method`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function exportAdminOrders(params = {}) {
   const search = new URLSearchParams();
 

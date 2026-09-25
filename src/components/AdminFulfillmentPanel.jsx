@@ -82,7 +82,7 @@ function FulfillmentTabIcon({ type }) {
 function createDefaultQuery() {
   const today = formatDateInputValue();
   return {
-    startDate: today,
+    startDate: '2026-07-01',
     endDate: today,
     q: '',
     batchNumber: '',

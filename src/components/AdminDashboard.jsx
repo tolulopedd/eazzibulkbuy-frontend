@@ -266,6 +266,7 @@ export default function AdminDashboard({
   onUpdatePartialFulfillment,
   onUndoPartialFulfillment,
   onUpdatePreferredPickupLocation,
+  onUpdateOrderFulfillmentMethod,
   onForceRelogin,
   onUpdatePickupLocation,
   onUpdatePickupNoticeTemplate,
@@ -774,7 +775,7 @@ export default function AdminDashboard({
           onDeleteIncompleteOrder={onDeleteIncompleteOrder}
           onResendPaymentConfirmation={onResendPaymentConfirmation}
           onResolvePayment={onResolvePayment}
-          onUpdatePreferredPickupLocation={onUpdatePreferredPickupLocation}
+          onUpdateFulfillmentMethod={onUpdateOrderFulfillmentMethod}
           pickupLocations={pickupLocations}
           onRefreshReports={loadReports}
         />

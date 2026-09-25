@@ -60,11 +60,12 @@ function DateFilterField({ label, value, onChange, max = formatDateInputValue() 
 }
 
 const DEFAULT_QUERY_LIMIT = 20;
+const DEFAULT_ORDER_SEARCH_START_DATE = '2026-07-01';
 
 function createDefaultQuery() {
   const today = formatDateInputValue();
   return {
-    startDate: today,
+    startDate: DEFAULT_ORDER_SEARCH_START_DATE,
     endDate: today,
     q: '',
     batchNumber: '',
@@ -360,7 +361,7 @@ function PaymentDetailsModal({
   onSubmitIncompleteReview,
   onDeleteIncompleteOrder,
   onResolvePayment,
-  onUpdatePreferredPickupLocation,
+  onUpdateFulfillmentMethod,
   confirmingReference,
   resendingReference,
   submittingIncompleteReference,
@@ -389,11 +390,17 @@ function PaymentDetailsModal({
   const [modalError, setModalError] = useState('');
   const [resolutionAction, setResolutionAction] = useState('CANCELLED');
   const [resolutionComment, setResolutionComment] = useState('');
+  const [paymentResolutionSaveMessage, setPaymentResolutionSaveMessage] = useState('');
   const [notifyBuyer, setNotifyBuyer] = useState(false);
   const [resolvingPaymentReference, setResolvingPaymentReference] = useState('');
   const [selectedSourceIndexes, setSelectedSourceIndexes] = useState([]);
+  const [fulfillmentMethod, setFulfillmentMethod] = useState(order.fulfillmentMethod || 'PICKUP');
   const [preferredPickupLocation, setPreferredPickupLocation] = useState(order.preferredPickupLocation || '');
-  const [savingPickupLocation, setSavingPickupLocation] = useState(false);
+  const [savedFulfillmentMethod, setSavedFulfillmentMethod] = useState(order.fulfillmentMethod || 'PICKUP');
+  const [savedPickupLocation, setSavedPickupLocation] = useState(order.preferredPickupLocation || '');
+  const [fulfillmentChangeReason, setFulfillmentChangeReason] = useState('');
+  const [fulfillmentSaveMessage, setFulfillmentSaveMessage] = useState('');
+  const [savingFulfillmentMethod, setSavingFulfillmentMethod] = useState(false);
   const pickupLocationOptions = Array.from(
     new Set(
       [...pickupLocations.map((location) => location.name), order?.preferredPickupLocation || ''].filter(Boolean),
@@ -405,18 +412,31 @@ function PaymentDetailsModal({
     setModalError('');
     setResolutionAction('CANCELLED');
     setResolutionComment('');
+    setPaymentResolutionSaveMessage('');
     setNotifyBuyer(false);
     setResolvingPaymentReference('');
     setSelectedSourceIndexes(activeSourceItems.map((item) => item.sourceIndex));
+    setFulfillmentMethod(order.fulfillmentMethod || 'PICKUP');
     setPreferredPickupLocation(order.preferredPickupLocation || '');
-    setSavingPickupLocation(false);
+    setSavedFulfillmentMethod(order.fulfillmentMethod || 'PICKUP');
+    setSavedPickupLocation(order.preferredPickupLocation || '');
+    setFulfillmentChangeReason('');
+    setFulfillmentSaveMessage('');
+    setSavingFulfillmentMethod(false);
   }, [order?.orderReference]);
 
   const selectedItems = activeSourceItems.filter((item) => selectedSourceIndexes.includes(item.sourceIndex));
   const selectedQuantity = sumSourceItemQuantity(selectedItems);
   const selectedLineTotal = sumSourceItemLineTotal(selectedItems);
+  const hasFulfillmentChange = fulfillmentMethod !== savedFulfillmentMethod
+    || (fulfillmentMethod === 'PICKUP' && preferredPickupLocation !== savedPickupLocation);
+  const canSaveFulfillmentChange = hasFulfillmentChange
+    && fulfillmentChangeReason.trim().length >= 3
+    && (fulfillmentMethod !== 'PICKUP' || Boolean(preferredPickupLocation));
+  const canSavePaymentResolution = selectedItems.length > 0 && resolutionComment.trim().length >= 3;
 
   function toggleSourceItem(sourceIndex) {
+    setPaymentResolutionSaveMessage('');
     setSelectedSourceIndexes((current) => (
       current.includes(sourceIndex)
         ? current.filter((value) => value !== sourceIndex)
@@ -460,7 +480,12 @@ function PaymentDetailsModal({
         notifyBuyer,
         sourceIndexes: selectedItems.map((item) => item.sourceIndex),
       });
-      onClose();
+      setResolutionComment('');
+      setNotifyBuyer(false);
+      setSelectedSourceIndexes(
+        result?.order ? getOrderSourceItems(result.order).map((item) => item.sourceIndex) : [],
+      );
+      setPaymentResolutionSaveMessage(result?.message || 'Successfully saved.');
       return result;
     } catch (error) {
       setModalError(error?.message || 'Unable to update this payment.');
@@ -470,21 +495,37 @@ function PaymentDetailsModal({
     }
   }
 
-  async function handleSavePreferredPickupLocation() {
-    if (!preferredPickupLocation) {
+  async function handleSaveFulfillmentMethod() {
+    if (fulfillmentMethod === 'PICKUP' && !preferredPickupLocation) {
       setModalError('Select a preferred pickup location before saving.');
       return;
     }
 
+    if (fulfillmentChangeReason.trim().length < 3) {
+      setModalError('Enter a reason longer than 2 characters before saving this change.');
+      return;
+    }
+
     setModalError('');
-    setSavingPickupLocation(true);
+    setSavingFulfillmentMethod(true);
     try {
-      await onUpdatePreferredPickupLocation(order.orderReference, preferredPickupLocation);
-      onClose();
+      const result = await onUpdateFulfillmentMethod(order.orderReference, {
+        fulfillmentMethod,
+        preferredPickupLocation: fulfillmentMethod === 'PICKUP' ? preferredPickupLocation : null,
+        reason: fulfillmentChangeReason.trim(),
+      });
+      setSavedFulfillmentMethod(fulfillmentMethod);
+      setSavedPickupLocation(fulfillmentMethod === 'PICKUP' ? preferredPickupLocation : '');
+      setFulfillmentChangeReason('');
+      setFulfillmentSaveMessage(
+        result?.noticeReset
+          ? 'Successfully saved. Send a new fulfillment notice to the customer.'
+          : 'Successfully saved.',
+      );
     } catch (error) {
-      setModalError(error?.message || 'Unable to update the preferred pickup location.');
+      setModalError(error?.message || 'Unable to change pickup or delivery.');
     } finally {
-      setSavingPickupLocation(false);
+      setSavingFulfillmentMethod(false);
     }
   }
 
@@ -536,31 +577,68 @@ function PaymentDetailsModal({
               <p className="text-sm leading-6 text-slate-700">Paid at: <span className="font-semibold text-slate-900">{formatDateTime(order.paidAt)}</span></p>
               <p className="text-sm leading-6 text-slate-700">Quantity: <span className="font-semibold text-slate-900">{order.quantity}</span></p>
               <p className="text-sm leading-6 text-slate-700">Order status: <span className="font-semibold text-slate-900">{formatLabel(order.status)}</span></p>
-              {order.fulfillmentMethod === 'PICKUP' ? (
-                <div className="sm:col-span-2">
-                  <label className={`${ui.label} mb-1 block`}>Preferred Pick Up location</label>
-                  <div className="flex flex-wrap gap-2">
+              <div className="space-y-3 border-t border-slate-200 pt-3 sm:col-span-2">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className={ui.fieldWrap}>
+                    <label className={ui.label}>Pickup or delivery</label>
                     <select
-                      className={`${ui.select} min-w-[280px] flex-1`}
-                      value={preferredPickupLocation}
-                      onChange={(event) => setPreferredPickupLocation(event.target.value)}
+                      className={ui.select}
+                      value={fulfillmentMethod}
+                      onChange={(event) => {
+                        setFulfillmentMethod(event.target.value);
+                        setFulfillmentSaveMessage('');
+                      }}
                     >
-                      <option value="">Select preferred pickup location</option>
-                      {pickupLocationOptions.map((option) => (
-                        <option key={option} value={option}>{option}</option>
-                      ))}
+                      <option value="PICKUP">Pickup</option>
+                      <option value="DELIVERY">Delivery</option>
                     </select>
-                    <button
-                      type="button"
-                      className={ui.buttonGhost}
-                      onClick={handleSavePreferredPickupLocation}
-                      disabled={savingPickupLocation || !preferredPickupLocation || preferredPickupLocation === (order.preferredPickupLocation || '')}
-                    >
-                      {savingPickupLocation ? 'Saving...' : 'Save location'}
-                    </button>
                   </div>
+                  {fulfillmentMethod === 'PICKUP' ? (
+                    <div className={ui.fieldWrap}>
+                      <label className={ui.label}>Preferred Pick Up location</label>
+                      <select
+                        className={ui.select}
+                        value={preferredPickupLocation}
+                        onChange={(event) => {
+                          setPreferredPickupLocation(event.target.value);
+                          setFulfillmentSaveMessage('');
+                        }}
+                      >
+                        <option value="">Select preferred pickup location</option>
+                        {pickupLocationOptions.map((option) => (
+                          <option key={option} value={option}>{option}</option>
+                        ))}
+                      </select>
+                    </div>
+                  ) : null}
                 </div>
-              ) : null}
+                <div className={ui.fieldWrap}>
+                  <label className={ui.label}>Reason for change of delivery or pickup method</label>
+                  <textarea
+                    className={ui.textarea}
+                    rows={2}
+                    value={fulfillmentChangeReason}
+                    onChange={(event) => {
+                      setFulfillmentChangeReason(event.target.value);
+                      setFulfillmentSaveMessage('');
+                    }}
+                    placeholder="State the reason for this change"
+                  />
+                </div>
+                <p className={ui.note}>
+                  Changes are blocked after pickup or delivery has started.
+                </p>
+                {modalError ? <p className={ui.error}>{modalError}</p> : null}
+                {fulfillmentSaveMessage ? <p className={ui.success}>{fulfillmentSaveMessage}</p> : null}
+                <button
+                  type="button"
+                  className={canSaveFulfillmentChange ? ui.buttonPrimary : ui.buttonGhost}
+                  onClick={handleSaveFulfillmentMethod}
+                  disabled={savingFulfillmentMethod || !canSaveFulfillmentChange}
+                >
+                  {savingFulfillmentMethod ? 'Saving...' : 'Save'}
+                </button>
+              </div>
               {discountReason ? (
                 <p className="text-sm leading-6 text-slate-700 sm:col-span-2">Reason for discount: <span className="font-semibold text-slate-900">{discountReason}</span></p>
               ) : null}
@@ -644,7 +722,7 @@ function PaymentDetailsModal({
             {isIncompleteOrder && isStripe ? (
               <p className="text-sm leading-6 text-slate-600">Receipt upload is not available for Stripe card payments.</p>
             ) : null}
-            {canResolvePayment ? (
+            {canResolvePayment || paymentResolutionSaveMessage ? (
               <div className={`${ui.section} space-y-3`}>
                 <h3 className="text-base font-semibold text-slate-900">Cancel or refund payment</h3>
                 <div className="space-y-2">
@@ -678,14 +756,28 @@ function PaymentDetailsModal({
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className={ui.fieldWrap}>
                     <label className={ui.label}>Action</label>
-	                    <select className={ui.select} value={resolutionAction} onChange={(event) => setResolutionAction(event.target.value)}>
+                    <select
+                      className={ui.select}
+                      value={resolutionAction}
+                      onChange={(event) => {
+                        setResolutionAction(event.target.value);
+                        setPaymentResolutionSaveMessage('');
+                      }}
+                    >
 	                      <option value="CANCELLED">Cancel</option>
 	                      <option value="REFUNDED">Refund</option>
 	                      <option value="STORE_CREDIT">Store Credit</option>
 	                    </select>
                   </div>
                   <label className={`${ui.section} flex items-center gap-3 px-4 py-3 text-sm text-slate-700`}>
-                    <input type="checkbox" checked={notifyBuyer} onChange={(event) => setNotifyBuyer(event.target.checked)} />
+                    <input
+                      type="checkbox"
+                      checked={notifyBuyer}
+                      onChange={(event) => {
+                        setNotifyBuyer(event.target.checked);
+                        setPaymentResolutionSaveMessage('');
+                      }}
+                    />
                     <span>Send notification email to buyer</span>
                   </label>
                 </div>
@@ -695,16 +787,20 @@ function PaymentDetailsModal({
                     className={ui.textarea}
                     rows={3}
                     value={resolutionComment}
-                    onChange={(event) => setResolutionComment(event.target.value)}
+                    onChange={(event) => {
+                      setResolutionComment(event.target.value);
+                      setPaymentResolutionSaveMessage('');
+                    }}
 	                    placeholder="Enter the reason for this action"
                   />
                 </div>
                 {modalError ? <p className={ui.error}>{modalError}</p> : null}
+                {paymentResolutionSaveMessage ? <p className={ui.success}>{paymentResolutionSaveMessage}</p> : null}
                 <button
                   type="button"
-	                  className={resolutionAction === 'CANCELLED' ? ui.buttonDanger : ui.buttonGhost}
+	                  className={canSavePaymentResolution ? ui.buttonPrimary : ui.buttonGhost}
                   onClick={handleResolvePaymentAction}
-                  disabled={resolvingPaymentReference === order.orderReference}
+                  disabled={resolvingPaymentReference === order.orderReference || !canSavePaymentResolution}
                 >
                   {resolvingPaymentReference === order.orderReference
                     ? 'Saving...'
@@ -755,7 +851,7 @@ export default function AdminPaymentsPanel({
   onMarkIncompleteOrderPendingReview,
   onDeleteIncompleteOrder,
   onResolvePayment,
-  onUpdatePreferredPickupLocation,
+  onUpdateFulfillmentMethod,
   pickupLocations = [],
   onRefreshReports,
 }) {
@@ -966,8 +1062,8 @@ export default function AdminPaymentsPanel({
     try {
       const result = await onResolvePayment(orderReference, payload);
       setActionStatus(result.message || 'Payment updated successfully.');
-      if (selectedOrder?.orderReference === orderReference) {
-        setSelectedOrder(null);
+      if (selectedOrder?.orderReference === orderReference && result?.order) {
+        setSelectedOrder(result.order);
       }
       await loadPayments(query);
       if (onRefreshReports) {
@@ -979,6 +1075,23 @@ export default function AdminPaymentsPanel({
       throw err;
     } finally {
       setResolvingPaymentReference('');
+    }
+  }
+
+  async function handleUpdateFulfillmentMethod(orderReference, payload) {
+    setActionStatus('');
+    setError('');
+    try {
+      const result = await onUpdateFulfillmentMethod(orderReference, payload);
+      setActionStatus(result.message || 'Pickup or delivery updated successfully.');
+      await loadPayments(query);
+      if (onRefreshReports) {
+        await onRefreshReports();
+      }
+      return result;
+    } catch (err) {
+      setError(err.message || 'Unable to change pickup or delivery.');
+      throw err;
     }
   }
 
@@ -1229,7 +1342,7 @@ export default function AdminPaymentsPanel({
         onSubmitIncompleteReview={handleSubmitIncompleteReview}
         onDeleteIncompleteOrder={handleDeleteIncomplete}
         onResolvePayment={handleResolvePayment}
-        onUpdatePreferredPickupLocation={onUpdatePreferredPickupLocation}
+        onUpdateFulfillmentMethod={handleUpdateFulfillmentMethod}
         confirmingReference={confirmingReference}
         resendingReference={resendingReference}
         submittingIncompleteReference={submittingIncompleteReference}

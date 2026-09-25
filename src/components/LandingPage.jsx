@@ -706,6 +706,37 @@ export default function LandingPage({ onGoShop }) {
 
             </div>
 
+            <div className="grid gap-3 sm:grid-cols-3 xl:hidden">
+              <article className="rounded-[24px] border border-[#dfe7df] bg-[rgba(255,255,255,0.6)] p-4 shadow-[0_8px_20px_rgba(16,24,40,0.04)] backdrop-blur-[2px]">
+                <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-emerald-700">Active Bulk Sales</p>
+                <p className="mt-2 text-3xl font-extrabold text-[#171a16]">{activeItems.length}</p>
+                <p className="mt-1 text-sm text-slate-600">{openSalesEventMessage(activeItems.length)}</p>
+              </article>
+              <CountdownDisplay
+                countdown={nextClosingCountdown}
+                emptyLabel="No active countdown"
+                emptyDetail="There is no live sales event closing right now."
+                accent="amber"
+              />
+              <article className="rounded-[24px] border border-[#dfe7df] bg-[rgba(243,251,246,0.72)] p-4 shadow-[0_8px_20px_rgba(16,24,40,0.03)] backdrop-blur-[2px]">
+                <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-emerald-700">Checkout options</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1 text-xs font-semibold text-emerald-800">
+                    <BankIcon />
+                    <span>Interac</span>
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1 text-xs font-semibold text-emerald-800">
+                    <CardIcon />
+                    <span>Credit card</span>
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1 text-xs font-semibold text-emerald-800">
+                    <CardIcon />
+                    <span>Debit card</span>
+                  </span>
+                </div>
+              </article>
+            </div>
+
             <div className="hidden gap-3 sm:grid-cols-3 xl:grid">
               <article className="rounded-[24px] border border-[#dfe7df] bg-[rgba(255,255,255,0.6)] p-4 shadow-[0_8px_20px_rgba(16,24,40,0.04)] backdrop-blur-[2px]">
                 <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-emerald-700">Active Bulk Sales</p>
@@ -888,36 +919,6 @@ export default function LandingPage({ onGoShop }) {
             </div>
           </div>
         ) : null}
-        <div className="mt-5 grid gap-3 sm:grid-cols-3 xl:hidden">
-          <article className="rounded-[24px] border border-[#dfe7df] bg-[rgba(243,251,246,0.72)] p-4 shadow-[0_8px_20px_rgba(16,24,40,0.03)] backdrop-blur-[2px]">
-            <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-emerald-700">Checkout options</p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1 text-xs font-semibold text-emerald-800">
-                <BankIcon />
-                <span>Interac</span>
-              </span>
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1 text-xs font-semibold text-emerald-800">
-                <CardIcon />
-                <span>Credit card</span>
-              </span>
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1 text-xs font-semibold text-emerald-800">
-                <CardIcon />
-                <span>Debit card</span>
-              </span>
-            </div>
-          </article>
-          <article className="rounded-[24px] border border-[#dfe7df] bg-[rgba(255,255,255,0.6)] p-4 shadow-[0_8px_20px_rgba(16,24,40,0.04)] backdrop-blur-[2px]">
-            <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-emerald-700">Live events</p>
-            <p className="mt-2 text-3xl font-extrabold text-[#171a16]">{activeItems.length}</p>
-            <p className="mt-1 text-sm text-slate-600">{openSalesEventMessage(activeItems.length)}</p>
-          </article>
-          <CountdownDisplay
-            countdown={nextClosingCountdown}
-            emptyLabel="No active countdown"
-            emptyDetail="There is no live sales event closing right now."
-            accent="amber"
-          />
-        </div>
         </section>
       </section>
 

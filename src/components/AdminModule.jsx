@@ -53,6 +53,7 @@ import {
   updateAdminPartialFulfillment,
   undoAdminPartialFulfillment,
   updateAdminOrderPreferredPickupLocation,
+  updateAdminOrderFulfillmentMethod,
   fetchAdminUsers,
   createAdminUser,
 } from '../api/admin';
@@ -601,6 +602,15 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
     }
   }
 
+  async function handleUpdateOrderFulfillmentMethod(orderReference, payload) {
+    setError('');
+    try {
+      return await updateAdminOrderFulfillmentMethod(orderReference, payload);
+    } catch (err) {
+      rethrowWithSessionHandling(err, 'Unable to change pickup or delivery right now.');
+    }
+  }
+
   async function handleUpdateSalesItem(salesItemId, payload) {
     setError('');
     try {
@@ -715,6 +725,7 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
         onUpdatePartialFulfillment={handleUpdatePartialFulfillment}
         onUndoPartialFulfillment={handleUndoPartialFulfillment}
         onUpdatePreferredPickupLocation={handleUpdatePreferredPickupLocation}
+        onUpdateOrderFulfillmentMethod={handleUpdateOrderFulfillmentMethod}
         onForceRelogin={handleForceRelogin}
         onLogout={handleLogout}
       />
