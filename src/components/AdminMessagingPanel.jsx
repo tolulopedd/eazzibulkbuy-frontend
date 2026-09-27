@@ -22,6 +22,15 @@ function getFirstName(value) {
   return String(value || 'Customer').trim().split(/\s+/)[0] || 'Customer';
 }
 
+function formatMessageType(value) {
+  if (!value) return 'Message';
+  return String(value)
+    .toLowerCase()
+    .split('_')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
 function buildDefaultReply(message) {
   return [
     `Hello ${getFirstName(message?.customer?.name)},`,
@@ -133,6 +142,12 @@ export default function AdminMessagingPanel({
     }
   }, [selectedMessage?.id]);
 
+  const selectedTrail = selectedMessage?.trail?.length
+    ? selectedMessage.trail
+    : selectedMessage
+      ? [selectedMessage]
+      : [];
+
   return (
     <section className="space-y-5">
       <section className={ui.card}>
@@ -237,12 +252,44 @@ export default function AdminMessagingPanel({
                     <AdminStatusBadge value={selectedMessage.readAt ? 'Read' : 'Unread'} tone={selectedMessage.readAt ? 'neutral' : 'warning'} />
                   </div>
 
-                  <div className="rounded-3xl border border-[#deded4] bg-white p-4">
-                    <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-                      <div className="text-sm font-bold text-slate-500">{formatDateTime(selectedMessage.createdAt)}</div>
-                      {selectedMessage.orderReference ? <div className="text-sm font-bold text-emerald-800">{selectedMessage.orderReference}</div> : null}
+                  <div className="space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <h3 className="text-base font-bold text-emerald-950">Mail trail</h3>
+                      <span className="text-xs font-semibold text-slate-500">
+                        {selectedTrail.length} message{selectedTrail.length === 1 ? '' : 's'}
+                      </span>
                     </div>
-                    <p className="whitespace-pre-wrap text-base leading-7 text-slate-800">{selectedMessage.note}</p>
+                    <div className="max-h-[32rem] space-y-3 overflow-y-auto rounded-3xl border border-[#deded4] bg-white p-4">
+                      {selectedTrail.map((trailItem) => {
+                        const isAdminReply = trailItem.source === 'ADMIN';
+                        return (
+                          <article
+                            key={trailItem.id}
+                            className={`max-w-[92%] rounded-2xl border px-4 py-3 ${
+                              isAdminReply
+                                ? 'ml-auto border-emerald-200 bg-emerald-50'
+                                : 'mr-auto border-slate-200 bg-slate-50'
+                            }`}
+                          >
+                            <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
+                              <div>
+                                <p className="text-sm font-bold text-slate-900">
+                                  {isAdminReply ? trailItem.createdBy?.name || 'EazziBulkBuy Admin' : selectedMessage.customer?.name || 'Customer'}
+                                </p>
+                                <p className="text-xs font-semibold text-slate-500">
+                                  {isAdminReply ? 'Admin response' : formatMessageType(trailItem.messageType)}
+                                </p>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-xs font-semibold text-slate-500">{formatDateTime(trailItem.createdAt)}</p>
+                                {trailItem.orderReference ? <p className="mt-1 text-xs font-bold text-emerald-800">{trailItem.orderReference}</p> : null}
+                              </div>
+                            </div>
+                            <p className="whitespace-pre-wrap text-sm leading-6 text-slate-800">{trailItem.note}</p>
+                          </article>
+                        );
+                      })}
+                    </div>
                   </div>
 
                   <div className={ui.fieldWrap}>

@@ -695,6 +695,12 @@ export function fetchAdminOrders(params = {}) {
   if (params.fulfillmentStatus) {
     search.set('fulfillmentStatus', params.fulfillmentStatus);
   }
+  if (params.likelyDuplicates !== undefined) {
+    search.set('likelyDuplicates', String(params.likelyDuplicates));
+  }
+  if (params.duplicateWindowMinutes) {
+    search.set('duplicateWindowMinutes', String(params.duplicateWindowMinutes));
+  }
   if (params.sortBy) {
     search.set('sortBy', params.sortBy);
   }

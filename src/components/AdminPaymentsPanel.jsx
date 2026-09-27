@@ -98,6 +98,18 @@ function formatDateTime(value) {
   return new Date(value).toLocaleString();
 }
 
+function formatComparisonSpan(minutes) {
+  const value = Math.max(0, Number(minutes) || 0);
+  if (value < 1) return 'less than 1 minute';
+  if (value < 60) return `${value} minute${value === 1 ? '' : 's'}`;
+  if (value < 1440) {
+    const hours = Math.ceil(value / 60);
+    return `${hours} hour${hours === 1 ? '' : 's'}`;
+  }
+  const days = Math.ceil(value / 1440);
+  return `${days} day${days === 1 ? '' : 's'}`;
+}
+
 function formatLabel(value) {
   if (!value) {
     return 'Unknown';
@@ -855,12 +867,22 @@ export default function AdminPaymentsPanel({
   pickupLocations = [],
   onRefreshReports,
 }) {
+  const [activeTab, setActiveTab] = useState('payments');
   const [payments, setPayments] = useState([]);
+  const [duplicateGroups, setDuplicateGroups] = useState([]);
+  const [duplicateWindowMinutes, setDuplicateWindowMinutes] = useState(1440);
   const [query, setQuery] = useState(() => createDefaultQuery());
   const [meta, setMeta] = useState({
     page: 1,
     limit: DEFAULT_QUERY_LIMIT,
     total: 0,
+    totalPages: 1,
+  });
+  const [duplicateMeta, setDuplicateMeta] = useState({
+    page: 1,
+    limit: 10,
+    total: 0,
+    totalOrders: 0,
     totalPages: 1,
   });
   const [loading, setLoading] = useState(false);
@@ -901,6 +923,45 @@ export default function AdminPaymentsPanel({
     }
   }
 
+  async function loadDuplicatePayments(nextQuery = query, windowMinutes = duplicateWindowMinutes, page = 1) {
+    setLoading(true);
+    setError('');
+    try {
+      const response = await onLoadOrders({
+        startDate: toIsoBoundary(nextQuery.startDate),
+        endDate: toIsoBoundary(nextQuery.endDate, true),
+        q: nextQuery.q.trim(),
+        batchNumber: nextQuery.batchNumber.trim(),
+        likelyDuplicates: true,
+        duplicateWindowMinutes: windowMinutes,
+        sortBy: 'createdAt',
+        sortOrder: 'desc',
+        page,
+        limit: 10,
+      });
+      setDuplicateGroups(response.items || []);
+      setDuplicateMeta({
+        page: response.page || page,
+        limit: response.limit || 10,
+        total: response.total || 0,
+        totalOrders: response.totalOrders || 0,
+        totalPages: response.totalPages || 1,
+      });
+    } catch (err) {
+      setError(err.message || 'Unable to load likely duplicate orders. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function refreshCurrentView() {
+    if (activeTab === 'duplicates') {
+      await loadDuplicatePayments(query, duplicateWindowMinutes, duplicateMeta.page);
+      return;
+    }
+    await loadPayments(query);
+  }
+
   useEffect(() => {
     loadPayments(createDefaultQuery());
   }, []);
@@ -921,11 +982,26 @@ export default function AdminPaymentsPanel({
         page: 1,
       };
       setQuery((current) => ({ ...current, page: 1 }));
-      loadPayments(nextQuery);
+      if (activeTab === 'duplicates') {
+        loadDuplicatePayments(nextQuery, duplicateWindowMinutes, 1);
+      } else {
+        loadPayments(nextQuery);
+      }
     }, 250);
 
     return () => window.clearTimeout(timer);
-  }, [query.startDate, query.endDate, query.q, query.batchNumber, query.paidOnly, query.status, query.paymentStatus, query.paymentMethod]);
+  }, [query.startDate, query.endDate, query.q, query.batchNumber, query.paidOnly, query.status, query.paymentStatus, query.paymentMethod, duplicateWindowMinutes]);
+
+  async function handleTabChange(nextTab) {
+    setActiveTab(nextTab);
+    setActionStatus('');
+    setError('');
+    if (nextTab === 'duplicates') {
+      await loadDuplicatePayments(query, duplicateWindowMinutes, 1);
+    } else {
+      await loadPayments(query);
+    }
+  }
 
   async function applySearch() {
     const nextQuery = {
@@ -934,10 +1010,19 @@ export default function AdminPaymentsPanel({
       page: 1,
     };
     setQuery(nextQuery);
-    await loadPayments(nextQuery);
+    if (activeTab === 'duplicates') {
+      await loadDuplicatePayments(nextQuery, duplicateWindowMinutes, 1);
+    } else {
+      await loadPayments(nextQuery);
+    }
   }
 
   async function goToPage(nextPage) {
+    if (activeTab === 'duplicates') {
+      const page = Math.max(1, Math.min(nextPage, duplicateMeta.totalPages || 1));
+      await loadDuplicatePayments(query, duplicateWindowMinutes, page);
+      return;
+    }
     const page = Math.max(1, Math.min(nextPage, meta.totalPages || 1));
     const nextQuery = { ...query, page };
     setQuery(nextQuery);
@@ -951,7 +1036,7 @@ export default function AdminPaymentsPanel({
     try {
       const result = await onConfirmInteracPayment(orderReference);
       setActionStatus(result.message || 'Payment confirmed successfully.');
-      await loadPayments(query);
+      await refreshCurrentView();
       if (selectedOrder?.orderReference === orderReference) {
         setSelectedOrder((current) => current ? { ...current, paymentStatus: 'PAID', status: 'CONFIRMED', paidAt: new Date().toISOString() } : current);
       }
@@ -1014,7 +1099,7 @@ export default function AdminPaymentsPanel({
       });
 
       setActionStatus(result.message || 'Incomplete order moved to pending review successfully.');
-      await loadPayments(query);
+      await refreshCurrentView();
       if (selectedOrder?.orderReference === orderReference) {
         setSelectedOrder(null);
       }
@@ -1044,7 +1129,7 @@ export default function AdminPaymentsPanel({
       if (selectedOrder?.orderReference === orderReference) {
         setSelectedOrder(null);
       }
-      await loadPayments(query);
+      await refreshCurrentView();
       if (onRefreshReports) {
         await onRefreshReports();
       }
@@ -1065,7 +1150,7 @@ export default function AdminPaymentsPanel({
       if (selectedOrder?.orderReference === orderReference && result?.order) {
         setSelectedOrder(result.order);
       }
-      await loadPayments(query);
+      await refreshCurrentView();
       if (onRefreshReports) {
         await onRefreshReports();
       }
@@ -1084,7 +1169,7 @@ export default function AdminPaymentsPanel({
     try {
       const result = await onUpdateFulfillmentMethod(orderReference, payload);
       setActionStatus(result.message || 'Pickup or delivery updated successfully.');
-      await loadPayments(query);
+      await refreshCurrentView();
       if (onRefreshReports) {
         await onRefreshReports();
       }
@@ -1154,6 +1239,10 @@ export default function AdminPaymentsPanel({
 
   const listStart = meta.total === 0 ? 0 : (meta.page - 1) * meta.limit + 1;
   const listEnd = meta.total === 0 ? 0 : Math.min(meta.page * meta.limit, meta.total);
+  const duplicateListStart = duplicateMeta.total === 0 ? 0 : (duplicateMeta.page - 1) * duplicateMeta.limit + 1;
+  const duplicateListEnd = duplicateMeta.total === 0
+    ? 0
+    : Math.min(duplicateMeta.page * duplicateMeta.limit, duplicateMeta.total);
   const paymentDisplayRows = payments.flatMap((order) => buildPaymentDisplayRows(order, query.paymentStatus));
 
   return (
@@ -1163,6 +1252,23 @@ export default function AdminPaymentsPanel({
             <div className="space-y-2">
               <h1 className="text-2xl font-bold tracking-tight text-emerald-950">Payments</h1>
               <p className="leading-6 text-slate-600">Review Interac and Stripe payments, view receipt proof where needed, and take action from one table.</p>
+            </div>
+
+            <div className="flex flex-wrap gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-2">
+              <button
+                type="button"
+                className={activeTab === 'payments' ? ui.buttonPrimary : ui.buttonGhost}
+                onClick={() => handleTabChange('payments')}
+              >
+                All payments
+              </button>
+              <button
+                type="button"
+                className={activeTab === 'duplicates' ? ui.buttonPrimary : ui.buttonGhost}
+                onClick={() => handleTabChange('duplicates')}
+              >
+                Likely duplicates{duplicateMeta.total ? ` (${duplicateMeta.total})` : ''}
+              </button>
             </div>
 
           <div className={`${ui.filterPanel} grid gap-4 md:grid-cols-2 xl:grid-cols-4`}>
@@ -1199,51 +1305,72 @@ export default function AdminPaymentsPanel({
                   placeholder="AZ1, AZ2, AZ3"
                 />
               </div>
-            <div className={ui.fieldWrap}>
-              <label className={ui.label}>Payment method</label>
-              <select
-                className={ui.select}
-                value={query.paymentMethod}
-                onChange={(event) => setQuery((current) => ({ ...current, paymentMethod: event.target.value }))}
-              >
-                <option value="">All methods</option>
-                <option value="INTERAC_E_TRANSFER">Interac e-Transfer</option>
-                <option value="STRIPE_CARD">Stripe card</option>
-              </select>
-            </div>
-            <div className={ui.fieldWrap}>
-              <label className={ui.label}>Payment status</label>
-              <select
-                className={ui.select}
-                value={query.paymentStatus}
-                onChange={(event) => setQuery((current) => ({ ...current, paymentStatus: event.target.value }))}
-              >
-                <option value="">All statuses</option>
-                <option value="PENDING_PAYMENT">Incomplete Order</option>
-                <option value="PENDING_REVIEW">Pending review</option>
-                <option value="PAID">Paid</option>
-	                <option value="PARTIALLY_CANCELLED">Partially Cancelled</option>
-	                <option value="PARTIALLY_REFUNDED">Partially Refunded</option>
-	                <option value="PARTIALLY_STORE_CREDIT">Partially Store Credit</option>
-	                <option value="PARTIALLY_RESOLVED">Partially Resolved</option>
-	                <option value="CANCELLED">Cancelled</option>
-	                <option value="REFUNDED">Refunded</option>
-	                <option value="STORE_CREDIT">Store Credit</option>
-              </select>
-            </div>
-            <div className="xl:col-span-2 flex flex-wrap items-end gap-3">
-              <button type="button" className={ui.buttonGhost} onClick={handleExportPayments} disabled={exporting}>
-                {exporting ? 'Exporting...' : 'Download to Excel'}
-              </button>
-              <button type="button" className={ui.buttonGhost} onClick={handlePdfExport} disabled={exportingPdf}>
-                {exportingPdf ? 'Preparing PDF...' : 'Download to PDF'}
-              </button>
-            </div>
+            {activeTab === 'payments' ? (
+              <>
+                <div className={ui.fieldWrap}>
+                  <label className={ui.label}>Payment method</label>
+                  <select
+                    className={ui.select}
+                    value={query.paymentMethod}
+                    onChange={(event) => setQuery((current) => ({ ...current, paymentMethod: event.target.value }))}
+                  >
+                    <option value="">All methods</option>
+                    <option value="INTERAC_E_TRANSFER">Interac e-Transfer</option>
+                    <option value="STRIPE_CARD">Stripe card</option>
+                  </select>
+                </div>
+                <div className={ui.fieldWrap}>
+                  <label className={ui.label}>Payment status</label>
+                  <select
+                    className={ui.select}
+                    value={query.paymentStatus}
+                    onChange={(event) => setQuery((current) => ({ ...current, paymentStatus: event.target.value }))}
+                  >
+                    <option value="">All statuses</option>
+                    <option value="PENDING_PAYMENT">Incomplete Order</option>
+                    <option value="PENDING_REVIEW">Pending review</option>
+                    <option value="PAID">Paid</option>
+	                  <option value="PARTIALLY_CANCELLED">Partially Cancelled</option>
+	                  <option value="PARTIALLY_REFUNDED">Partially Refunded</option>
+	                  <option value="PARTIALLY_STORE_CREDIT">Partially Store Credit</option>
+	                  <option value="PARTIALLY_RESOLVED">Partially Resolved</option>
+	                  <option value="CANCELLED">Cancelled</option>
+	                  <option value="REFUNDED">Refunded</option>
+	                  <option value="STORE_CREDIT">Store Credit</option>
+                  </select>
+                </div>
+                <div className="xl:col-span-2 flex flex-wrap items-end gap-3">
+                  <button type="button" className={ui.buttonGhost} onClick={handleExportPayments} disabled={exporting}>
+                    {exporting ? 'Exporting...' : 'Download to Excel'}
+                  </button>
+                  <button type="button" className={ui.buttonGhost} onClick={handlePdfExport} disabled={exportingPdf}>
+                    {exportingPdf ? 'Preparing PDF...' : 'Download to PDF'}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className={ui.fieldWrap}>
+                <label className={ui.label}>Comparison window</label>
+                <select
+                  className={ui.select}
+                  value={duplicateWindowMinutes}
+                  onChange={(event) => setDuplicateWindowMinutes(Number(event.target.value))}
+                >
+                  <option value={360}>Within 6 hours</option>
+                  <option value={720}>Within 12 hours</option>
+                  <option value={1440}>Within 24 hours</option>
+                  <option value={2880}>Within 48 hours</option>
+                  <option value={4320}>Within 3 days</option>
+                  <option value={10080}>Within 7 days</option>
+                </select>
+              </div>
+            )}
           </div>
 
           {actionStatus ? <p className={ui.success}>{actionStatus}</p> : null}
           {error ? <p className={ui.error}>{error}</p> : null}
 
+          {activeTab === 'payments' ? (
           <div className={ui.tableWrap}>
             <table className={`${ui.table} min-w-[980px]`}>
               <thead>
@@ -1328,6 +1455,113 @@ export default function AdminPaymentsPanel({
               onNext={() => goToPage(meta.page + 1)}
             />
           </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900">
+                These are possible duplicate matches for your review. Compare the payment evidence before cancelling, refunding customer, or deleting any of the order.
+              </div>
+
+              {duplicateGroups.map((group) => (
+                <section key={group.id} className="overflow-hidden rounded-[24px] border border-slate-200 bg-white">
+                  <div className="flex flex-col gap-3 border-b border-slate-200 bg-slate-50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0">
+                      <p className="font-semibold text-slate-900">{group.customer?.name || 'Unknown customer'}</p>
+                      <p className="truncate text-sm text-slate-600">{group.customer?.email || 'No email address'}</p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {group.orders.length} matching orders placed within {formatComparisonSpan(group.timeSpanMinutes)}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <AdminStatusBadge
+                        value={`${group.paidOrderCount} paid`}
+                        tone={group.hasSinglePaidOrder ? 'warning' : group.paidOrderCount > 1 ? 'danger' : 'neutral'}
+                      />
+                      <AdminStatusBadge value={`${group.unpaidOrderCount} unpaid`} tone="neutral" />
+                    </div>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className={`${ui.table} min-w-[900px]`}>
+                      <thead>
+                        <tr className={ui.tableHeadRow}>
+                          <th className={ui.tableHeaderCell}>Order</th>
+                          <th className={ui.tableHeaderCell}>Created</th>
+                          <th className={ui.tableHeaderCell}>Items</th>
+                          <th className={ui.tableHeaderCell}>Payment method</th>
+                          <th className={ui.tableHeaderCell}>Amount</th>
+                          <th className={ui.tableHeaderCell}>Status</th>
+                          <th className={`${ui.tableHeaderCell} text-right`}>Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {group.orders.map((order) => {
+                          const paymentStatus = getDisplayPaymentStatus(order);
+                          const canConfirm = order.paymentMethod === 'INTERAC_E_TRANSFER' && order.paymentStatus === 'PENDING_REVIEW';
+                          const canResend = isPaidLike(order);
+                          return (
+                            <tr key={order.orderReference} className={ui.tableRow}>
+                              <td className={ui.tableCell}>
+                                <p className="font-semibold text-slate-900">
+                                  {order.displayOrderReference || formatOrderReferenceDisplay(order.orderReference, order.createdAt, order.user, { batchNumber: order.salesItem?.batchNumber, orderSequence: order.orderSequence })}
+                                </p>
+                                <p className="text-xs text-slate-500">{getOrderBatchSummary(order)}</p>
+                              </td>
+                              <td className={ui.tableCell}>{formatDateTime(order.createdAt)}</td>
+                              <td className={ui.tableCell}>
+                                <p className="max-w-[18rem] truncate" title={getOrderPaymentSummary(order)}>{getOrderPaymentSummary(order)}</p>
+                              </td>
+                              <td className={ui.tableCell}>{formatLabel(order.paymentMethod)}</td>
+                              <td className={`${ui.tableCell} font-semibold text-slate-900`}>{formatCurrency(order.totalAmount)}</td>
+                              <td className={ui.tableCell}>
+                                <AdminStatusBadge value={formatLabel(paymentStatus)} tone={getStatusTone(paymentStatus)} />
+                              </td>
+                              <td className={`${ui.tableCell} whitespace-nowrap text-right`}>
+                                <div className="flex justify-end gap-2">
+                                  <AdminIconButton label="View payment" onClick={() => handleView(order)}>
+                                    <EyeIcon />
+                                  </AdminIconButton>
+                                  {canConfirm ? (
+                                    <AdminIconButton
+                                      label="Confirm Interac payment"
+                                      onClick={() => handleConfirm(order.orderReference)}
+                                      disabled={confirmingReference === order.orderReference}
+                                    >
+                                      <CheckIcon />
+                                    </AdminIconButton>
+                                  ) : null}
+                                  <AdminIconButton
+                                    label="Resend confirmation"
+                                    onClick={() => handleResend(order.orderReference)}
+                                    disabled={resendingReference === order.orderReference || !canResend}
+                                  >
+                                    <MailIcon />
+                                  </AdminIconButton>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+              ))}
+
+              {!loading && duplicateGroups.length === 0 ? (
+                <div className={ui.tableWrap}>
+                  <AdminTableEmpty message="No likely duplicate orders were found for this date range and comparison window." />
+                </div>
+              ) : null}
+
+              <AdminPagination
+                page={duplicateMeta.page}
+                totalPages={duplicateMeta.totalPages}
+                total={duplicateMeta.total}
+                label={`Showing ${duplicateListStart}-${duplicateListEnd} of ${duplicateMeta.total} possible duplicate groups (${duplicateMeta.totalOrders} orders)`}
+                onPrev={() => goToPage(duplicateMeta.page - 1)}
+                onNext={() => goToPage(duplicateMeta.page + 1)}
+              />
+            </div>
+          )}
         </div>
       </section>
 
