@@ -104,8 +104,15 @@ function parseBatchFilters(value) {
     .filter(Boolean);
 }
 
+function normalizeSearchText(value) {
+  return String(value || '')
+    .normalize('NFKC')
+    .toLocaleLowerCase('en-CA')
+    .trim();
+}
+
 function includesInsensitive(value, query) {
-  return String(value || '').toLowerCase().includes(String(query || '').toLowerCase());
+  return normalizeSearchText(value).includes(normalizeSearchText(query));
 }
 
 function formatLabel(value) {

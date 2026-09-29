@@ -119,6 +119,14 @@ function formatLabel(value) {
     return 'Incomplete Order';
   }
 
+  if (value === 'STORE_CREDIT_AND_INTERAC_E_TRANSFER') {
+    return 'Store Credit + Interac e-Transfer';
+  }
+
+  if (value === 'STORE_CREDIT_AND_STRIPE_CARD') {
+    return 'Store Credit + Stripe Card';
+  }
+
   return value
     .toLowerCase()
     .split('_')
@@ -172,6 +180,50 @@ function getDisplayPaymentStatus(order) {
   }
 
   return order?.paymentStatus || 'UNKNOWN';
+}
+
+function hasAppliedStoreCredit(order) {
+  return Number(order?.storeCreditApplied) > 0;
+}
+
+function getAppliedPaymentMethod(order) {
+  if (!hasAppliedStoreCredit(order)) {
+    return order?.paymentMethod || 'UNKNOWN';
+  }
+
+  if (Number(order?.amountDue) > 0 && order?.paymentMethod) {
+    return `STORE_CREDIT_AND_${order.paymentMethod}`;
+  }
+
+  return 'STORE_CREDIT';
+}
+
+function getDisplayPaymentMethod(order) {
+  if (hasAppliedStoreCredit(order)) {
+    return getAppliedPaymentMethod(order);
+  }
+
+  if (order?.payment?.providerPayloadJson?.adminResolution?.action === 'STORE_CREDIT') {
+    return 'STORE_CREDIT';
+  }
+
+  if (getResolvedOrderSourceItems(order).some((item) => item.resolutionAction === 'STORE_CREDIT')) {
+    return 'STORE_CREDIT';
+  }
+
+  return order?.paymentMethod || 'UNKNOWN';
+}
+
+function paymentMethodMatchesFilter(paymentMethod, paymentMethodFilter) {
+  if (!paymentMethodFilter) {
+    return true;
+  }
+
+  if (paymentMethodFilter === 'STORE_CREDIT') {
+    return paymentMethod === 'STORE_CREDIT' || paymentMethod.startsWith('STORE_CREDIT_AND_');
+  }
+
+  return paymentMethod === paymentMethodFilter || paymentMethod === `STORE_CREDIT_AND_${paymentMethodFilter}`;
 }
 
 function getStatusTone(status) {
@@ -262,7 +314,7 @@ function getBatchSummaryFromSourceItems(items = []) {
   return batches.length ? batches.join(', ') : '—';
 }
 
-function buildPaymentDisplayRows(order, paymentStatusFilter = '') {
+function buildPaymentDisplayRows(order, paymentStatusFilter = '', paymentMethodFilter = '') {
   const activeItems = getOrderSourceItems(order);
   const resolvedItems = getResolvedOrderSourceItems(order);
   const rows = [];
@@ -272,6 +324,7 @@ function buildPaymentDisplayRows(order, paymentStatusFilter = '') {
       id: `${order.id}-active`,
       rowType: 'ACTIVE',
       order,
+      paymentMethod: getAppliedPaymentMethod(order),
       status: isPaidLike(order)
         ? 'PAID'
         : order.paymentStatus === 'PENDING_REVIEW'
@@ -299,6 +352,7 @@ function buildPaymentDisplayRows(order, paymentStatusFilter = '') {
       id: `${order.id}-${action.toLowerCase()}`,
       rowType: 'RESOLVED',
       order,
+      paymentMethod: action === 'STORE_CREDIT' ? 'STORE_CREDIT' : order.paymentMethod,
       status: action,
       amount: sumSourceItemLineTotal(items),
       itemSummary: summarizeSourceItems(items),
@@ -309,7 +363,10 @@ function buildPaymentDisplayRows(order, paymentStatusFilter = '') {
     });
   });
 
-  return rows.filter((row) => !paymentStatusFilter || row.status === paymentStatusFilter);
+  return rows.filter((row) => (
+    (!paymentStatusFilter || row.status === paymentStatusFilter) &&
+    paymentMethodMatchesFilter(row.paymentMethod, paymentMethodFilter)
+  ));
 }
 
 function getOrderFulfillmentItems(order) {
@@ -569,6 +626,14 @@ function PaymentDetailsModal({
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Amount</p>
                 <p className="text-base font-semibold text-slate-900">{formatCurrency(order.totalAmount)}</p>
                 <p className="text-sm text-slate-600">{itemSummary}</p>
+                {hasAppliedStoreCredit(order) ? (
+                  <div className="mt-2 space-y-0.5 border-t border-slate-200 pt-2 text-xs text-slate-600">
+                    <p>Store credit: <span className="font-semibold text-slate-900">{formatCurrency(order.storeCreditApplied)}</span></p>
+                    {Number(order.amountDue) > 0 ? (
+                      <p>{formatLabel(order.paymentMethod)}: <span className="font-semibold text-slate-900">{formatCurrency(order.amountDue)}</span></p>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
               <div className={ui.metricCard}>
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Batch</p>
@@ -580,7 +645,7 @@ function PaymentDetailsModal({
                 <div className="pt-1">
                   <AdminStatusBadge value={formatLabel(getDisplayPaymentStatus(order))} tone={getStatusTone(getDisplayPaymentStatus(order))} />
                 </div>
-                <p className="pt-1 text-sm text-slate-600">{formatLabel(order.paymentMethod)}</p>
+                <p className="pt-1 text-sm text-slate-600">{formatLabel(getDisplayPaymentMethod(order))}</p>
               </div>
             </div>
 
@@ -1224,7 +1289,7 @@ export default function AdminPaymentsPanel({
           { key: 'createdAt', label: 'Date', render: (row) => formatDate(row.createdAt) },
           { key: 'buyer', label: 'Buyer', render: (row) => row.user?.name || 'Unknown buyer' },
           { key: 'batch', label: 'Batch', render: (row) => getOrderBatchSummary(row) },
-          { key: 'paymentMethod', label: 'Method', render: (row) => formatLabel(row.paymentMethod) },
+          { key: 'paymentMethod', label: 'Method', render: (row) => formatLabel(getDisplayPaymentMethod(row)) },
           { key: 'totalAmount', label: 'Amount', render: (row) => formatCurrency(row.totalAmount) },
           { key: 'status', label: 'Status', render: (row) => formatLabel(getDisplayPaymentStatus(row)) },
         ],
@@ -1243,7 +1308,7 @@ export default function AdminPaymentsPanel({
   const duplicateListEnd = duplicateMeta.total === 0
     ? 0
     : Math.min(duplicateMeta.page * duplicateMeta.limit, duplicateMeta.total);
-  const paymentDisplayRows = payments.flatMap((order) => buildPaymentDisplayRows(order, query.paymentStatus));
+  const paymentDisplayRows = payments.flatMap((order) => buildPaymentDisplayRows(order, query.paymentStatus, query.paymentMethod));
 
   return (
     <section className="space-y-5">
@@ -1251,7 +1316,7 @@ export default function AdminPaymentsPanel({
           <div className="space-y-5">
             <div className="space-y-2">
               <h1 className="text-2xl font-bold tracking-tight text-emerald-950">Payments</h1>
-              <p className="leading-6 text-slate-600">Review Interac and Stripe payments, view receipt proof where needed, and take action from one table.</p>
+              <p className="leading-6 text-slate-600">Review Interac, Stripe, and store credit payments, view receipt proof where needed, and take action from one table.</p>
             </div>
 
             <div className="flex flex-wrap gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-2">
@@ -1317,6 +1382,7 @@ export default function AdminPaymentsPanel({
                     <option value="">All methods</option>
                     <option value="INTERAC_E_TRANSFER">Interac e-Transfer</option>
                     <option value="STRIPE_CARD">Stripe card</option>
+                    <option value="STORE_CREDIT">Store Credit</option>
                   </select>
                 </div>
                 <div className={ui.fieldWrap}>
@@ -1411,7 +1477,7 @@ export default function AdminPaymentsPanel({
                           <p className="truncate font-medium text-slate-900" title={row.batchSummary}>{row.batchSummary}</p>
                         </div>
                       </td>
-                      <td className={ui.tableCell}>{formatLabel(order.paymentMethod)}</td>
+                      <td className={ui.tableCell}>{formatLabel(row.paymentMethod)}</td>
                       <td className={`${ui.tableCell} font-semibold text-slate-900`}>{formatCurrency(row.amount)}</td>
                       <td className={ui.tableCell}>
                         <AdminStatusBadge value={formatLabel(row.status)} tone={getStatusTone(row.status)} />
@@ -1509,7 +1575,7 @@ export default function AdminPaymentsPanel({
                               <td className={ui.tableCell}>
                                 <p className="max-w-[18rem] truncate" title={getOrderPaymentSummary(order)}>{getOrderPaymentSummary(order)}</p>
                               </td>
-                              <td className={ui.tableCell}>{formatLabel(order.paymentMethod)}</td>
+                              <td className={ui.tableCell}>{formatLabel(getDisplayPaymentMethod(order))}</td>
                               <td className={`${ui.tableCell} font-semibold text-slate-900`}>{formatCurrency(order.totalAmount)}</td>
                               <td className={ui.tableCell}>
                                 <AdminStatusBadge value={formatLabel(paymentStatus)} tone={getStatusTone(paymentStatus)} />

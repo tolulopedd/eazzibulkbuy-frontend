@@ -228,7 +228,7 @@ function PaymentSuccessPage({
   const isManualReview = variant === 'manual-review';
   return (
     <section className={`${ui.card} mx-auto w-full max-w-3xl space-y-3`}>
-      <h1 className="text-2xl font-bold tracking-tight text-emerald-950">
+      <h1 className="pr-12 text-2xl font-bold tracking-tight text-emerald-950">
         {isManualReview ? 'Order submitted successfully' : 'Payment successful'}
       </h1>
       <p className="leading-6 text-slate-700">
@@ -267,11 +267,17 @@ function PaymentSuccessModal({ onClose, ...props }) {
       <div className="absolute inset-0" onClick={onClose} aria-hidden="true" />
       <div className="relative z-10 w-full max-w-3xl">
         <PaymentSuccessPage {...props} />
-        <div className="mt-4 flex justify-center">
-          <button type="button" className={ui.buttonPrimary} onClick={onClose}>
-            Close
-          </button>
-        </div>
+        <button
+          type="button"
+          className="absolute right-4 top-4 inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 sm:right-5 sm:top-5"
+          onClick={onClose}
+          aria-label="Close order confirmation"
+          title="Close"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5" aria-hidden="true">
+            <path d="m6 6 12 12M18 6 6 18" />
+          </svg>
+        </button>
       </div>
     </div>
   );
