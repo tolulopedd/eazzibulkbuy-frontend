@@ -246,6 +246,7 @@ export default function AdminDashboard({
   onLoadPickupNotices,
   onLoadPickupAllocationPendingSummary,
   onPreviewPickupAllocation,
+  onPreviewDistribution,
   onLoadPickupLocations,
   onLoadPickupNoticeTemplates,
   onSendGeneralNotices,
@@ -788,6 +789,7 @@ export default function AdminDashboard({
           onLoadPickupNotices={onLoadPickupNotices}
           onLoadPickupAllocationPendingSummary={onLoadPickupAllocationPendingSummary}
           onPreviewPickupAllocation={onPreviewPickupAllocation}
+          onPreviewDistribution={onPreviewDistribution}
           onLoadPickupNoticeTemplates={onLoadPickupNoticeTemplates}
           onCreatePickupNoticeTemplate={onCreatePickupNoticeTemplate}
           onUpdatePickupNoticeTemplate={onUpdatePickupNoticeTemplate}

@@ -18,6 +18,7 @@ import {
   fetchAdminPickupNotices,
   fetchAdminPickupAllocationPendingSummary,
   previewAdminPickupAllocation,
+  previewAdminDistribution,
   fetchAdminDiscountOrders,
   fetchAdminSalesItems,
   fetchAdminCustomers,
@@ -199,6 +200,15 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
       return await previewAdminPickupAllocation(payload);
     } catch (err) {
       rethrowWithSessionHandling(err, 'Unable to preview pickup allocation right now.');
+    }
+  }
+
+  async function handlePreviewDistribution(payload) {
+    setError('');
+    try {
+      return await previewAdminDistribution(payload);
+    } catch (err) {
+      rethrowWithSessionHandling(err, 'Unable to preview distribution right now.');
     }
   }
 
@@ -678,6 +688,7 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
         onLoadPickupNotices={handleLoadPickupNotices}
         onLoadPickupAllocationPendingSummary={handleLoadPickupAllocationPendingSummary}
         onPreviewPickupAllocation={handlePreviewPickupAllocation}
+        onPreviewDistribution={handlePreviewDistribution}
         onLoadPickupLocations={handleLoadPickupLocations}
         onLoadPickupNoticeTemplates={handleLoadPickupNoticeTemplates}
         onSendGeneralNotices={handleSendGeneralNotices}

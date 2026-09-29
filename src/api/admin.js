@@ -165,6 +165,14 @@ export function previewAdminPickupAllocation(payload) {
   });
 }
 
+export function previewAdminDistribution(payload) {
+  return request('/api/admin/pickup-notices/distribution-preview', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
 export function fetchAdminPickupAllocationPendingSummary(params = {}) {
   const search = new URLSearchParams();
   if (params.startDate) search.set('startDate', params.startDate);

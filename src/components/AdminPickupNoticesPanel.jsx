@@ -1354,6 +1354,283 @@ function PickupAllocationPanel({
   );
 }
 
+function DistributionPanel({
+  produceOptions,
+  salesEventOptions,
+  onLoadPendingSummary,
+  onPreview,
+}) {
+  const [filters, setFilters] = useState({
+    startDate: '',
+    endDate: '',
+    q: '',
+    batchNumber: '',
+    noticeStatus: '',
+  });
+  const [stockRows, setStockRows] = useState([createAllocationStockRow()]);
+  const [pendingSummaryItems, setPendingSummaryItems] = useState([]);
+  const [preview, setPreview] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [loadingPendingSummary, setLoadingPendingSummary] = useState(false);
+  const [error, setError] = useState('');
+  const [status, setStatus] = useState('');
+  const productOptions = useMemo(() => {
+    const names = [
+      ...(produceOptions || []),
+      ...(salesEventOptions || []).map((item) => item.name),
+      ...pendingSummaryItems.map((item) => item.name),
+    ];
+
+    return [...new Set(names.map(normalizeProduceOptionName).filter(Boolean))]
+      .sort((a, b) => a.localeCompare(b));
+  }, [produceOptions, salesEventOptions, pendingSummaryItems]);
+  const batchOptionsByProduce = useMemo(() => {
+    const options = new Map();
+    (salesEventOptions || []).forEach((item) => {
+      const produceName = normalizeProduceOptionName(item.name);
+      const batchNumber = String(item.batchNumber || '').trim();
+      if (!produceName || !batchNumber) return;
+      const key = produceName.toLowerCase();
+      const current = options.get(key) || [];
+      if (!current.includes(batchNumber)) current.push(batchNumber);
+      options.set(key, current);
+    });
+    options.forEach((entries) => entries.sort((a, b) => a.localeCompare(b)));
+    return options;
+  }, [salesEventOptions]);
+  const pendingSummaryByProduct = useMemo(() => {
+    const summary = new Map();
+    pendingSummaryItems.forEach((item) => {
+      const productKey = normalizeAllocationValue(item.name);
+      const batchKey = normalizeAllocationValue(item.batchNumber);
+      const exactKey = `${productKey}::${batchKey}`;
+      const productEntry = summary.get(productKey) || { pendingQuantity: 0, batches: new Map() };
+      productEntry.pendingQuantity += Number(item.pendingQuantity) || 0;
+      productEntry.batches.set(exactKey, (productEntry.batches.get(exactKey) || 0) + (Number(item.pendingQuantity) || 0));
+      summary.set(productKey, productEntry);
+    });
+    return summary;
+  }, [pendingSummaryItems]);
+
+  useEffect(() => {
+    let mounted = true;
+    const timer = window.setTimeout(async () => {
+      setLoadingPendingSummary(true);
+      try {
+        const baseQuery = {
+          startDate: toIsoBoundary(filters.startDate),
+          endDate: toIsoBoundary(filters.endDate, true),
+          q: filters.q.trim(),
+          batchNumber: filters.batchNumber.trim(),
+          noticeStatus: filters.noticeStatus,
+        };
+        const [pickup, delivery] = await Promise.all([
+          onLoadPendingSummary({ ...baseQuery, fulfillmentMethod: 'PICKUP' }),
+          onLoadPendingSummary({ ...baseQuery, fulfillmentMethod: 'DELIVERY' }),
+        ]);
+        if (mounted) {
+          setPendingSummaryItems([...(pickup.items || []), ...(delivery.items || [])]);
+        }
+      } catch {
+        if (mounted) setPendingSummaryItems([]);
+      } finally {
+        if (mounted) setLoadingPendingSummary(false);
+      }
+    }, 250);
+
+    return () => {
+      mounted = false;
+      window.clearTimeout(timer);
+    };
+  }, [filters.startDate, filters.endDate, filters.q, filters.batchNumber, filters.noticeStatus, onLoadPendingSummary]);
+
+  function updateStockRow(rowId, patch) {
+    setStockRows((current) => current.map((row) => (row.id === rowId ? { ...row, ...patch } : row)));
+    setPreview(null);
+    setStatus('');
+  }
+
+  function removeStockRow(rowId) {
+    setStockRows((current) => (current.length === 1 ? current : current.filter((row) => row.id !== rowId)));
+    setPreview(null);
+    setStatus('');
+  }
+
+  function getPendingQuantity(row) {
+    const productKey = normalizeAllocationValue(row.name);
+    if (!productKey) return null;
+    const product = pendingSummaryByProduct.get(productKey);
+    if (!product) return 0;
+    const batchKey = normalizeAllocationValue(row.batchNumber);
+    return batchKey ? (product.batches.get(`${productKey}::${batchKey}`) || 0) : product.pendingQuantity;
+  }
+
+  async function handlePreview(event) {
+    event.preventDefault();
+    setError('');
+    setStatus('');
+    const availableItems = stockRows
+      .map((row) => ({
+        name: row.name.trim(),
+        batchNumber: row.batchNumber.trim(),
+        quantity: Number(row.quantity),
+      }))
+      .filter((row) => row.name && Number.isInteger(row.quantity) && row.quantity > 0);
+
+    if (!availableItems.length) {
+      setError('Enter available items.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const result = await onPreview({
+        availableItems,
+        filters: {
+          startDate: toIsoBoundary(filters.startDate),
+          endDate: toIsoBoundary(filters.endDate, true),
+          q: filters.q.trim(),
+          batchNumber: filters.batchNumber.trim(),
+          noticeStatus: filters.noticeStatus,
+        },
+      });
+      setPreview(result);
+      setStatus(`${result.totalLocations || 0} location${result.totalLocations === 1 ? '' : 's'} · ${result.suggestedOrders || 0} allocated order${result.suggestedOrders === 1 ? '' : 's'}`);
+    } catch (err) {
+      setError(err.message || 'Unable to preview distribution.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <section className={ui.card}>
+      <div className="space-y-5">
+        <div className="space-y-2">
+          <h1 className="text-2xl font-bold tracking-tight text-emerald-950">Distribution</h1>
+          <p className={ui.note}>Enter available produce(s) to see the quantity to take to every pickup and delivery location(s).</p>
+        </div>
+
+        {status ? <p className={ui.success}>{status}</p> : null}
+        {error ? <p className={ui.error}>{error}</p> : null}
+
+        <form className={`${ui.filterPanel} space-y-4`} onSubmit={handlePreview}>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+            <DateFilterField label="Start date" value={filters.startDate} onChange={(event) => setFilters((current) => ({ ...current, startDate: event.target.value }))} />
+            <DateFilterField label="End date" value={filters.endDate} onChange={(event) => setFilters((current) => ({ ...current, endDate: event.target.value }))} />
+            <div className={ui.fieldWrap}>
+              <label className={ui.label}>Search</label>
+              <input className={ui.input} value={filters.q} onChange={(event) => setFilters((current) => ({ ...current, q: event.target.value }))} placeholder="Name, order number, email" />
+            </div>
+            <div className={ui.fieldWrap}>
+              <label className={ui.label}>Batch number</label>
+              <input
+                className={ui.input}
+                value={filters.batchNumber}
+                onChange={(event) => setFilters((current) => ({ ...current, batchNumber: event.target.value.toUpperCase().replace(/[^A-Z0-9,\s]/g, '') }))}
+                placeholder="RH4, TM1"
+              />
+            </div>
+            <div className={ui.fieldWrap}>
+              <label className={ui.label}>Notice status</label>
+              <select className={ui.select} value={filters.noticeStatus} onChange={(event) => setFilters((current) => ({ ...current, noticeStatus: event.target.value }))}>
+                <option value="">All statuses</option>
+                <option value="NOT_SENT">Not sent</option>
+                <option value="SENT">Sent</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <p className={ui.label}>Available items</p>
+            {stockRows.map((row) => {
+              const pendingQuantity = getPendingQuantity(row);
+              const batchOptions = batchOptionsByProduce.get(String(row.name || '').trim().toLowerCase()) || [];
+              return (
+                <div key={row.id} className="grid gap-3 md:grid-cols-[minmax(0,1fr)_120px_120px_140px_auto]">
+                  <select className={ui.select} value={row.name} onChange={(event) => updateStockRow(row.id, { name: event.target.value, batchNumber: '' })}>
+                    <option value="">Select produce</option>
+                    {productOptions.map((name) => <option key={name} value={name}>{name}</option>)}
+                  </select>
+                  <select className={ui.select} value={row.batchNumber} onChange={(event) => updateStockRow(row.id, { batchNumber: event.target.value })} disabled={!row.name}>
+                    <option value="">All batches</option>
+                    {batchOptions.map((batchNumber) => <option key={batchNumber} value={batchNumber}>{batchNumber}</option>)}
+                  </select>
+                  <input className={ui.input} inputMode="numeric" value={row.quantity} onChange={(event) => updateStockRow(row.id, { quantity: event.target.value.replace(/\D/g, '') })} placeholder="Qty" />
+                  <div className="flex min-h-[46px] items-center rounded-2xl border border-[#e4e6dc] bg-white px-4 text-sm font-semibold text-emerald-950">
+                    {loadingPendingSummary ? 'Pending: ...' : pendingQuantity === null ? 'Pending: -' : `Pending: ${pendingQuantity}`}
+                  </div>
+                  <button type="button" className={ui.buttonGhost} onClick={() => removeStockRow(row.id)} disabled={stockRows.length === 1}>Remove</button>
+                </div>
+              );
+            })}
+            <div className="flex flex-wrap gap-3">
+              <button type="button" className={ui.buttonGhost} onClick={() => setStockRows((current) => [...current, createAllocationStockRow()])}>Add item</button>
+              <button type="submit" className={ui.buttonPrimary} disabled={loading}>{loading ? 'Checking...' : 'Preview Distribution'}</button>
+            </div>
+          </div>
+        </form>
+
+        {preview ? (
+          <div className="space-y-5">
+            <div className={ui.tableWrap}>
+              <table className={`${ui.table} min-w-[980px]`}>
+                <thead>
+                  <tr className={ui.tableHeadRow}>
+                    <th className={ui.tableHeaderCell} rowSpan={2}>Produce</th>
+                    <th className={`${ui.tableHeaderCell} text-center`} colSpan={4}>Locations</th>
+                  </tr>
+                  <tr className={ui.tableHeadRow}>
+                    <th className={`${ui.tableHeaderCell} text-center`}>Sage Creek</th>
+                    <th className={`${ui.tableHeaderCell} text-center`}>Dakota</th>
+                    <th className={`${ui.tableHeaderCell} text-center`}>Kildonan</th>
+                    <th className={`${ui.tableHeaderCell} text-center`}>Delivery</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(preview.distributionRows || []).map((row, index) => (
+                    <tr key={`${row.name}:${index}`} className={ui.tableRow}>
+                      <td className={`${ui.tableCell} font-semibold text-slate-900`}>{row.name}</td>
+                      <td className={`${ui.tableCell} text-center font-semibold text-slate-900`}>{row.sageCreek}</td>
+                      <td className={`${ui.tableCell} text-center font-semibold text-slate-900`}>{row.dakota}</td>
+                      <td className={`${ui.tableCell} text-center font-semibold text-slate-900`}>{row.kildonan}</td>
+                      <td className={`${ui.tableCell} text-center font-semibold text-slate-900`}>{row.delivery}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {!preview.distributionRows?.length ? <AdminTableEmpty message="No distribution could be generated from the available items." /> : null}
+            </div>
+
+            <div className={ui.tableWrap}>
+              <table className={`${ui.table} min-w-[640px]`}>
+                <thead>
+                  <tr className={ui.tableHeadRow}>
+                    <th className={ui.tableHeaderCell}>Product</th>
+                    <th className={ui.tableHeaderCell}>Batch</th>
+                    <th className={ui.tableHeaderCell}>Available qty</th>
+                    <th className={ui.tableHeaderCell}>Remaining qty</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(preview.remainingItems || []).map((item, index) => (
+                    <tr key={`${item.name}:${item.batchNumber}:${index}`} className={ui.tableRow}>
+                      <td className={ui.tableCell}>{item.name}</td>
+                      <td className={ui.tableCell}>{item.batchNumber || '-'}</td>
+                      <td className={ui.tableCell}>{item.inputQuantity}</td>
+                      <td className={ui.tableCell}>{item.remainingQuantity}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
 function GeneralNoticesPanel({
   onLoadCustomers,
   onSendGeneralNotices,
@@ -1631,6 +1908,7 @@ export default function AdminPickupNoticesPanel({
   onLoadPickupNotices,
   onLoadPickupAllocationPendingSummary,
   onPreviewPickupAllocation,
+  onPreviewDistribution,
   onLoadPickupNoticeTemplates,
   onCreatePickupNoticeTemplate,
   onUpdatePickupNoticeTemplate,
@@ -1880,6 +2158,10 @@ export default function AdminPickupNoticesPanel({
           <PickupNoticeTabIcon type="allocation" />
           Delivery Allocation
 	        </button>
+        <button type="button" className={tabButtonClass('distribution')} onClick={() => switchTab('distribution')}>
+          <PickupNoticeTabIcon type="allocation" />
+          Distribution
+        </button>
         <button type="button" className={tabButtonClass('templates')} onClick={() => switchTab('templates')}>
           <PickupNoticeTabIcon type="templates" />
           Templates
@@ -1935,6 +2217,13 @@ export default function AdminPickupNoticesPanel({
           onPreview={onPreviewPickupAllocation}
           onSend={onSendPickupNotices}
           fulfillmentMethod="DELIVERY"
+        />
+      ) : activeTab === 'distribution' ? (
+        <DistributionPanel
+          produceOptions={produceOptions}
+          salesEventOptions={salesEventOptions}
+          onLoadPendingSummary={onLoadPickupAllocationPendingSummary}
+          onPreview={onPreviewDistribution}
         />
       ) : (
       <section className={ui.card}>
