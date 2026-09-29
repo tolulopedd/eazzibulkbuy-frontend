@@ -186,12 +186,16 @@ function hasAppliedStoreCredit(order) {
   return Number(order?.storeCreditApplied) > 0;
 }
 
+function getExternalPaymentAmount(order) {
+  return Math.max(0, Number(order?.totalAmount || 0) - Number(order?.storeCreditApplied || 0));
+}
+
 function getAppliedPaymentMethod(order) {
   if (!hasAppliedStoreCredit(order)) {
     return order?.paymentMethod || 'UNKNOWN';
   }
 
-  if (Number(order?.amountDue) > 0 && order?.paymentMethod) {
+  if (getExternalPaymentAmount(order) > 0 && order?.paymentMethod) {
     return `STORE_CREDIT_AND_${order.paymentMethod}`;
   }
 
@@ -629,8 +633,8 @@ function PaymentDetailsModal({
                 {hasAppliedStoreCredit(order) ? (
                   <div className="mt-2 space-y-0.5 border-t border-slate-200 pt-2 text-xs text-slate-600">
                     <p>Store credit: <span className="font-semibold text-slate-900">{formatCurrency(order.storeCreditApplied)}</span></p>
-                    {Number(order.amountDue) > 0 ? (
-                      <p>{formatLabel(order.paymentMethod)}: <span className="font-semibold text-slate-900">{formatCurrency(order.amountDue)}</span></p>
+                    {getExternalPaymentAmount(order) > 0 ? (
+                      <p>{formatLabel(order.paymentMethod)}: <span className="font-semibold text-slate-900">{formatCurrency(getExternalPaymentAmount(order))}</span></p>
                     ) : null}
                   </div>
                 ) : null}
