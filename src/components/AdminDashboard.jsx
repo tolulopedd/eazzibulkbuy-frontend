@@ -218,6 +218,7 @@ function MenuIcon() {
 }
 
 export default function AdminDashboard({
+  dataRefreshVersion = 0,
   currentAdmin,
   canManageSales,
   isSuperAdmin,
@@ -555,7 +556,7 @@ export default function AdminDashboard({
     loadAllocationSalesItems();
     loadPickupLocations();
     loadProduceItems();
-  }, []);
+  }, [dataRefreshVersion]);
 
   const activeProduceOptions = useMemo(
     () => [...new Set(
@@ -864,6 +865,7 @@ export default function AdminDashboard({
     if (activeModule === 'fulfillment') {
       return (
         <AdminFulfillmentPanel
+          refreshSignal={dataRefreshVersion}
           onLoadOrders={onLoadOrders}
           onUpdateFulfillmentStatus={onUpdateFulfillmentStatus}
           onUpdatePartialFulfillment={onUpdatePartialFulfillment}
@@ -1136,7 +1138,9 @@ export default function AdminDashboard({
               </header>
 
               <main className="flex-1 overflow-y-auto px-4 py-5 sm:px-6 sm:py-6">
-                {renderActiveModule()}
+                <div key={activeModule === 'fulfillment' ? activeModule : `${activeModule}:${dataRefreshVersion}`}>
+                  {renderActiveModule()}
+                </div>
               </main>
             </div>
           </div>

@@ -1,5 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
+  ADMIN_CONNECTION_EVENT,
+  ADMIN_RECONNECT_ERROR_MESSAGE,
   adminLogin,
   adminLogout,
   adminMe,
@@ -72,6 +74,12 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
   const [adminSession, setAdminSession] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [connectionState, setConnectionState] = useState('');
+  const [dataRefreshVersion, setDataRefreshVersion] = useState(0);
+  const [sessionCheckError, setSessionCheckError] = useState('');
+  const [sessionCheckVersion, setSessionCheckVersion] = useState(0);
+  const lastActivityAtRef = useRef(Date.now());
+  const resetIdleTimerRef = useRef(() => {});
 
   function handleUnauthorizedSession(message = 'Your admin session expired. Please sign in again.') {
     setAuthenticated(false);
@@ -97,16 +105,21 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
   useEffect(() => {
     let mounted = true;
     async function check() {
+      setSessionCheckError('');
       try {
         const session = await adminMe();
         if (mounted) {
           setAuthenticated(true);
           setAdminSession(session);
         }
-      } catch {
+      } catch (err) {
         if (mounted) {
-          setAuthenticated(false);
-          setAdminSession(null);
+          if (err?.status === 401) {
+            setAuthenticated(false);
+            setAdminSession(null);
+          } else {
+            setSessionCheckError(err.message || ADMIN_RECONNECT_ERROR_MESSAGE);
+          }
         }
       } finally {
         if (mounted) {
@@ -118,7 +131,7 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [sessionCheckVersion]);
 
   useEffect(() => {
     if (!authenticated) {
@@ -133,6 +146,7 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
     }
 
     function resetIdleTimer() {
+      lastActivityAtRef.current = Date.now();
       if (timerId) {
         window.clearTimeout(timerId);
       }
@@ -140,6 +154,7 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
       timerId = window.setTimeout(expireForInactivity, ADMIN_SESSION_TIMEOUT_MS);
     }
 
+    resetIdleTimerRef.current = resetIdleTimer;
     resetIdleTimer();
     ADMIN_ACTIVITY_EVENTS.forEach((eventName) => {
       window.addEventListener(eventName, resetIdleTimer, { passive: true });
@@ -152,6 +167,71 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
       ADMIN_ACTIVITY_EVENTS.forEach((eventName) => {
         window.removeEventListener(eventName, resetIdleTimer);
       });
+      resetIdleTimerRef.current = () => {};
+    };
+  }, [authenticated, adminSession?.email]);
+
+  useEffect(() => {
+    function handleConnectionState(event) {
+      const nextState = event.detail?.state || '';
+      setConnectionState(nextState === 'connected' ? '' : nextState);
+      if (nextState === 'reconnecting' || nextState === 'connected') {
+        setError((current) => (current === ADMIN_RECONNECT_ERROR_MESSAGE ? '' : current));
+      }
+    }
+
+    window.addEventListener(ADMIN_CONNECTION_EVENT, handleConnectionState);
+    return () => window.removeEventListener(ADMIN_CONNECTION_EVENT, handleConnectionState);
+  }, []);
+
+  useEffect(() => {
+    if (!authenticated) return undefined;
+
+    let recoveryPromise = null;
+
+    async function recoverAfterResume() {
+      if (document.hidden || recoveryPromise) return;
+
+      if (Date.now() - lastActivityAtRef.current >= ADMIN_SESSION_TIMEOUT_MS) {
+        adminLogout().catch(() => {});
+        handleUnauthorizedSession(ADMIN_INACTIVITY_MESSAGE);
+        return;
+      }
+
+      setConnectionState('reconnecting');
+      setError((current) => (current === ADMIN_RECONNECT_ERROR_MESSAGE ? '' : current));
+      recoveryPromise = adminMe()
+        .then((session) => {
+          setAdminSession(session);
+          setConnectionState('');
+          setError((current) => (current === ADMIN_RECONNECT_ERROR_MESSAGE ? '' : current));
+          resetIdleTimerRef.current();
+          setDataRefreshVersion((current) => current + 1);
+        })
+        .catch((err) => {
+          if (err?.status === 401) {
+            handleUnauthorizedSession();
+            return;
+          }
+          setConnectionState('offline');
+          setError(err.message || ADMIN_RECONNECT_ERROR_MESSAGE);
+        })
+        .finally(() => {
+          recoveryPromise = null;
+        });
+
+      await recoveryPromise;
+    }
+
+    function handleVisibilityChange() {
+      if (document.visibilityState === 'visible') recoverAfterResume();
+    }
+
+    window.addEventListener('online', recoverAfterResume);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      window.removeEventListener('online', recoverAfterResume);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [authenticated, adminSession?.email]);
 
@@ -656,6 +736,25 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
     );
   }
 
+  if (sessionCheckError) {
+    return (
+      <section className={`${ui.card} mx-auto w-full max-w-4xl space-y-4`}>
+        <p className="font-semibold text-amber-800">Unable to reconnect to the server.</p>
+        <p className="text-sm leading-6 text-slate-600">We could not verify your admin session. Check your internet connection, then try again.</p>
+        <button
+          type="button"
+          className={ui.buttonPrimary}
+          onClick={() => {
+            setChecking(true);
+            setSessionCheckVersion((current) => current + 1);
+          }}
+        >
+          Try again
+        </button>
+      </section>
+    );
+  }
+
   if (!authenticated) {
     return (
       <AdminLogin
@@ -679,7 +778,13 @@ export default function AdminModule({ onBackHome, onGoForgotPassword }) {
           {error}
         </p>
       ) : null}
+      {connectionState === 'reconnecting' ? (
+        <p className="mx-auto mb-3 w-full max-w-[1280px] rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold leading-6 text-amber-800">
+          Reconnecting to the server…
+        </p>
+      ) : null}
       <AdminDashboard
+        dataRefreshVersion={dataRefreshVersion}
         currentAdmin={adminSession}
         canManageSales={adminSession?.isSuperAdmin || adminSession?.role === 'ADMIN'}
         isSuperAdmin={Boolean(adminSession?.isSuperAdmin || adminSession?.role === 'SUPERADMIN')}

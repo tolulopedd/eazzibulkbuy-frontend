@@ -187,6 +187,30 @@ function isCompletedFulfillment(item) {
   return item.fulfillmentStatus === 'PICKED_UP' || item.fulfillmentStatus === 'DELIVERED';
 }
 
+export function isFulfillmentCompletedToday(item, now = new Date()) {
+  if (!isCompletedFulfillment(item) || !item.fulfilledAt) return false;
+
+  const fulfilledAt = new Date(item.fulfilledAt);
+  if (Number.isNaN(fulfilledAt.getTime())) return false;
+
+  return formatDateInputValue(fulfilledAt) === formatDateInputValue(now);
+}
+
+function CompletedFulfillmentIndicator({ item, saving = false }) {
+  const completedToday = isFulfillmentCompletedToday(item);
+  const label = saving ? 'Saving...' : 'Completed';
+
+  if (!completedToday) {
+    return <span className="text-sm font-medium text-slate-500">{label}</span>;
+  }
+
+  return (
+    <span className="inline-flex min-h-9 items-center rounded-full border border-emerald-300 bg-emerald-100 px-3 py-1 text-sm font-bold text-emerald-800">
+      {label}
+    </span>
+  );
+}
+
 function findFulfillmentItem(order, itemIndex) {
   if (!order || !Array.isArray(order.fulfillmentItems)) {
     return null;
@@ -279,6 +303,7 @@ function buildFulfillmentRows(orders, query) {
 }
 
 export default function AdminFulfillmentPanel({
+  refreshSignal = 0,
   onLoadOrders,
   onUpdateFulfillmentStatus,
   onUpdatePartialFulfillment,
@@ -307,31 +332,100 @@ export default function AdminFulfillmentPanel({
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   const [activeTab, setActiveTab] = useState('fulfillment');
   const [partialQuantities, setPartialQuantities] = useState({});
+  const [liveConnectionState, setLiveConnectionState] = useState('checking');
+  const [lastSyncedAt, setLastSyncedAt] = useState(null);
+  const [pullDistance, setPullDistance] = useState(0);
+  const [pullRefreshing, setPullRefreshing] = useState(false);
   const didInitFiltersRef = useRef(false);
+  const didInitRefreshSignalRef = useRef(false);
+  const latestQueryRef = useRef(query);
+  const updatingReferenceRef = useRef(updatingReference);
+  const backgroundRefreshInFlightRef = useRef(false);
+  const foregroundLoadInFlightRef = useRef(false);
+  const pullStartYRef = useRef(null);
 
-  async function loadFulfillment(nextQuery = query) {
-    setLoading(true);
-    setError('');
+  function applyFulfillmentResponse(response, nextQuery) {
+    setOrders(response.items || []);
+    setMeta({
+      page: response.page || nextQuery.page,
+      limit: response.limit || nextQuery.limit,
+      total: response.total || 0,
+      totalPages: response.totalPages || 1,
+    });
+    setLastSyncedAt(new Date());
+    setLiveConnectionState('connected');
+  }
+
+  async function loadFulfillment(nextQuery = query, { silent = false } = {}) {
+    if (!silent) {
+      foregroundLoadInFlightRef.current = true;
+      setLoading(true);
+      setError('');
+    }
     try {
       const response = await onLoadOrders({
         ...nextQuery,
         startDate: toIsoBoundary(nextQuery.startDate),
         endDate: toIsoBoundary(nextQuery.endDate, true),
       });
-      setOrders(response.items || []);
-      setMeta({
-        page: response.page || nextQuery.page,
-        limit: response.limit || nextQuery.limit,
-        total: response.total || 0,
-        totalPages: response.totalPages || 1,
-      });
+      applyFulfillmentResponse(response, nextQuery);
       return response;
     } catch (err) {
-      setError(err.message || 'Unable to load pickup and delivery orders right now.');
+      setLiveConnectionState('offline');
+      if (!silent) {
+        setError(err.message || 'Unable to load pickup and delivery orders right now.');
+      }
       return null;
     } finally {
-      setLoading(false);
+      if (!silent) {
+        foregroundLoadInFlightRef.current = false;
+        setLoading(false);
+      }
     }
+  }
+
+  async function refreshFulfillmentInBackground({ showPullIndicator = false } = {}) {
+    if (
+      backgroundRefreshInFlightRef.current
+      || foregroundLoadInFlightRef.current
+      || updatingReferenceRef.current
+      || (typeof document !== 'undefined' && document.visibilityState === 'hidden')
+    ) {
+      return null;
+    }
+
+    backgroundRefreshInFlightRef.current = true;
+    if (showPullIndicator) setPullRefreshing(true);
+    try {
+      return await loadFulfillment(latestQueryRef.current, { silent: true });
+    } finally {
+      backgroundRefreshInFlightRef.current = false;
+      if (showPullIndicator) setPullRefreshing(false);
+    }
+  }
+
+  function handlePullStart(event) {
+    const scrollContainer = event.currentTarget.closest('main');
+    if (event.touches.length !== 1 || (scrollContainer?.scrollTop || 0) > 0 || pullRefreshing) {
+      pullStartYRef.current = null;
+      return;
+    }
+    pullStartYRef.current = event.touches[0].clientY;
+  }
+
+  function handlePullMove(event) {
+    if (pullStartYRef.current === null || event.touches.length !== 1) return;
+    const distance = Math.max(0, event.touches[0].clientY - pullStartYRef.current);
+    const resistedDistance = Math.min(88, distance * 0.45);
+    setPullDistance(resistedDistance);
+    if (resistedDistance > 0) event.preventDefault();
+  }
+
+  function handlePullEnd() {
+    const shouldRefresh = pullDistance >= 60;
+    pullStartYRef.current = null;
+    setPullDistance(0);
+    if (shouldRefresh) refreshFulfillmentInBackground({ showPullIndicator: true });
   }
 
   function mergeUpdatedFulfillmentOrder(updatedOrder) {
@@ -360,6 +454,30 @@ export default function AdminFulfillmentPanel({
   useEffect(() => {
     loadFulfillment(createDefaultQuery());
   }, []);
+
+  useEffect(() => {
+    latestQueryRef.current = query;
+  }, [query]);
+
+  useEffect(() => {
+    updatingReferenceRef.current = updatingReference;
+  }, [updatingReference]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      refreshFulfillmentInBackground();
+    }, 15000);
+
+    return () => window.clearInterval(timer);
+  }, [onLoadOrders]);
+
+  useEffect(() => {
+    if (!didInitRefreshSignalRef.current) {
+      didInitRefreshSignalRef.current = true;
+      return;
+    }
+    refreshFulfillmentInBackground();
+  }, [refreshSignal]);
 
   useEffect(() => {
     if (!didInitFiltersRef.current) {
@@ -732,12 +850,33 @@ export default function AdminFulfillmentPanel({
   ].filter((location, index, list) => location && list.indexOf(location) === index);
 
   return (
-    <section className="space-y-5">
+    <section
+      className="space-y-5 overscroll-y-contain"
+      onTouchStart={handlePullStart}
+      onTouchMove={handlePullMove}
+      onTouchEnd={handlePullEnd}
+      onTouchCancel={handlePullEnd}
+    >
+      <div
+        className="flex items-center justify-center overflow-hidden text-sm font-semibold text-emerald-800 transition-[height] duration-150 md:hidden"
+        style={{ height: pullRefreshing ? 38 : pullDistance }}
+        aria-live="polite"
+      >
+        {pullRefreshing ? 'Refreshing fulfilment…' : pullDistance >= 60 ? 'Release to refresh' : pullDistance > 0 ? 'Pull down to refresh' : ''}
+      </div>
       <section className={ui.card}>
         <div className="space-y-5">
-          <div className="space-y-2">
-            <h1 className="text-2xl font-bold tracking-tight text-emerald-950">Fulfilment</h1>
-            <p className="leading-6 text-slate-600">Confirm pickup or delivery for paid orders and download the current delivery view to Excel.</p>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="space-y-2">
+              <h1 className="text-2xl font-bold tracking-tight text-emerald-950">Fulfilment</h1>
+              <p className="leading-6 text-slate-600">Confirm pickup or delivery for paid orders and download the current delivery view to Excel.</p>
+            </div>
+            <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-bold ${liveConnectionState === 'connected' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
+              <span className={`h-2.5 w-2.5 rounded-full ${liveConnectionState === 'connected' ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+              {liveConnectionState === 'connected'
+                ? `Live updates${lastSyncedAt ? ` · ${lastSyncedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}`
+                : liveConnectionState === 'checking' ? 'Connecting…' : 'Connection interrupted'}
+            </div>
           </div>
 
           <div className="flex flex-nowrap gap-3 overflow-x-auto rounded-[1.75rem] border border-[#dfe3dc] bg-white p-2 overscroll-x-contain">
@@ -1048,9 +1187,10 @@ export default function AdminFulfillmentPanel({
                         </button>
                       ) : canRevertFulfillment && isCompletedFulfillment(order) && !order.isPartialFulfillment ? (
                         <div className="inline-flex items-center justify-end gap-2">
-                          <span className="text-sm font-medium text-slate-500">
-                            {updatingReference === `${order.orderReference}:${order.itemIndex}` ? 'Saving...' : 'Completed'}
-                          </span>
+                          <CompletedFulfillmentIndicator
+                            item={order}
+                            saving={updatingReference === `${order.orderReference}:${order.itemIndex}`}
+                          />
                           <button
                             type="button"
                             className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
@@ -1067,9 +1207,10 @@ export default function AdminFulfillmentPanel({
                         </div>
                       ) : canRevertFulfillment && isCompletedFulfillment(order) && order.isPartialFulfillment ? (
                         <div className="inline-flex items-center justify-end gap-2">
-                          <span className="text-sm font-medium text-slate-500">
-                            {updatingReference === `undo-partial:${order.orderReference}:${order.itemIndex}` ? 'Saving...' : 'Completed'}
-                          </span>
+                          <CompletedFulfillmentIndicator
+                            item={order}
+                            saving={updatingReference === `undo-partial:${order.orderReference}:${order.itemIndex}`}
+                          />
                           <button
                             type="button"
                             className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
@@ -1085,7 +1226,7 @@ export default function AdminFulfillmentPanel({
                           </button>
                         </div>
                       ) : (
-                        <span className="text-sm font-medium text-slate-500">Completed</span>
+                        <CompletedFulfillmentIndicator item={order} />
                       )}
                     </td>
                   </tr>

@@ -1,6 +1,13 @@
 import { buildApiUrl } from './config';
 
 const ADMIN_SESSION_STORAGE_KEY = 'eazzibulkbuy_admin_session_token';
+export const ADMIN_CONNECTION_EVENT = 'eazzibulkbuy:admin-connection';
+export const ADMIN_RECONNECT_ERROR_MESSAGE = 'Unable to reconnect to the server. Check your internet connection and try again.';
+
+const READ_RETRY_DELAYS_MS = [800, 2000];
+const RETRYABLE_READ_STATUSES = new Set([408, 425, 429, 502, 503, 504]);
+let reconnectingReadRequests = 0;
+let adminConnectionOffline = false;
 
 function canUseStorage() {
   return typeof window !== 'undefined' && typeof window.sessionStorage !== 'undefined';
@@ -53,17 +60,106 @@ function formatValidationDetails(details) {
     .join(' ');
 }
 
+function notifyConnectionState(state) {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent(ADMIN_CONNECTION_EVENT, { detail: { state } }));
+}
+
+function beginReadReconnect() {
+  reconnectingReadRequests += 1;
+  notifyConnectionState('reconnecting');
+}
+
+function finishReadReconnect(state) {
+  reconnectingReadRequests = Math.max(0, reconnectingReadRequests - 1);
+  if (state === 'offline') {
+    adminConnectionOffline = true;
+    notifyConnectionState('offline');
+  } else if (reconnectingReadRequests === 0) {
+    adminConnectionOffline = false;
+    notifyConnectionState('connected');
+  }
+}
+
+function notifyRecoveredConnection() {
+  if (!adminConnectionOffline) return;
+  adminConnectionOffline = false;
+  notifyConnectionState('connected');
+}
+
+function waitForRetry(delayMs) {
+  return new Promise((resolve) => setTimeout(resolve, delayMs));
+}
+
+function createReconnectError(status) {
+  const error = new Error(ADMIN_RECONNECT_ERROR_MESSAGE);
+  error.isConnectionError = true;
+  if (status) error.status = status;
+  return error;
+}
+
+async function fetchWithReadRetry(url, options = {}) {
+  const method = String(options.method || 'GET').toUpperCase();
+  if (method !== 'GET') {
+    return fetch(url, options);
+  }
+
+  let reconnecting = false;
+
+  for (let attempt = 0; attempt <= READ_RETRY_DELAYS_MS.length; attempt += 1) {
+    try {
+      const response = await fetch(url, options);
+      const shouldRetry = RETRYABLE_READ_STATUSES.has(response.status);
+
+      if (shouldRetry && attempt < READ_RETRY_DELAYS_MS.length) {
+        if (!reconnecting) {
+          reconnecting = true;
+          beginReadReconnect();
+        }
+        await waitForRetry(READ_RETRY_DELAYS_MS[attempt]);
+        continue;
+      }
+
+      if (shouldRetry) {
+        if (reconnecting) finishReadReconnect('offline');
+        throw createReconnectError(response.status);
+      }
+
+      if (reconnecting) finishReadReconnect('connected');
+      else notifyRecoveredConnection();
+      return response;
+    } catch (error) {
+      if (error?.isConnectionError) throw error;
+
+      if (attempt < READ_RETRY_DELAYS_MS.length) {
+        if (!reconnecting) {
+          reconnecting = true;
+          beginReadReconnect();
+        }
+        await waitForRetry(READ_RETRY_DELAYS_MS[attempt]);
+        continue;
+      }
+
+      if (reconnecting) finishReadReconnect('offline');
+      throw createReconnectError();
+    }
+  }
+
+  throw createReconnectError();
+}
+
 async function request(path, options = {}) {
   let response;
   const headers = withAdminSessionHeaders(options.headers || {});
   try {
-    response = await fetch(buildApiUrl(path), {
+    response = await fetchWithReadRetry(buildApiUrl(path), {
       credentials: 'include',
       ...options,
       headers,
     });
-  } catch {
-    throw new Error('Unable to reach backend API. Check that the production API base URL is configured correctly.');
+  } catch (error) {
+    if (error?.isConnectionError) throw error;
+    throw createReconnectError();
   }
 
   if (!response.ok) {
@@ -248,7 +344,7 @@ export async function uploadAdminProduceImage(file) {
       body: file,
     });
   } catch {
-    throw new Error('Unable to reach backend API. Check that the production API base URL is configured correctly.');
+    throw createReconnectError();
   }
 
   if (!response.ok) {
@@ -297,7 +393,7 @@ export async function deleteAdminPickupLocation(pickupLocationId) {
       headers: withAdminSessionHeaders(),
     });
   } catch {
-    throw new Error('Unable to reach backend API. Check that the production API base URL is configured correctly.');
+    throw createReconnectError();
   }
 
   if (!response.ok) {
@@ -322,7 +418,7 @@ export async function deleteAdminPickupNoticeTemplate(templateId) {
       headers: withAdminSessionHeaders(),
     });
   } catch {
-    throw new Error('Unable to reach backend API. Check that the production API base URL is configured correctly.');
+    throw createReconnectError();
   }
 
   if (!response.ok) {
@@ -347,7 +443,7 @@ export async function deleteAdminProduceItem(produceItemId) {
       headers: withAdminSessionHeaders(),
     });
   } catch {
-    throw new Error('Unable to reach backend API. Check that the production API base URL is configured correctly.');
+    throw createReconnectError();
   }
 
   if (!response.ok) {
@@ -441,7 +537,7 @@ export async function deleteSalesItem(salesItemId) {
       headers: withAdminSessionHeaders(),
     });
   } catch {
-    throw new Error('Unable to reach backend API. Check that the production API base URL is configured correctly.');
+    throw createReconnectError();
   }
 
   if (!response.ok) {
@@ -502,12 +598,12 @@ export async function exportAdminReports(params = {}) {
   const suffix = search.toString() ? `?${search.toString()}` : '';
   let response;
   try {
-    response = await fetch(buildApiUrl(`/api/admin/reports/export${suffix}`), {
+    response = await fetchWithReadRetry(buildApiUrl(`/api/admin/reports/export${suffix}`), {
       credentials: 'include',
       headers: withAdminSessionHeaders(),
     });
   } catch {
-    throw new Error('Unable to reach backend API. Check that the production API base URL is configured correctly.');
+    throw createReconnectError();
   }
 
   if (!response.ok) {
@@ -643,12 +739,12 @@ export async function exportAdminCustomers(params = {}) {
   const suffix = search.toString() ? `?${search.toString()}` : '';
   let response;
   try {
-    response = await fetch(buildApiUrl(`/api/admin/customers/export${suffix}`), {
+    response = await fetchWithReadRetry(buildApiUrl(`/api/admin/customers/export${suffix}`), {
       credentials: 'include',
       headers: withAdminSessionHeaders(),
     });
   } catch {
-    throw new Error('Unable to reach backend API. Check that the production API base URL is configured correctly.');
+    throw createReconnectError();
   }
 
   if (!response.ok) {
@@ -762,12 +858,12 @@ export async function exportAdminOrders(params = {}) {
   const suffix = search.toString() ? `?${search.toString()}` : '';
   let response;
   try {
-    response = await fetch(buildApiUrl(`/api/admin/orders/export${suffix}`), {
+    response = await fetchWithReadRetry(buildApiUrl(`/api/admin/orders/export${suffix}`), {
       credentials: 'include',
       headers: withAdminSessionHeaders(),
     });
   } catch {
-    throw new Error('Unable to reach backend API. Check that the production API base URL is configured correctly.');
+    throw createReconnectError();
   }
 
   if (!response.ok) {
